@@ -1,0 +1,30 @@
+{
+    "name": "dungeon-dice",
+    "version": "1.0.0",
+    "type": "module",
+    "scripts": {
+        "dev": "vite",
+        "build": "tsc && vite build",
+        "preview": "vite preview",
+        "test": "vitest run"
+    },
+    "dependencies": {
+        "ably": "^2.14.0",
+        "phaser": "^3.90.0",
+        "react": "^19.3.1",
+        "react-dom": "^19.3.1"
+    },
+    "devDependencies": {
+        "@eslint/js": "^10.0.1",
+        "@vercel/node": "^5.3.0",
+        "@types/react": "^19.3.0",
+        "@types/react-dom": "^19.3.0",
+        "eslint": "^10.14.0",
+        "eslint-config-prettier": "^10.1.8",
+        "prettier": "^3.9.10",
+        "typescript": "~5.8.0",
+        "typescript-eslint": "^8.72.1",
+        "vite": "^6.3.0",
+        "vitest": "^5.1.0"
+    }
+}

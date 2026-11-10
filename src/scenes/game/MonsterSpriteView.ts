@@ -1,0 +1,275 @@
+import Phaser from "phaser";
+
+import { MONSTER_SPRITES, type MonsterSpriteAction } from "../../data/monsterSprites";
+import { getFacingFromMovement } from "../../game/monsterActions";
+
+import type { Monster, Facing, PlacedMonster, Position } from "../../types/GameTypes";
+
+interface MonsterSpriteState {
+    readonly sprite: Phaser.GameObjects.Sprite;
+    readonly monster: Monster;
+    position: Position;
+    facing: Facing;
+    action: MonsterSpriteAction;
+    isMoving: boolean;
+    isGrayscale: boolean;
+    isDead: boolean;
+}
+
+function textureKey(monsterId: string, action: MonsterSpriteAction, facing: Facing): string {
+    return `monster-${monsterId}-${action}-${facing}`;
+}
+
+export class MonsterSpriteView {
+    private readonly scene: Phaser.Scene;
+    private readonly container: Phaser.GameObjects.Container;
+    private readonly toScreen: (position: Position) => Position;
+    private readonly sprites = new Map<string, MonsterSpriteState>();
+
+    static preload(scene: Phaser.Scene): void {
+        for (const [monsterId, definition] of Object.entries(MONSTER_SPRITES)) {
+            for (const [action, animation] of Object.entries(definition.animations) as [
+                MonsterSpriteAction,
+                NonNullable<(typeof definition.animations)[MonsterSpriteAction]>,
+            ][]) {
+                for (const [facing, file] of Object.entries(animation.files) as [
+                    Facing,
+                    string,
+                ][]) {
+                    scene.load.spritesheet(textureKey(monsterId, action, facing), file, {
+                        frameWidth: definition.frameWidth,
+                        frameHeight: definition.frameHeight,
+                    });
+                }
+            }
+        }
+    }
+
+    constructor(scene: Phaser.Scene, toScreen: (position: Position) => Position) {
+        this.scene = scene;
+        this.toScreen = toScreen;
+        this.container = scene.add.container(0, 0).setDepth(1);
+        this.createAnimations();
+    }
+
+    render(monsters: readonly PlacedMonster[], grayscale = false): void {
+        const spriteMonsters = monsters.filter(
+            (monster) =>
+                MONSTER_SPRITES[monster.monster.id] &&
+                (monster.currentHp > 0 || this.sprites.get(monster.id)?.isDead),
+        );
+        const activeIds = new Set(spriteMonsters.map((monster) => monster.id));
+
+        for (const [id, state] of this.sprites) {
+            if (!activeIds.has(id)) {
+                state.sprite.destroy();
+                this.sprites.delete(id);
+            }
+        }
+
+        for (const monster of spriteMonsters) {
+            const state = this.sprites.get(monster.id) ?? this.createSprite(monster);
+            if (state.isDead) continue;
+            if (grayscale && !state.isGrayscale) {
+                state.sprite.postFX.addColorMatrix().grayscale();
+                state.isGrayscale = true;
+            }
+            const angleChanged = state.facing !== monster.facing;
+            if (!state.isMoving) {
+                state.facing = monster.facing;
+                const center = this.toScreen(monster.position);
+                state.sprite.setPosition(center.x, center.y - 3);
+                state.position = { ...monster.position };
+                state.sprite.setDepth(monster.position.x + monster.position.y + 1);
+            }
+
+            if (!state.isMoving && angleChanged && state.action === "idle") {
+                this.play(state, state.action);
+            } else if (!state.isMoving && state.action === "idle") {
+                this.play(state, "idle");
+            }
+        }
+    }
+
+    createPreview(
+        monster: Monster,
+        facing: Facing,
+        container: Phaser.GameObjects.Container,
+        x: number,
+        y: number,
+    ): Phaser.GameObjects.GameObject {
+        const definition = MONSTER_SPRITES[monster.id];
+        if (definition?.animations.idle) {
+            const key = textureKey(monster.id, "idle", facing);
+            const sprite = this.scene.add
+                .sprite(x, y, key)
+                .setOrigin(0.5, 0.58)
+                .setScale(definition.previewScale ?? 0.75);
+            container.add(sprite);
+            sprite.play(key);
+            return sprite;
+        }
+
+        const preview = this.scene.add.container(x, y);
+        const token = this.scene.add.circle(0, 0, 18, monster.color);
+        const symbol = this.scene.add
+            .text(0, 0, monster.symbol, {
+                fontFamily: "Arial",
+                fontSize: "18px",
+                color: "#ffffff",
+                fontStyle: "bold",
+            })
+            .setOrigin(0.5);
+        preview.add([token, symbol]);
+        container.add(preview);
+        this.scene.tweens.add({
+            targets: preview,
+            y: y - 3,
+            duration: 650,
+            yoyo: true,
+            repeat: -1,
+            ease: "Sine.easeInOut",
+        });
+        return preview;
+    }
+
+    isMoving(id: string): boolean {
+        return this.sprites.get(id)?.isMoving ?? false;
+    }
+
+    moveMonster(
+        id: string,
+        path: readonly Position[],
+        finalFacing: Facing,
+        onComplete: () => void,
+    ): void {
+        const state = this.sprites.get(id);
+        if (!state || path.length === 0) return;
+
+        state.action = "move";
+        state.isMoving = true;
+        const moveToStep = (index: number): void => {
+            const destination = path[index];
+            if (!destination) {
+                state.facing = finalFacing;
+                state.isMoving = false;
+                state.action = "idle";
+                this.play(state, "idle");
+                onComplete();
+                return;
+            }
+
+            state.facing = getFacingFromMovement(state.position, destination, state.facing);
+            this.play(state, "move");
+            const center = this.toScreen(destination);
+            this.scene.tweens.add({
+                targets: state.sprite,
+                x: center.x,
+                y: center.y - 3,
+                duration: 350,
+                ease: "Linear",
+                onComplete: () => {
+                    state.position = { ...destination };
+                    state.sprite.setDepth(destination.x + destination.y + 1);
+                    moveToStep(index + 1);
+                },
+            });
+        };
+        moveToStep(0);
+    }
+
+    playAttack(id: string): void {
+        const state = this.sprites.get(id);
+        if (!state || state.isDead || !MONSTER_SPRITES[state.monster.id]?.animations.attack) return;
+
+        state.action = "attack";
+        state.isMoving = false;
+        this.play(state, "attack");
+        state.sprite.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
+            if (state.action !== "attack") return;
+            state.action = "idle";
+            this.play(state, "idle");
+        });
+    }
+
+    takeDamage(id: string, currentHp: number, position: Position): void {
+        const state = this.sprites.get(id);
+        const animation = currentHp <= 0 ? "death" : "hit";
+        if (!state || state.isDead || !MONSTER_SPRITES[state.monster.id]?.animations[animation])
+            return;
+
+        this.scene.tweens.killTweensOf(state.sprite);
+        state.position = { ...position };
+        const center = this.toScreen(position);
+        state.sprite.setPosition(center.x, center.y - 3);
+        state.sprite.setDepth(position.x + position.y + 1);
+        state.isMoving = false;
+        state.action = animation;
+        state.isDead = currentHp <= 0;
+        this.play(state, animation, true);
+        state.sprite.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
+            if (state.action !== animation || state.isDead) return;
+            state.action = "idle";
+            this.play(state, "idle");
+        });
+    }
+
+    private createSprite(monster: PlacedMonster): MonsterSpriteState {
+        const definition = MONSTER_SPRITES[monster.monster.id];
+        const center = this.toScreen(monster.position);
+        const sprite = this.scene.add
+            .sprite(center.x, center.y - 3, textureKey(monster.monster.id, "idle", monster.facing))
+            .setOrigin(definition.originX, definition.originY)
+            .setScale(definition.scale);
+        const state: MonsterSpriteState = {
+            sprite,
+            monster: monster.monster,
+            position: { ...monster.position },
+            facing: monster.facing,
+            action: "idle",
+            isMoving: false,
+            isGrayscale: false,
+            isDead: false,
+        };
+        this.container.add(sprite);
+        this.sprites.set(monster.id, state);
+        this.play(state, "idle");
+        return state;
+    }
+
+    private createAnimations(): void {
+        for (const [monsterId, definition] of Object.entries(MONSTER_SPRITES)) {
+            for (const [action, animation] of Object.entries(definition.animations) as [
+                MonsterSpriteAction,
+                NonNullable<(typeof definition.animations)[MonsterSpriteAction]>,
+            ][]) {
+                for (const facing of Object.keys(animation.files) as Facing[]) {
+                    const key = textureKey(monsterId, action, facing);
+                    if (this.scene.anims.exists(key)) continue;
+
+                    this.scene.anims.create({
+                        key,
+                        frames: this.scene.anims.generateFrameNumbers(key, {
+                            start: 0,
+                            end: animation.frames - 1,
+                        }),
+                        frameRate: animation.frameRate,
+                        repeat:
+                            action === "attack" || action === "hit" || action === "death" ? 0 : -1,
+                    });
+                }
+            }
+        }
+    }
+
+    private play(state: MonsterSpriteState, action: MonsterSpriteAction, restart = false): void {
+        const definition = MONSTER_SPRITES[state.monster.id];
+        const spriteAction = definition?.animations[action] ? action : "idle";
+        const animation = definition?.animations[spriteAction];
+        if (!animation) return;
+
+        const facing = animation.files[state.facing] ? state.facing : "south";
+        const key = textureKey(state.monster.id, spriteAction, facing);
+        if (restart || state.sprite.anims.currentAnim?.key !== key) state.sprite.play(key);
+    }
+}
