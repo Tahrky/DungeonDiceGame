@@ -14,11 +14,17 @@ Le prototype utilise Ably Realtime pour les salles, la présence des joueurs et 
 ### Lancer une partie
 
 1. Ouvrez l’application dans deux navigateurs ou profils distincts.
-2. Dans le premier, choisissez **Créer une salle**, puis partagez le code affiché.
-3. Dans le second, choisissez **Rejoindre une salle**, entrez le code et attendez la connexion.
+2. Dans le premier, choisissez **Créer ou rejoindre une salle**, puis partagez le code affiché.
+3. Dans le second, choisissez le même bouton et entrez le code reçu.
 4. La partie démarre automatiquement lorsque les deux joueurs sont connectés. Chaque joueur joue son tour depuis son propre navigateur.
 
 Chaque joueur utilise le deck sauvegardé sur son appareil, ou le deck par défaut.
+
+## Sprites animés
+
+Les spritesheets peuvent être organisées en grille (comme le golem) ou sur une seule ligne (comme le chevalier). Chaque frame doit avoir les dimensions indiquées par `frameWidth` et `frameHeight` dans `src/data/monsterSprites.ts` (180 × 180 actuellement). Le jeu détecte automatiquement le nombre de frames dans chaque image à partir de la texture chargée; il n’est pas nécessaire de le renseigner dans la configuration. Le nombre de frames peut donc varier selon l’action.
+
+Pour enregistrer un monstre ou une action, il faut toutefois ajouter ses chemins de fichiers et sa fréquence d’animation dans `MONSTER_SPRITES`. Les fichiers sont actuellement fournis dans les quatre orientations (`000`, `090`, `180`, `270`) avec la convention de nommage de `directionalFiles`.
 
 ### Limites du prototype
 

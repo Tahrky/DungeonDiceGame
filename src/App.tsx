@@ -275,15 +275,6 @@ export function App() {
         setScreen("room");
     }
 
-    function openJoinRoom(): void {
-        roomStartRequestedRef.current = false;
-        setRoomPlayers([]);
-        setRoomError("");
-        setRoomRole("guest");
-        setRoomCode("");
-        setScreen("room");
-    }
-
     function joinRoom(code: string): void {
         roomStartRequestedRef.current = false;
         setRoomPlayers([]);
@@ -333,7 +324,6 @@ export function App() {
         <div id="app">
             <header>
                 <h1>DUNGEON DICE</h1>
-                <p>Choisissez vos monstres. Prenez le contrôle du donjon.</p>
             </header>
 
             <main>
@@ -342,7 +332,6 @@ export function App() {
                         canPlay={game !== null}
                         onPlay={startComputerGame}
                         onCreateRoom={createRoom}
-                        onJoinRoom={openJoinRoom}
                         onEditDeck={() => setScreen("deck")}
                     />
                 )}
@@ -365,8 +354,6 @@ export function App() {
                 )}
                 <div id="game-container" ref={gameContainerRef} hidden={screen !== "game"} />
             </main>
-
-            <footer>Dungeon Dice · Jeu tactique 1 contre 1</footer>
         </div>
     );
 }

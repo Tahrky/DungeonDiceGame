@@ -14,6 +14,8 @@ export interface GameViewState {
     playerHealth: Record<PlayerId, number>;
     availableMonsters: Monster[];
     computerOpponent: boolean;
+    onlineGame: boolean;
+    isLocalTurn: boolean;
     winner: PlayerId | null;
     hasRolled: boolean;
     rolledDice: RolledDie[];

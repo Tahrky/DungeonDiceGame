@@ -32,6 +32,7 @@ interface ButtonOptions {
     rightAligned?: boolean;
     muted?: boolean;
     uniformSize?: boolean;
+    width?: number;
 }
 
 interface IconButtonOptions {
@@ -130,10 +131,19 @@ export class GameHud {
         }
 
         if (!state.hasRolled) {
-            this.addButton("LANCER LES DES", HUD_RIGHT, 12, actions.rollDice, {
-                rightAligned: true,
-                uniformSize: true,
-            });
+            const waitingForOpponent = state.onlineGame && !state.isLocalTurn;
+            this.addButton(
+                waitingForOpponent ? "TOUR DE L’ADVERSAIRE" : "LANCER LES DES",
+                HUD_RIGHT,
+                12,
+                actions.rollDice,
+                {
+                    rightAligned: true,
+                    uniformSize: true,
+                    enabled: !waitingForOpponent,
+                    width: waitingForOpponent ? 220 : undefined,
+                },
+            );
         } else {
             this.renderMonsterSelection(state, actions);
         }
@@ -147,19 +157,24 @@ export class GameHud {
             const x = 20 + index * 132;
             const color = player === 1 ? "#ff8d78" : "#70bdff";
             const background = this.scene.add
-                .rectangle(x, 78, 120, 48, 0x202a36, 1)
+                .rectangle(x, 78, 120, 56, 0x202a36, 1)
                 .setOrigin(0)
                 .setStrokeStyle(1, player === 1 ? 0xff8d78 : 0x70bdff, 0.65);
             this.container.add(background);
 
+            const bottomBorder = this.scene.add.graphics();
+            bottomBorder.lineStyle(1, player === 1 ? 0xff8d78 : 0x70bdff, 0.65);
+            bottomBorder.lineBetween(x, 134, x + 120, 134);
+            this.container.add(bottomBorder);
+
             const currentHealth = Phaser.Math.Clamp(health[player], 0, PLAYER_MAX_HEALTH);
-            this.addText(`JOUEUR ${player}`, x + 8, 84, color, 12);
+            this.addText(`JOUEUR ${player}`, x + 8, 82, color, 12);
             this.addText(
                 Array.from({ length: PLAYER_MAX_HEALTH }, (_, life) =>
                     life < currentHealth ? "♥" : "♡",
                 ).join("  "),
                 x + 8,
-                101,
+                98,
                 color,
                 14,
             );
@@ -217,12 +232,18 @@ export class GameHud {
                 .setStrokeStyle(1, color, 0.45);
             this.container.add(background);
 
-            const actionLabel =
-                entry.type === "invocation"
-                    ? "INVOCATION"
-                    : entry.type === "movement"
-                      ? "DÉPLACEMENT"
-                      : "ATTAQUE";
+            let actionLabel: string;
+            switch (entry.type) {
+                case "invocation":
+                    actionLabel = "INVOCATION";
+                    break;
+                case "movement":
+                    actionLabel = "DÉPLACEMENT";
+                    break;
+                case "attack":
+                    actionLabel = "ATTAQUE";
+                    break;
+            }
             this.addText(
                 `J${entry.player} · ${actionLabel}`,
                 ACTION_LOG_X + 16,
@@ -231,12 +252,18 @@ export class GameHud {
                 11,
             );
 
-            const description =
-                entry.type === "invocation"
-                    ? `${entry.monsterName} · coût : ${entry.cost}`
-                    : entry.type === "movement"
-                      ? `${entry.monsterName} · ${entry.distance} case${entry.distance > 1 ? "s" : ""}`
-                      : `${entry.attackerName} → ${entry.targetName} · ${entry.damage} dégât${entry.damage > 1 ? "s" : ""}`;
+            let description: string;
+            switch (entry.type) {
+                case "invocation":
+                    description = `${entry.monsterName} · coût : ${entry.cost}`;
+                    break;
+                case "movement":
+                    description = `${entry.monsterName} · ${entry.distance} case${entry.distance > 1 ? "s" : ""}`;
+                    break;
+                case "attack":
+                    description = `${entry.attackerName} → ${entry.targetName} · ${entry.damage} dégât${entry.damage > 1 ? "s" : ""}`;
+                    break;
+            }
             const details = this.scene.add.text(ACTION_LOG_X + 16, y + 23, description, {
                 fontFamily: "Arial",
                 fontSize: "11px",
@@ -949,6 +976,7 @@ export class GameHud {
             rightAligned = false,
             muted = false,
             uniformSize = false,
+            width = HUD_BUTTON_WIDTH,
         } = options;
         let color = "#ffffff";
         let backgroundColor = "#a45e39";
@@ -967,7 +995,7 @@ export class GameHud {
             align: uniformSize ? "center" : "left",
             padding: uniformSize ? { x: 6, y: 7 } : { x: 10, y: 8 },
         });
-        if (uniformSize) button.setFixedSize(HUD_BUTTON_WIDTH, HUD_BUTTON_HEIGHT);
+        if (uniformSize) button.setFixedSize(width, HUD_BUTTON_HEIGHT);
         if (rightAligned) button.setOrigin(1, 0);
         if (!enabled) {
             this.container.add(button);

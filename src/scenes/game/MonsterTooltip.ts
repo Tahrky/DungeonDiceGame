@@ -14,6 +14,17 @@ import type {
     Position,
 } from "../../types/GameTypes";
 
+interface MonsterTooltipOptions {
+    readonly key: string;
+    readonly monster: Monster;
+    readonly hp: number;
+    readonly owner: PlayerId;
+    readonly x: number;
+    readonly y: number;
+    readonly alignLeft: boolean;
+    readonly facing: Facing;
+}
+
 export class MonsterTooltip {
     private hoveredMonsterKey: string | null = null;
     private readonly scene: Phaser.Scene;
@@ -59,30 +70,30 @@ export class MonsterTooltip {
 
         if (hovered) {
             const center = this.toScreen(hovered.position);
-            this.show(
-                `${hovered.id}:${hovered.position.x},${hovered.position.y}:${hovered.currentHp}`,
-                hovered.monster,
-                hovered.currentHp,
-                hovered.owner,
-                center.x,
-                center.y - 40,
-                false,
-                "south",
-            );
+            this.show({
+                key: `${hovered.id}:${hovered.position.x},${hovered.position.y}:${hovered.currentHp}`,
+                monster: hovered.monster,
+                hp: hovered.currentHp,
+                owner: hovered.owner,
+                x: center.x,
+                y: center.y - 40,
+                alignLeft: false,
+                facing: "south",
+            });
             return;
         }
 
         if (invocationMonster) {
-            this.show(
-                `invocation:${invocationMonster.id}`,
-                invocationMonster,
-                invocationMonster.hp,
-                currentPlayer,
-                pointer.x,
-                pointer.y - 40,
-                true,
-                "south",
-            );
+            this.show({
+                key: `invocation:${invocationMonster.id}`,
+                monster: invocationMonster,
+                hp: invocationMonster.hp,
+                owner: currentPlayer,
+                x: pointer.x,
+                y: pointer.y - 40,
+                alignLeft: true,
+                facing: "south",
+            });
             return;
         }
 
@@ -90,16 +101,8 @@ export class MonsterTooltip {
         this.hoveredMonsterKey = null;
     }
 
-    private show(
-        key: string,
-        monster: Monster,
-        hp: number,
-        owner: PlayerId,
-        x: number,
-        y: number,
-        alignLeft = false,
-        facing: Facing = "south",
-    ): void {
+    private show(options: MonsterTooltipOptions): void {
+        const { key, monster, hp, owner, x, y, alignLeft, facing } = options;
         const isNewTooltip = this.hoveredMonsterKey !== key;
         if (isNewTooltip) {
             this.container.removeAll(true);
@@ -151,23 +154,23 @@ export class MonsterTooltip {
                     fontSize: "13px",
                     color: "#ffffff",
                 })
-                .setPadding(0, 2);
+                .setPadding(0, 2, 4, 0);
             const currentHp = this.scene.add
                 .text(contentX + hpLabel.width, hpY, `${hp}`, {
                     fontFamily: "Arial",
                     fontSize: "13px",
                     color: hp < monster.hp ? "#ff5555" : "#ffffff",
                 })
-                .setPadding(0, 2);
+                .setPadding(0, 2, 4, 0);
             const hpTotal = this.scene.add
                 .text(currentHp.x + currentHp.width, hpY, ` / ${monster.hp}`, {
                     fontFamily: "Arial",
                     fontSize: "13px",
                     color: "#ffffff",
                 })
-                .setPadding(0, 2);
+                .setPadding(0, 2, 4, 0);
             const hpRowWidth = hpLabel.width + currentHp.width + hpTotal.width;
-            const detailsY = hpY + Math.max(hpLabel.height, currentHp.height, hpTotal.height) + 6;
+            const detailsY = hpY + Math.max(hpLabel.height, currentHp.height, hpTotal.height) + 2;
             const details = this.scene.add.text(
                 contentX,
                 detailsY,
@@ -186,12 +189,28 @@ export class MonsterTooltip {
             );
             invocationCost.setX(contentX + textWidth - invocationCost.width);
             const width = contentX + textWidth;
+            const tooltipVerticalPadding =
+                MONSTER_SPRITES[monster.id]?.tooltipVerticalPadding ?? 32;
+            const previewOffsetY = MONSTER_SPRITES[monster.id]?.previewOffsetY ?? 0;
             const background = this.scene.add
-                .rectangle(0, 0, width + 16, details.y + details.height + 18, 0x151b25, 0.95)
+                .rectangle(
+                    0,
+                    0,
+                    width + 16,
+                    details.y + details.height + tooltipVerticalPadding,
+                    0x151b25,
+                    0.95,
+                )
                 .setOrigin(0)
                 .setStrokeStyle(1, monster.color);
             this.container.add(background);
-            this.createMonsterPreview(monster, facing, this.container, 52, background.height / 2);
+            this.createMonsterPreview(
+                monster,
+                facing,
+                this.container,
+                52,
+                background.height / 2 + previewOffsetY,
+            );
             this.container.add([
                 title,
                 playerLabel,

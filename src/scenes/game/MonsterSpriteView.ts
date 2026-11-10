@@ -77,8 +77,12 @@ export class MonsterSpriteView {
             const angleChanged = state.facing !== monster.facing;
             if (!state.isMoving) {
                 state.facing = monster.facing;
-                const center = this.toScreen(monster.position);
-                state.sprite.setPosition(center.x, center.y - 3);
+                const spritePosition = this.getSpritePosition(
+                    monster.position,
+                    state.monster.id,
+                    state.facing,
+                );
+                state.sprite.setPosition(spritePosition.x, spritePosition.y);
                 state.position = { ...monster.position };
                 state.sprite.setDepth(monster.position.x + monster.position.y + 1);
             }
@@ -103,7 +107,7 @@ export class MonsterSpriteView {
             const key = textureKey(monster.id, "idle", facing);
             const sprite = this.scene.add
                 .sprite(x, y, key)
-                .setOrigin(0.5, 0.58)
+                .setOrigin(0.5)
                 .setScale(definition.previewScale ?? 0.75);
             container.add(sprite);
             sprite.play(key);
@@ -161,11 +165,11 @@ export class MonsterSpriteView {
 
             state.facing = getFacingFromMovement(state.position, destination, state.facing);
             this.play(state, "move");
-            const center = this.toScreen(destination);
+            const spritePosition = this.getSpritePosition(destination, state.monster.id, state.facing);
             this.scene.tweens.add({
                 targets: state.sprite,
-                x: center.x,
-                y: center.y - 3,
+                x: spritePosition.x,
+                y: spritePosition.y,
                 duration: 350,
                 ease: "Linear",
                 onComplete: () => {
@@ -178,15 +182,19 @@ export class MonsterSpriteView {
         moveToStep(0);
     }
 
-    playAttack(id: string): void {
+    playAttack(id: string, attackIndex = 0): void {
         const state = this.sprites.get(id);
-        if (!state || state.isDead || !MONSTER_SPRITES[state.monster.id]?.animations.attack) return;
+        if (!state || state.isDead) return;
+        const animations = MONSTER_SPRITES[state.monster.id]?.animations;
+        const action =
+            attackIndex > 0 && animations?.strongAttack ? "strongAttack" : "attack";
+        if (!animations?.[action]) return;
 
-        state.action = "attack";
+        state.action = action;
         state.isMoving = false;
-        this.play(state, "attack");
+        this.play(state, action);
         state.sprite.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
-            if (state.action !== "attack") return;
+            if (state.action !== action) return;
             state.action = "idle";
             this.play(state, "idle");
         });
@@ -200,8 +208,8 @@ export class MonsterSpriteView {
 
         this.scene.tweens.killTweensOf(state.sprite);
         state.position = { ...position };
-        const center = this.toScreen(position);
-        state.sprite.setPosition(center.x, center.y - 3);
+        const spritePosition = this.getSpritePosition(position, state.monster.id, state.facing);
+        state.sprite.setPosition(spritePosition.x, spritePosition.y);
         state.sprite.setDepth(position.x + position.y + 1);
         state.isMoving = false;
         state.action = animation;
@@ -216,9 +224,9 @@ export class MonsterSpriteView {
 
     private createSprite(monster: PlacedMonster): MonsterSpriteState {
         const definition = MONSTER_SPRITES[monster.monster.id];
-        const center = this.toScreen(monster.position);
+        const position = this.getSpritePosition(monster.position, monster.monster.id, monster.facing);
         const sprite = this.scene.add
-            .sprite(center.x, center.y - 3, textureKey(monster.monster.id, "idle", monster.facing))
+            .sprite(position.x, position.y, textureKey(monster.monster.id, "idle", monster.facing))
             .setOrigin(definition.originX, definition.originY)
             .setScale(definition.scale);
         const state: MonsterSpriteState = {
@@ -237,6 +245,12 @@ export class MonsterSpriteView {
         return state;
     }
 
+    private getSpritePosition(position: Position, monsterId: string, facing: Facing): Position {
+        const center = this.toScreen(position);
+        const offsetY = MONSTER_SPRITES[monsterId]?.facingOffsetY?.[facing] ?? 0;
+        return { x: center.x, y: center.y - 3 + offsetY };
+    }
+
     private createAnimations(): void {
         for (const [monsterId, definition] of Object.entries(MONSTER_SPRITES)) {
             for (const [action, animation] of Object.entries(definition.animations) as [
@@ -246,16 +260,25 @@ export class MonsterSpriteView {
                 for (const facing of Object.keys(animation.files) as Facing[]) {
                     const key = textureKey(monsterId, action, facing);
                     if (this.scene.anims.exists(key)) continue;
+                    const frameCount = this.scene.textures.get(key).frameTotal - 1;
+                    if (frameCount < 1) {
+                        throw new Error(`Sprite sheet "${key}" does not contain animation frames.`);
+                    }
 
                     this.scene.anims.create({
                         key,
                         frames: this.scene.anims.generateFrameNumbers(key, {
                             start: 0,
-                            end: animation.frames - 1,
+                            end: frameCount - 1,
                         }),
                         frameRate: animation.frameRate,
                         repeat:
-                            action === "attack" || action === "hit" || action === "death" ? 0 : -1,
+                            action === "attack" ||
+                            action === "strongAttack" ||
+                            action === "hit" ||
+                            action === "death"
+                                ? 0
+                                : -1,
                     });
                 }
             }

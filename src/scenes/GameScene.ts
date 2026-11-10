@@ -205,7 +205,7 @@ export class GameScene extends Phaser.Scene {
         this.uiContainer = this.add.container(0, 0).setDepth(2);
         this.tooltipContainer = this.add.container(0, 0).setDepth(10);
 
-        this.boardView = new BoardView(this.boardGraphics, (position) =>
+        this.boardView = new BoardView(this, this.boardGraphics, (position) =>
             this.gridToScreen(position),
         );
         this.monsterSpriteView = new MonsterSpriteView(this, (position) =>
@@ -268,6 +268,8 @@ export class GameScene extends Phaser.Scene {
             playerHealth: this.playerHealth,
             availableMonsters: this.getDeckMonsters(this.currentPlayer),
             computerOpponent: this.computerOpponent,
+            onlineGame: this.mode === "online",
+            isLocalTurn: this.currentPlayer === this.localPlayer,
             winner: this.winner,
             hasRolled: this.hasRolled,
             rolledDice: this.rolledDice,
@@ -784,7 +786,7 @@ export class GameScene extends Phaser.Scene {
         const attack = attacker.monster.attacks[attackIndex];
         const zone = this.getAttackZoneForTarget(attacker, attack, targetPosition);
         if (!zone || !this.spendCurrentSymbol("attack", attack.cost)) return;
-        this.monsterSpriteView.playAttack(attacker.id);
+        this.monsterSpriteView.playAttack(attacker.id, attackIndex);
 
         if (attack.hitsAllies || attack.movesToZone) {
             this.executeAreaAttack(attacker, attack, zone);

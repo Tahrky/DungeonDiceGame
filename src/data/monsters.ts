@@ -3,9 +3,9 @@ import type { Monster } from "../types/GameTypes";
 export const MONSTERS: Monster[] = [
     {
         id: "golem",
-        name: "Golem de feu",
+        name: "Golem de glace",
         symbol: "G",
-        color: 0xe45b3e,
+        color: 0x54b8e8,
         cost: 2,
         hp: 5,
         attacks: [
@@ -21,14 +21,14 @@ export const MONSTERS: Monster[] = [
 
     {
         id: "dragon",
-        name: "Dragon de glace",
+        name: "Dragon de feu",
         symbol: "D",
-        color: 0x54b8e8,
+        color: 0xe45b3e,
         cost: 4,
         hp: 8,
         attacks: [
             {
-                name: "Souffle glacé",
+                name: "Souffle enflammé",
                 damage: 3,
                 cost: 1,
                 pattern: { type: "line", range: 4, length: 3, allDirections: true },
@@ -68,20 +68,27 @@ export const MONSTERS: Monster[] = [
 
     {
         id: "knight",
-        name: "Chevalier maudit",
+        name: "Chevalier guépardg",
         symbol: "K",
         color: 0xa17bd4,
-        cost: 3,
+        cost: 0,
         hp: 6,
         attacks: [
             {
                 name: "Corps à corps",
                 damage: 2,
-                cost: 1,
+                cost: 0,
+                pattern: { type: "adjacent" },
+            },
+            {
+                name: "Corps à corps puissant",
+                damage: 4,
+                cost: 0,
                 pattern: { type: "adjacent" },
             },
         ],
         movementRange: 2,
+        movementCost: 0,
     },
     {
         id: "sneaky-thief",

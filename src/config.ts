@@ -9,4 +9,6 @@ export const GAME_CONFIG = {
 
     boardOffsetX: 720,
     boardOffsetY: 105,
+
+    showDirectionLabels: false,
 };

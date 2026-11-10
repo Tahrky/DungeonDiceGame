@@ -2,11 +2,10 @@ interface MainMenuProps {
     readonly canPlay: boolean;
     readonly onPlay: () => void;
     readonly onCreateRoom: () => void;
-    readonly onJoinRoom: () => void;
     readonly onEditDeck: () => void;
 }
 
-export function MainMenu({ canPlay, onPlay, onCreateRoom, onJoinRoom, onEditDeck }: MainMenuProps) {
+export function MainMenu({ canPlay, onPlay, onCreateRoom, onEditDeck }: MainMenuProps) {
     return (
         <section id="menu-screen" aria-live="polite">
             <section id="main-menu" className="menu-panel">
@@ -30,20 +29,8 @@ export function MainMenu({ canPlay, onPlay, onCreateRoom, onJoinRoom, onEditDeck
                             ⌂
                         </span>
                         <span>
-                            <strong>Créer une salle</strong>
-                            <small>Invitez un joueur avec un code de salle.</small>
-                        </span>
-                        <span className="choice-arrow" aria-hidden="true">
-                            →
-                        </span>
-                    </button>
-                    <button className="menu-choice" onClick={onJoinRoom}>
-                        <span className="choice-icon" aria-hidden="true">
-                            ↪
-                        </span>
-                        <span>
-                            <strong>Rejoindre une salle</strong>
-                            <small>Saisissez le code reçu de votre adversaire.</small>
+                            <strong>Créer ou rejoindre une salle</strong>
+                            <small>Créez un code ou saisissez celui de votre adversaire.</small>
                         </span>
                         <span className="choice-arrow" aria-hidden="true">
                             →

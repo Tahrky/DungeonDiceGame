@@ -56,12 +56,19 @@ function toGrayscale(color: number): number {
 }
 
 export class BoardView {
+    private readonly scene: Phaser.Scene;
     private readonly graphics: Phaser.GameObjects.Graphics;
     private readonly toScreen: (position: Position) => Position;
 
-    constructor(graphics: Phaser.GameObjects.Graphics, toScreen: (position: Position) => Position) {
+    constructor(
+        scene: Phaser.Scene,
+        graphics: Phaser.GameObjects.Graphics,
+        toScreen: (position: Position) => Position,
+    ) {
+        this.scene = scene;
         this.graphics = graphics;
         this.toScreen = toScreen;
+        if (GAME_CONFIG.showDirectionLabels) this.drawDirectionLabels();
     }
 
     screenToGrid(position: Position): Position {
@@ -130,6 +137,51 @@ export class BoardView {
         ];
         this.graphics.fillPoints(points, true);
         this.graphics.strokePoints(points, true);
+    }
+
+    private drawDirectionLabels(): void {
+        const { boardSize, tileWidth, tileHeight } = GAME_CONFIG;
+        const lastIndex = boardSize - 1;
+        const labels = [
+            {
+                text: "N",
+                position: this.toScreen({ x: 0, y: 0 }),
+                offsetX: 0,
+                offsetY: -(tileHeight / 2 + 14),
+            },
+            {
+                text: "E",
+                position: this.toScreen({ x: lastIndex, y: 0 }),
+                offsetX: tileWidth / 2 + 14,
+                offsetY: 0,
+            },
+            {
+                text: "S",
+                position: this.toScreen({ x: lastIndex, y: lastIndex }),
+                offsetX: 0,
+                offsetY: tileHeight / 2 + 14,
+            },
+            {
+                text: "O",
+                position: this.toScreen({ x: 0, y: lastIndex }),
+                offsetX: -(tileWidth / 2 + 14),
+                offsetY: 0,
+            },
+        ];
+
+        for (const { text, position, offsetX, offsetY } of labels) {
+            this.scene.add
+                .text(position.x + offsetX, position.y + offsetY, text, {
+                    fontFamily: "Arial",
+                    fontSize: "16px",
+                    fontStyle: "bold",
+                    color: "#f1cf65",
+                    stroke: "#202a36",
+                    strokeThickness: 4,
+                })
+                .setOrigin(0.5)
+                .setDepth(2);
+        }
     }
 
     private getCellStyle(cell: Position, context: CellRenderContext): CellStyle {
