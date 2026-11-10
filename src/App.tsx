@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Ably from "ably";
 import Phaser from "phaser";
 
@@ -66,6 +66,7 @@ export function App() {
     const channelRef = useRef<Ably.RealtimeChannel | null>(null);
     const hostClientIdRef = useRef<string | null>(null);
     const guestClientIdRef = useRef<string | null>(null);
+    const roomStartRequestedRef = useRef(false);
     const [game, setGame] = useState<Phaser.Game | null>(null);
     const [screen, setScreen] = useState<Screen>("menu");
     const [roomCode, setRoomCode] = useState("");
@@ -150,17 +151,17 @@ export function App() {
         const handlePresence = (): void => {
             void updatePlayers();
         };
-        const handleStart = (message: Ably.Message): void => {
+        const handleStart = async (message: Ably.Message): Promise<void> => {
+            if (roomRole !== "guest") return;
+            if (hostClientIdRef.current === null) await updatePlayers();
             if (
-                roomRole !== "guest" ||
+                !active ||
                 message.clientId !== hostClientIdRef.current ||
                 typeof message.data !== "object" ||
                 message.data === null ||
                 !("hostDeck" in message.data) ||
                 !("guestDeck" in message.data)
-            ) {
-                return;
-            }
+            ) return;
 
             const hostDeck = parseDeck(message.data.hostDeck);
             const guestDeck = parseDeck(message.data.guestDeck);
@@ -266,6 +267,7 @@ export function App() {
         const code = [...randomValues]
             .map((value) => ROOM_CODE_CHARACTERS[value % ROOM_CODE_CHARACTERS.length])
             .join("");
+        roomStartRequestedRef.current = false;
         setRoomPlayers([]);
         setRoomError("");
         setRoomRole("host");
@@ -274,6 +276,7 @@ export function App() {
     }
 
     function openJoinRoom(): void {
+        roomStartRequestedRef.current = false;
         setRoomPlayers([]);
         setRoomError("");
         setRoomRole("guest");
@@ -282,32 +285,43 @@ export function App() {
     }
 
     function joinRoom(code: string): void {
+        roomStartRequestedRef.current = false;
         setRoomPlayers([]);
         setRoomError("");
         setRoomRole("guest");
         setRoomCode(code);
     }
 
-    async function startRoomGame(): Promise<void> {
+    const startRoomGame = useCallback(async (): Promise<void> => {
         const hostDeck = getSavedDeck() ?? getDefaultDeck();
         const guestDeck = roomPlayers.find((player) => player.role === "guest")?.deck;
         const channel = channelRef.current;
+        if (roomStartRequestedRef.current) return;
         if (roomRole !== "host" || !guestDeck || roomPlayers.length !== 2 || !channel) {
             setRoomError("Deux joueurs doivent être connectés pour démarrer.");
             return;
         }
 
+        roomStartRequestedRef.current = true;
         try {
             await channel.publish("start", { hostDeck, guestDeck });
             startOnlineGame(gameRef.current, 1, true, hostDeck, guestDeck);
             setScreen("game");
         } catch (error) {
+            roomStartRequestedRef.current = false;
             setRoomStatus("error");
             setRoomError(getErrorMessage(error));
         }
-    }
+    }, [roomPlayers, roomRole]);
+
+    useEffect(() => {
+        if (roomRole === "host" && roomStatus === "connected" && roomPlayers.length === 2) {
+            void startRoomGame();
+        }
+    }, [roomPlayers, roomRole, roomStatus, startRoomGame]);
 
     function leaveRoom(): void {
+        roomStartRequestedRef.current = false;
         setRoomRole(null);
         setRoomCode("");
         setRoomPlayers([]);
@@ -342,7 +356,6 @@ export function App() {
                         roomError={roomError}
                         onBack={leaveRoom}
                         onJoinRoom={joinRoom}
-                        onStartGame={startRoomGame}
                     />
                 )}
                 {screen === "game" && roomError && (

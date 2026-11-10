@@ -9,14 +9,14 @@ Le prototype utilise Ably Realtime pour les salles, la présence des joueurs et 
 1. Dans le tableau de bord Ably, ouvrez votre application et copiez une clé API depuis **API Keys**.
 2. Dans Vercel, ouvrez le projet, puis **Settings → Environment Variables**. Ajoutez `ABLY_API_KEY` avec la clé Ably comme valeur et activez les environnements nécessaires. Ne préfixez pas cette variable par `VITE_`.
 3. Redéployez le projet pour que la fonction Vercel puisse lire cette variable.
-4. En local, créez un fichier `.env.local` à la racine contenant `ABLY_API_KEY=...` (ne le commitez jamais), puis lancez `npx vercel dev`. `npm run dev` seul ne sert pas la fonction `/api`.
+4. En local, créez un fichier `.env.local` à la racine contenant `ABLY_API_KEY=...` (ne le commitez jamais), puis lancez `npm run dev`. Vite sert aussi la fonction `/api/ably-token` pendant le développement.
 
 ### Lancer une partie
 
 1. Ouvrez l’application dans deux navigateurs ou profils distincts.
 2. Dans le premier, choisissez **Créer une salle**, puis partagez le code affiché.
 3. Dans le second, choisissez **Rejoindre une salle**, entrez le code et attendez la connexion.
-4. Lorsque les deux joueurs sont connectés, l’hôte démarre la partie. Chaque joueur joue son tour depuis son propre navigateur.
+4. La partie démarre automatiquement lorsque les deux joueurs sont connectés. Chaque joueur joue son tour depuis son propre navigateur.
 
 Chaque joueur utilise le deck sauvegardé sur son appareil, ou le deck par défaut.
 

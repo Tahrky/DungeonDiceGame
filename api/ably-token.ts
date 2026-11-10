@@ -4,26 +4,18 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 
 const ROOM_CODE_PATTERN = /^[A-HJ-NP-Z2-9]{8}$/;
 
-export default async function handler(
-    request: VercelRequest,
-    response: VercelResponse,
-): Promise<void> {
-    if (request.method !== "GET") {
-        response.setHeader("Allow", "GET");
-        response.status(405).json({ error: "Méthode non autorisée." });
-        return;
-    }
-
-    const roomCode = request.query.roomCode;
+export async function createAblyTokenResponse(
+    method: string | undefined,
+    roomCode: unknown,
+): Promise<{ status: number; body: unknown }> {
+    if (method !== "GET") return { status: 405, body: { error: "Méthode non autorisée." } };
     if (typeof roomCode !== "string" || !ROOM_CODE_PATTERN.test(roomCode)) {
-        response.status(400).json({ error: "Code de salle invalide." });
-        return;
+        return { status: 400, body: { error: "Code de salle invalide." } };
     }
 
     const apiKey = process.env.ABLY_API_KEY;
     if (!apiKey) {
-        response.status(500).json({ error: "La clé API Ably n'est pas configurée." });
-        return;
+        return { status: 500, body: { error: "La clé API Ably n'est pas configurée." } };
     }
 
     try {
@@ -37,9 +29,18 @@ export default async function handler(
             ttl: 60 * 60 * 1000,
         });
 
-        response.status(200).json(tokenRequest);
+        return { status: 200, body: tokenRequest };
     } catch (error) {
         console.error("Échec de création du jeton Ably.", error);
-        response.status(500).json({ error: "Impossible de créer le jeton Ably." });
+        return { status: 500, body: { error: "Impossible de créer le jeton Ably." } };
     }
+}
+
+export default async function handler(
+    request: VercelRequest,
+    response: VercelResponse,
+): Promise<void> {
+    const result = await createAblyTokenResponse(request.method, request.query.roomCode);
+    if (result.status === 405) response.setHeader("Allow", "GET");
+    response.status(result.status).json(result.body);
 }

@@ -8,7 +8,6 @@ interface RoomScreenProps {
     readonly roomError: string;
     readonly onBack: () => void;
     readonly onJoinRoom: (code: string) => void;
-    readonly onStartGame: () => void;
 }
 
 export function RoomScreen({
@@ -19,7 +18,6 @@ export function RoomScreen({
     roomError,
     onBack,
     onJoinRoom,
-    onStartGame,
 }: RoomScreenProps) {
     const [joinCode, setJoinCode] = useState("");
     const [notice, setNotice] = useState("");
@@ -67,9 +65,9 @@ export function RoomScreen({
                 </h2>
                 <p className="panel-description">
                     {isHost
-                        ? "Partagez ce code. La partie démarre lorsque l’adversaire rejoint."
+                        ? "Partagez ce code. La partie démarre automatiquement lorsque l’adversaire rejoint."
                         : roomCode
-                          ? "Vous êtes connecté à la salle. En attendant l’hôte, gardez cette page ouverte."
+                          ? "Vous êtes connecté à la salle. Gardez cette page ouverte en attendant le démarrage."
                           : "Saisissez le code à huit caractères communiqué par l’hôte."}
                 </p>
                 {roomCode && (
@@ -103,15 +101,6 @@ export function RoomScreen({
                 <output className="notice" aria-live="polite">
                     {roomError || notice || statusMessage}
                 </output>
-                {isHost && roomStatus === "connected" && (
-                    <button
-                        className="primary-button"
-                        onClick={onStartGame}
-                        disabled={playerCount !== 2}
-                    >
-                        Démarrer la partie
-                    </button>
-                )}
                 <p className="room-disclaimer">
                     Prototype : l’hôte contrôle l’état de la partie. Les jetons Ably sont limités à
                     cette salle, mais les actions ne sont pas validées par un serveur anti-triche.
