@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import Ably from "ably";
+import { createClient, type Message, type PresenceMessage, type RealtimeChannel } from "@ably/pubsub-device";
 import Phaser from "phaser";
 
 import { DeckEditor } from "./components/DeckEditor";
@@ -27,7 +27,7 @@ function getErrorMessage(error: unknown): string {
     return error instanceof Error ? error.message : "Erreur de connexion inconnue.";
 }
 
-function readRoomPlayer(member: Ably.PresenceMessage): RoomPlayer | null {
+function readRoomPlayer(member: PresenceMessage): RoomPlayer | null {
     const data = member.data;
     if (typeof member.clientId !== "string" || typeof data !== "object" || data === null) {
         return null;
@@ -63,7 +63,7 @@ function startOnlineGame(
 export function App() {
     const gameContainerRef = useRef<HTMLDivElement>(null);
     const gameRef = useRef<Phaser.Game | null>(null);
-    const channelRef = useRef<Ably.RealtimeChannel | null>(null);
+    const channelRef = useRef<RealtimeChannel | null>(null);
     const hostClientIdRef = useRef<string | null>(null);
     const guestClientIdRef = useRef<string | null>(null);
     const roomStartRequestedRef = useRef(false);
@@ -117,7 +117,7 @@ export function App() {
         hostClientIdRef.current = null;
         guestClientIdRef.current = null;
 
-        const realtime = new Ably.Realtime({
+        const realtime = createClient({
             authUrl: `/api/ably-token?roomCode=${encodeURIComponent(roomCode)}`,
             authMethod: "GET",
         });
@@ -151,7 +151,7 @@ export function App() {
         const handlePresence = (): void => {
             void updatePlayers();
         };
-        const handleStart = async (message: Ably.Message): Promise<void> => {
+        const handleStart = async (message: Message): Promise<void> => {
             if (roomRole !== "guest") return;
             if (hostClientIdRef.current === null) await updatePlayers();
             if (
@@ -177,12 +177,12 @@ export function App() {
                 setRoomError(getErrorMessage(error));
             }
         };
-        const handleGameState = (message: Ably.Message): void => {
+        const handleGameState = (message: Message): void => {
             if (roomRole === "guest" && message.clientId === hostClientIdRef.current) {
                 gameRef.current?.events.emit("remote-game-state", message.data);
             }
         };
-        const handleGameCommand = (message: Ably.Message): void => {
+        const handleGameCommand = (message: Message): void => {
             if (
                 roomRole === "host" &&
                 message.clientId === guestClientIdRef.current &&

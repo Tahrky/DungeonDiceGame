@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import Ably from "ably";
+import { createHttpClient } from "@ably/pubsub-server";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
 const ROOM_CODE_PATTERN = /^[A-HJ-NP-Z2-9]{8}$/;
@@ -19,7 +19,7 @@ export async function createAblyTokenResponse(
     }
 
     try {
-        const ably = new Ably.Rest({ key: apiKey });
+        const ably = createHttpClient({ key: apiKey });
         const channelName = `dungeon-dice:room:${roomCode}`;
         const tokenRequest = await ably.auth.createTokenRequest({
             clientId: randomUUID(),
