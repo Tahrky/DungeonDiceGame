@@ -1,11 +1,36 @@
-import type { Facing } from "../types/GameTypes";
+import type { Facing, PlayerId } from "../types/GameTypes";
 
 export type MonsterSpriteAction = "idle" | "move" | "attack" | "strongAttack" | "hit" | "death";
 
-export interface MonsterSpriteAnimation {
-    readonly frameRate: number;
-    readonly files: Readonly<Record<Facing, string>>;
-}
+export type MonsterSpriteFacing =
+    | "east"
+    | "southEast"
+    | "south"
+    | "southWest"
+    | "west"
+    | "northWest"
+    | "north"
+    | "northEast";
+
+export const GRID_FACING_TO_SPRITE_FACING: Readonly<Record<Facing, MonsterSpriteFacing>> = {
+    north: "northEast",
+    east: "southEast",
+    south: "southWest",
+    west: "northWest",
+};
+
+export type MonsterSpriteAnimation =
+    | {
+          readonly frameRate: number;
+          readonly files: Readonly<Record<Facing, string>>;
+      }
+    | {
+          readonly frameRate: number;
+          readonly spriteSheet: string;
+          readonly playerSpriteSheets?: Readonly<Record<PlayerId, string>>;
+          readonly framesPerRow: number;
+          readonly rows: Readonly<Record<MonsterSpriteFacing, number>>;
+      };
 
 export interface MonsterSpriteDefinition {
     readonly frameWidth: number;
@@ -35,6 +60,32 @@ function directionalFiles(
 
 const ICE_GOLEM_ASSET_ROOT = "/sprites/golem";
 const PANTHER_KNIGHT_ASSET_ROOT = "/sprites/panther-knight";
+const ARCHER_ASSET_ROOT = "/sprites/archer";
+const ARCHER_HUMAN_ASSET_ROOT = "/sprites/archerHuman";
+
+function archerAtlas(file: string): Pick<
+    Extract<MonsterSpriteAnimation, { spriteSheet: string }>,
+    "spriteSheet" | "playerSpriteSheets" | "framesPerRow" | "rows"
+> {
+    return {
+        spriteSheet: `${ARCHER_ASSET_ROOT}/${file}.png`,
+        playerSpriteSheets: {
+            1: `${ARCHER_ASSET_ROOT}/red/${file}.png`,
+            2: `${ARCHER_ASSET_ROOT}/blue/${file}.png`,
+        },
+        framesPerRow: 15,
+        rows: {
+            east: 0,
+            southEast: 1,
+            south: 2,
+            southWest: 3,
+            west: 4,
+            northWest: 5,
+            north: 6,
+            northEast: 7,
+        },
+    };
+}
 
 export const MONSTER_SPRITES: Readonly<Record<string, MonsterSpriteDefinition>> = {
     golem: {
@@ -56,7 +107,7 @@ export const MONSTER_SPRITES: Readonly<Record<string, MonsterSpriteDefinition>> 
             },
             attack: {
                 frameRate: 15,
-                files: directionalFiles(ICE_GOLEM_ASSET_ROOT, "Attack_01", "Attack_01"),
+                files: directionalFiles(ICE_GOLEM_ASSET_ROOT, "Attack", "Attack"),
             },
             hit: {
                 frameRate: 12,
@@ -102,6 +153,69 @@ export const MONSTER_SPRITES: Readonly<Record<string, MonsterSpriteDefinition>> 
             death: {
                 frameRate: 10,
                 files: directionalFiles(PANTHER_KNIGHT_ASSET_ROOT, "Death", "Death_01"),
+            },
+        },
+    },
+    archerHuman: {
+        frameWidth: 180,
+        frameHeight: 180,
+        scale: 0.4,
+        previewScale: 1,
+        previewOffsetY: -5,
+        originX: 0.5,
+        originY: 0.67,
+        facingOffsetY: {
+            north: 2,
+            east: 2,
+            south: 2,
+            west: 3,
+        },
+        animations: {
+            idle: {
+                frameRate: 8,
+                files: directionalFiles(ARCHER_HUMAN_ASSET_ROOT, "Idle", "Idle_Bow"),
+            },
+            move: {
+                frameRate: 12,
+                files: directionalFiles(ARCHER_HUMAN_ASSET_ROOT, "Walk", "WalkForward_Bow"),
+            },
+            attack: {
+                frameRate: 30,
+                files: directionalFiles(ARCHER_HUMAN_ASSET_ROOT, "Attack", "Attack_Bow"),
+            },
+            death: {
+                frameRate: 10,
+                files: directionalFiles(ARCHER_HUMAN_ASSET_ROOT, "Death", "Death_Bow"),
+            },
+        },
+    },
+    archer: {
+        frameWidth: 128,
+        frameHeight: 128,
+        scale: 0.65,
+        previewScale: 1,
+        originX: 0.5,
+        originY: 0.67,
+        animations: {
+            idle: {
+                frameRate: 8,
+                ...archerAtlas("Idle"),
+            },
+            move: {
+                frameRate: 12,
+                ...archerAtlas("Walk"),
+            },
+            attack: {
+                frameRate: 12,
+                ...archerAtlas("Attack"),
+            },
+            hit: {
+                frameRate: 12,
+                ...archerAtlas("TakeDamage"),
+            },
+            death: {
+                frameRate: 10,
+                ...archerAtlas("Die"),
             },
         },
     },

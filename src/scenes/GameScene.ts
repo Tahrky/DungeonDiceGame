@@ -216,8 +216,15 @@ export class GameScene extends Phaser.Scene {
             this,
             this.tooltipContainer,
             (position) => this.gridToScreen(position),
-            (monster, facing, container, x, y) =>
-                this.monsterSpriteView.createPreview(monster, facing, container, x, y),
+            (monster, facing, container, x, y, spriteFacingOverride) =>
+                this.monsterSpriteView.createPreview(
+                    monster,
+                    facing,
+                    container,
+                    x,
+                    y,
+                    spriteFacingOverride,
+                ),
         );
 
         this.render();

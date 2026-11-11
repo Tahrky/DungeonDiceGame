@@ -2,7 +2,7 @@ import Phaser from "phaser";
 
 import { GAME_CONFIG } from "../../config";
 import { DICE_SYMBOL_PRESENTATION } from "../../data/dice";
-import { MONSTER_SPRITES } from "../../data/monsterSprites";
+import { MONSTER_SPRITES, type MonsterSpriteFacing } from "../../data/monsterSprites";
 import { getMovementCost } from "../../game/monsterActions";
 
 import type {
@@ -22,7 +22,6 @@ interface MonsterTooltipOptions {
     readonly x: number;
     readonly y: number;
     readonly alignLeft: boolean;
-    readonly facing: Facing;
 }
 
 export class MonsterTooltip {
@@ -36,6 +35,7 @@ export class MonsterTooltip {
         container: Phaser.GameObjects.Container,
         x: number,
         y: number,
+        spriteFacingOverride?: MonsterSpriteFacing,
     ) => Phaser.GameObjects.GameObject;
 
     constructor(
@@ -78,7 +78,6 @@ export class MonsterTooltip {
                 x: center.x,
                 y: center.y - 40,
                 alignLeft: false,
-                facing: "south",
             });
             return;
         }
@@ -92,7 +91,6 @@ export class MonsterTooltip {
                 x: pointer.x,
                 y: pointer.y - 40,
                 alignLeft: true,
-                facing: "south",
             });
             return;
         }
@@ -102,7 +100,7 @@ export class MonsterTooltip {
     }
 
     private show(options: MonsterTooltipOptions): void {
-        const { key, monster, hp, owner, x, y, alignLeft, facing } = options;
+        const { key, monster, hp, owner, x, y, alignLeft } = options;
         const isNewTooltip = this.hoveredMonsterKey !== key;
         if (isNewTooltip) {
             this.container.removeAll(true);
@@ -206,10 +204,11 @@ export class MonsterTooltip {
             this.container.add(background);
             this.createMonsterPreview(
                 monster,
-                facing,
+                "south",
                 this.container,
                 52,
                 background.height / 2 + previewOffsetY,
+                "south",
             );
             this.container.add([
                 title,

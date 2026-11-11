@@ -3,7 +3,7 @@ import type { Monster } from "../types/GameTypes";
 export const MONSTERS: Monster[] = [
     {
         id: "golem",
-        name: "Golem de glace",
+        name: "Golem De Glace",
         symbol: "G",
         color: 0x54b8e8,
         cost: 2,
@@ -21,7 +21,7 @@ export const MONSTERS: Monster[] = [
 
     {
         id: "dragon",
-        name: "Dragon de feu",
+        name: "Dragon De Feu",
         symbol: "D",
         color: 0xe45b3e,
         cost: 4,
@@ -41,7 +41,7 @@ export const MONSTERS: Monster[] = [
 
     {
         id: "slime",
-        name: "Slime forestier",
+        name: "Slime Forestier",
         symbol: "S",
         color: 0x75c75a,
         cost: 1,
@@ -68,7 +68,7 @@ export const MONSTERS: Monster[] = [
 
     {
         id: "knight",
-        name: "Chevalier guépardg",
+        name: "Chevalier Guépard",
         symbol: "K",
         color: 0xa17bd4,
         cost: 0,
@@ -90,9 +90,10 @@ export const MONSTERS: Monster[] = [
         movementRange: 2,
         movementCost: 0,
     },
+
     {
-        id: "sneaky-thief",
-        name: "Voleur sournois",
+        id: "thief",
+        name: "Voleur Sournois",
         symbol: "V",
         color: 0xd4b35a,
         cost: 3,
@@ -108,26 +109,48 @@ export const MONSTERS: Monster[] = [
         movementRange: 3,
         bonusDamageFromBehind: 2,
     },
+
     {
-        id: "skeleton-archer",
-        name: "Archer squelette",
+        id: "archerHuman",
+        name: "Archère Humaine",
         symbol: "A",
         color: 0xc7c8c3,
-        cost: 2,
+        cost: 0,
         hp: 3,
         attacks: [
             {
                 name: "Tir précis",
                 damage: 1,
-                cost: 1,
+                cost: 0,
                 pattern: { type: "radius", range: 5 },
             },
         ],
         movementRange: 2,
+        movementCost: 0,
     },
+
+    {
+        id: "archer",
+        name: "Archer Squelette",
+        symbol: "A",
+        color: 0xc7c8c3,
+        cost: 0,
+        hp: 3,
+        attacks: [
+            {
+                name: "Tir précis",
+                damage: 1,
+                cost: 0,
+                pattern: { type: "radius", range: 5 },
+            },
+        ],
+        movementRange: 2,
+        movementCost: 0,
+    },
+
     {
         id: "gnome-archer",
-        name: "Arbalétrier gnome",
+        name: "Arbalétrier Gnome",
         symbol: "AG",
         color: 0xc7c8c3,
         cost: 4,
