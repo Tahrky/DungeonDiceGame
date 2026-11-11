@@ -255,12 +255,16 @@ export class MonsterSpriteView {
         moveToStep(0);
     }
 
-    playAttack(id: string, attackIndex = 0): void {
+    playAttack(id: string, attackIndex = 0, backstab = false): void {
         const state = this.sprites.get(id);
         if (!state || state.isDead) return;
         const animations = MONSTER_SPRITES[state.monster.id]?.animations;
         const action =
-            attackIndex > 0 && animations?.strongAttack ? "strongAttack" : "attack";
+            backstab && animations?.backstab
+                ? "backstab"
+                : attackIndex > 0 && animations?.strongAttack
+                  ? "strongAttack"
+                  : "attack";
         if (!animations?.[action]) return;
 
         state.action = action;
@@ -372,10 +376,14 @@ export class MonsterSpriteView {
                         const start =
                             sheet && "rows" in animation
                                 ? animation.rows[facing as MonsterSpriteFacing] *
-                                  animation.framesPerRow
+                                      animation.framesPerRow +
+                                  (animation.frameRange?.[0] ?? 0)
                                 : 0;
                         const end = sheet
-                            ? start + animation.framesPerRow - 1
+                            ? start +
+                              (animation.frameRange
+                                  ? animation.frameRange[1] - animation.frameRange[0]
+                                  : animation.framesPerRow - 1)
                             : totalFrames - 1;
                         if (totalFrames <= end) {
                             throw new Error(
@@ -393,6 +401,7 @@ export class MonsterSpriteView {
                             repeat:
                                 action === "attack" ||
                                 action === "strongAttack" ||
+                                action === "backstab" ||
                                 action === "hit" ||
                                 action === "death"
                                     ? 0

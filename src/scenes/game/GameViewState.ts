@@ -11,6 +11,7 @@ import type {
 
 export interface GameViewState {
     currentPlayer: PlayerId;
+    turnNumber: number;
     playerHealth: Record<PlayerId, number>;
     availableMonsters: Monster[];
     computerOpponent: boolean;

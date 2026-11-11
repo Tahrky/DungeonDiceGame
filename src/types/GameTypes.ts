@@ -20,6 +20,7 @@ export type RemoteGameCommand =
 
 export interface GameSnapshot {
     currentPlayer: PlayerId;
+    turnNumber: number;
     playerHealth: Record<PlayerId, number>;
     winner: PlayerId | null;
     hasRolled: boolean;
@@ -73,7 +74,8 @@ export type AttackPattern =
           length?: number;
           allDirections?: boolean;
       }
-    | { type: "area"; range: number; width: 2; depth: 2 }
+    | { type: "area"; range: number; width: number; depth: number }
+    | { type: "directionalArea"; width: number; depth: number }
     | { type: "jumpArea"; range: number; width: 2; depth: 2 }
     | { type: "radius"; range: number };
 
@@ -82,6 +84,7 @@ export interface MonsterAttack {
     damage: number;
     cost: number;
     pattern: AttackPattern;
+    cooldownTurns?: number;
     hitsAllies?: boolean;
     movesToZone?: boolean;
 }
@@ -96,6 +99,7 @@ export interface Monster {
     hp: number;
     attacks: MonsterAttack[];
     movementRange: number;
+    movementActionsPerTurn?: number;
     movementCost?: number;
     flying?: boolean;
     bonusDamageFromBehind?: number;
@@ -109,6 +113,9 @@ export interface PlacedMonster {
     facing: Facing;
     currentHp: number;
     cells: Position[];
+    attacksUsedThisTurn: number;
+    movementsUsedThisTurn: number;
+    attackCooldowns: number[];
 }
 
 export type GameActionLogEntry =

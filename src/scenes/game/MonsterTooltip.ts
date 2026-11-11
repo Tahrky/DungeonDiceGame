@@ -3,12 +3,14 @@ import Phaser from "phaser";
 import { GAME_CONFIG } from "../../config";
 import { DICE_SYMBOL_PRESENTATION } from "../../data/dice";
 import { MONSTER_SPRITES, type MonsterSpriteFacing } from "../../data/monsterSprites";
-import { getMovementCost } from "../../game/monsterActions";
+import {
+    describeMonsterAttack,
+    describeMonsterMovement,
+} from "../../game/monsterDescriptions";
 
 import type {
     Facing,
     Monster,
-    MonsterAttack,
     PlacedMonster,
     PlayerId,
     Position,
@@ -104,17 +106,11 @@ export class MonsterTooltip {
         const isNewTooltip = this.hoveredMonsterKey !== key;
         if (isNewTooltip) {
             this.container.removeAll(true);
-            const attacks = monster.attacks
-                .map((attack) => {
-                    const pattern = this.getAttackPatternDescription(attack);
-                    const special =
-                        attack.movesToZone && attack.pattern.type !== "jumpArea" ? ", saut" : "";
-                    return `${attack.name} : ${attack.damage} dégâts, ${attack.cost} ⚔️ (${pattern}${special})`;
-                })
-                .join("\n");
+            const attacks = monster.attacks.map(describeMonsterAttack).join("\n");
             const backstab = monster.bonusDamageFromBehind
                 ? `\nBonus de dos : +${monster.bonusDamageFromBehind} dégâts`
                 : "";
+            const contentWidth = Math.min(400, GAME_CONFIG.screenWidth - 128);
             const contentX = 104;
             const title = this.scene.add.text(
                 contentX,
@@ -122,14 +118,14 @@ export class MonsterTooltip {
                 `${monster.name}${monster.flying ? " (volant)" : ""}`,
                 {
                     fontFamily: "Arial",
-                    fontSize: "13px",
+                    fontSize: "15px",
                     color: "#ffffff",
                     lineSpacing: 3,
                 },
             );
             const playerLabel = this.scene.add.text(title.x + title.width + 6, 6, `J${owner}`, {
                 fontFamily: "Arial",
-                fontSize: "13px",
+                fontSize: "15px",
                 color: owner === 1 ? "#ff8d78" : "#70bdff",
             });
             const invocationCost = this.scene.add.text(
@@ -138,7 +134,7 @@ export class MonsterTooltip {
                 `${monster.cost} ${DICE_SYMBOL_PRESENTATION.invocation.emoji}`,
                 {
                     fontFamily: "Arial",
-                    fontSize: "13px",
+                    fontSize: "15px",
                     color: "#ffffff",
                 },
             );
@@ -149,7 +145,7 @@ export class MonsterTooltip {
             const hpLabel = this.scene.add
                 .text(contentX, hpY, "PV : ", {
                     fontFamily: "Arial",
-                    fontSize: "13px",
+                    fontSize: "15px",
                     color: "#ffffff",
                 })
                 .setPadding(0, 2, 4, 0);
@@ -172,17 +168,17 @@ export class MonsterTooltip {
             const details = this.scene.add.text(
                 contentX,
                 detailsY,
-                `${attacks}\nDéplacement : ${monster.movementRange}, coût : ${getMovementCost(monster)} ${DICE_SYMBOL_PRESENTATION.movement.emoji}${backstab}`,
+                `${attacks}\n${describeMonsterMovement(monster)}${backstab}`,
                 {
                     fontFamily: "Arial",
-                    fontSize: "13px",
+                    fontSize: "14px",
                     color: "#ffffff",
-                    lineSpacing: 3,
-                    wordWrap: { width: GAME_CONFIG.screenWidth - contentX - 24 },
+                    lineSpacing: 4,
+                    wordWrap: { width: contentWidth },
                 },
             );
             const textWidth = Math.min(
-                GAME_CONFIG.screenWidth - contentX - 24,
+                contentWidth,
                 Math.max(firstLineWidth, hpRowWidth, details.width),
             );
             invocationCost.setX(contentX + textWidth - invocationCost.width);
@@ -233,26 +229,4 @@ export class MonsterTooltip {
         }
     }
 
-    private getAttackPatternDescription(attack: MonsterAttack): string {
-        switch (attack.pattern.type) {
-            case "line":
-                if (attack.pattern.allDirections) {
-                    const minRange = attack.pattern.minRange ?? 1;
-                    const range =
-                        minRange === 1
-                            ? `portée maximale ${attack.pattern.range}`
-                            : `portée ${minRange}–${attack.pattern.range}`;
-                    return `ligne ${attack.pattern.length ?? 1} cases, ${range}`;
-                }
-                return `ligne ${attack.pattern.range} cases`;
-            case "area":
-                return `zone 2×2, portée ${attack.pattern.range}`;
-            case "jumpArea":
-                return `saut 2×2, portée ${attack.pattern.range} cases`;
-            case "radius":
-                return `zone circulaire, portée ${attack.pattern.range}`;
-            case "adjacent":
-                return "corps à corps";
-        }
-    }
 }

@@ -1,6 +1,13 @@
 import type { Facing, PlayerId } from "../types/GameTypes";
 
-export type MonsterSpriteAction = "idle" | "move" | "attack" | "strongAttack" | "hit" | "death";
+export type MonsterSpriteAction =
+    | "idle"
+    | "move"
+    | "attack"
+    | "strongAttack"
+    | "backstab"
+    | "hit"
+    | "death";
 
 export type MonsterSpriteFacing =
     "east" | "southEast" | "south" | "southWest" | "west" | "northWest" | "north" | "northEast";
@@ -23,6 +30,7 @@ export type MonsterSpriteAnimation =
           readonly playerSpriteSheets?: Readonly<Record<PlayerId, string>>;
           readonly framesPerRow: number;
           readonly rows: Readonly<Record<MonsterSpriteFacing, number>>;
+          readonly frameRange?: readonly [number, number];
       };
 
 export interface MonsterSpriteDefinition {
@@ -176,12 +184,17 @@ export const MONSTER_SPRITES: Readonly<Record<string, MonsterSpriteDefinition>> 
                 frameRate: 8,
                 ...teamAtlas(BLACK_KNIGHT_ASSET_ROOT, "Attack"),
             },
+            strongAttack: {
+                frameRate: 8,
+                ...teamAtlas(BLACK_KNIGHT_ASSET_ROOT, "Attack"),
+                frameRange: [7, 14],
+            },
             death: {
                 frameRate: 8,
                 ...teamAtlas(BLACK_KNIGHT_ASSET_ROOT, "Die"),
             },
             move: {
-                frameRate: 8,
+                frameRate: 4,
                 ...teamAtlas(BLACK_KNIGHT_ASSET_ROOT, "Walk"),
             },
             hit: {
@@ -293,12 +306,16 @@ export const MONSTER_SPRITES: Readonly<Record<string, MonsterSpriteDefinition>> 
                 frameRate: 8,
                 ...teamAtlas(THIEF_ASSET_ROOT, "Attack"),
             },
+            backstab: {
+                frameRate: 8,
+                ...teamAtlas(THIEF_ASSET_ROOT, "AttackBackstab"),
+            },
             death: {
                 frameRate: 8,
                 ...teamAtlas(THIEF_ASSET_ROOT, "Die"),
             },
             move: {
-                frameRate: 8,
+                frameRate: 12,
                 ...teamAtlas(THIEF_ASSET_ROOT, "Walk"),
             },
             hit: {

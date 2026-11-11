@@ -1,11 +1,18 @@
 interface MainMenuProps {
     readonly canPlay: boolean;
     readonly onPlay: () => void;
+    readonly onLocalPlay: () => void;
     readonly onCreateRoom: () => void;
     readonly onEditDeck: () => void;
 }
 
-export function MainMenu({ canPlay, onPlay, onCreateRoom, onEditDeck }: MainMenuProps) {
+export function MainMenu({
+    canPlay,
+    onPlay,
+    onLocalPlay,
+    onCreateRoom,
+    onEditDeck,
+}: MainMenuProps) {
     return (
         <section id="menu-screen" aria-live="polite">
             <section id="main-menu" className="menu-panel">
@@ -19,6 +26,18 @@ export function MainMenu({ canPlay, onPlay, onCreateRoom, onEditDeck }: MainMenu
                         <span>
                             <strong>Jouer contre l’ordinateur</strong>
                             <small>Une partie en solo avec votre deck.</small>
+                        </span>
+                        <span className="choice-arrow" aria-hidden="true">
+                            →
+                        </span>
+                    </button>
+                    <button className="menu-choice" onClick={onLocalPlay} disabled={!canPlay}>
+                        <span className="choice-icon" aria-hidden="true">
+                            ⚔
+                        </span>
+                        <span>
+                            <strong>Jouer à deux en local</strong>
+                            <small>Jouez chacun votre tour sur cet écran.</small>
                         </span>
                         <span className="choice-arrow" aria-hidden="true">
                             →

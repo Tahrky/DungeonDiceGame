@@ -9,7 +9,9 @@ import {
     parseDeck,
     serializeDeck,
 } from '../game/decks';
+import { describeMonsterAttack, describeMonsterMovement } from '../game/monsterDescriptions';
 
+import type { Monster } from '../types/GameTypes';
 interface DeckEditorProps {
     readonly onBack: () => void;
 }
@@ -18,6 +20,23 @@ export function DeckEditor({ onBack }: DeckEditorProps) {
     const [selectedDeck, setSelectedDeck] = useState(() => getSavedDeck() ?? getDefaultDeck());
     const [deckJson, setDeckJson] = useState(() => serializeDeck(selectedDeck));
     const [notice, setNotice] = useState('');
+    const [hoveredMonster, setHoveredMonster] = useState<{
+        monster: Monster;
+        left: number;
+        top: number;
+    } | null>(null);
+
+    function showMonsterInfo(monster: Monster, element: HTMLButtonElement): void {
+        const bounds = element.getBoundingClientRect();
+        const tooltipWidth = Math.min(360, window.innerWidth - 24);
+        const tooltipHeight = Math.min(380, window.innerHeight - 24);
+        const showOnRight = bounds.right + tooltipWidth + 12 <= window.innerWidth;
+        const left = showOnRight
+            ? bounds.right + 12
+            : Math.max(12, bounds.left - tooltipWidth - 12);
+        const top = Math.max(12, Math.min(bounds.top, window.innerHeight - tooltipHeight - 12));
+        setHoveredMonster({ monster, left, top });
+    }
 
     function toggleMonster(monsterId: string): void {
         let nextDeck: string[];
@@ -100,6 +119,12 @@ export function DeckEditor({ onBack }: DeckEditorProps) {
                                 className={`monster-card${selected ? ' selected' : ''}`}
                                 aria-pressed={selected}
                                 onClick={() => toggleMonster(monster.id)}
+                                onPointerEnter={(event) =>
+                                    showMonsterInfo(monster, event.currentTarget)
+                                }
+                                onPointerLeave={() => setHoveredMonster(null)}
+                                onFocus={(event) => showMonsterInfo(monster, event.currentTarget)}
+                                onBlur={() => setHoveredMonster(null)}
                             >
                                 <span
                                     className="monster-symbol"
@@ -119,6 +144,46 @@ export function DeckEditor({ onBack }: DeckEditorProps) {
                         );
                     })}
                 </div>
+                {hoveredMonster && (
+                    <aside
+                        className="monster-info-tooltip"
+                        role="tooltip"
+                        style={{ left: hoveredMonster.left, top: hoveredMonster.top }}
+                    >
+                        <div className="monster-info-heading">
+                            <span
+                                className="monster-symbol"
+                                style={{
+                                    color: `#${hoveredMonster.monster.color.toString(16).padStart(6, '0')}`,
+                                }}
+                            >
+                                {hoveredMonster.monster.symbol}
+                            </span>
+                            <div>
+                                <strong>{hoveredMonster.monster.name}</strong>
+                                {hoveredMonster.monster.flying && <small>Volant</small>}
+                            </div>
+                        </div>
+                        <p>
+                            Invocation : {hoveredMonster.monster.cost} · PV :{' '}
+                            {hoveredMonster.monster.hp}
+                        </p>
+                        <div className="monster-info-attacks">
+                            {hoveredMonster.monster.attacks.map((attack) => (
+                                <p key={`${hoveredMonster.monster.id}-${attack.name}`}>
+                                    {describeMonsterAttack(attack)}
+                                </p>
+                            ))}
+                        </div>
+                        <p>{describeMonsterMovement(hoveredMonster.monster)}</p>
+                        {hoveredMonster.monster.bonusDamageFromBehind !== undefined && (
+                            <p>
+                                Bonus de dos : +{hoveredMonster.monster.bonusDamageFromBehind}{' '}
+                                dégâts
+                            </p>
+                        )}
+                    </aside>
+                )}
                 <div className="deck-json">
                     <label htmlFor="deck-json">Code JSON de votre sélection</label>
                     <textarea

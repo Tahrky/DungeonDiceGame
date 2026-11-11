@@ -19,6 +19,11 @@ export interface MovementOptions {
     boardSize?: number;
 }
 
+export interface AttackZoneOption {
+    readonly target: Position;
+    readonly cells: Position[];
+}
+
 interface TraversalContext {
     visited: ReadonlyMap<string, number>;
     blockedKeys: ReadonlySet<string>;
@@ -36,11 +41,29 @@ export function getMovementCost(monster: Pick<Monster, "movementCost">): number 
     return monster.movementCost ?? 1;
 }
 
+export function getMovementActionsPerTurn(
+    monster: Pick<Monster, "movementActionsPerTurn">,
+): number {
+    return monster.movementActionsPerTurn ?? 1;
+}
+
+export function canUseActionThisTurn(actionsUsed: number, actionLimit: number): boolean {
+    return actionsUsed < actionLimit;
+}
+
+export function advanceAttackCooldowns(cooldowns: readonly number[]): number[] {
+    return cooldowns.map((cooldown) => Math.max(0, cooldown - 1));
+}
+
 export function getAttackZones(
     attacker: Position,
     facing: Facing,
     pattern: AttackPattern,
 ): Position[][] {
+    if (pattern.type === "directionalArea") {
+        return getDirectionalAreaOptions(attacker, pattern).map((option) => option.cells);
+    }
+
     switch (pattern.type) {
         case "adjacent":
             return getAdjacentAttackZones(attacker);
@@ -53,6 +76,48 @@ export function getAttackZones(
         case "area":
             return getAreaAttackZones(attacker, facing, pattern);
     }
+}
+
+export function getAttackZoneOptions(
+    attacker: Position,
+    facing: Facing,
+    pattern: AttackPattern,
+): AttackZoneOption[] {
+    if (pattern.type === "directionalArea") {
+        return getDirectionalAreaOptions(attacker, pattern);
+    }
+
+    return getAttackZones(attacker, facing, pattern).flatMap((cells) => {
+        const targetCells =
+            pattern.type === "jumpArea" ||
+            (pattern.type === "line" && (pattern.length ?? 1) > 1)
+                ? [cells[0]]
+                : cells;
+        return targetCells.map((target) => ({ target, cells }));
+    });
+}
+
+function getDirectionalAreaOptions(
+    attacker: Position,
+    pattern: Extract<AttackPattern, { type: "directionalArea" }>,
+): AttackZoneOption[] {
+    return (Object.entries(FACING_VECTORS) as [Facing, Position][]).map(([, direction]) => {
+        const lateral = { x: -direction.y, y: direction.x };
+        const target = { x: attacker.x + direction.x, y: attacker.y + direction.y };
+        const cells = Array.from({ length: pattern.depth }, (_, depth) =>
+            Array.from({ length: pattern.width }, (_, width) => ({
+                x:
+                    attacker.x +
+                    direction.x * (depth + 1) +
+                    lateral.x * (width - Math.floor(pattern.width / 2)),
+                y:
+                    attacker.y +
+                    direction.y * (depth + 1) +
+                    lateral.y * (width - Math.floor(pattern.width / 2)),
+            })),
+        ).flat();
+        return { target, cells };
+    });
 }
 
 function getAdjacentAttackZones(attacker: Position): Position[][] {
@@ -161,7 +226,10 @@ export function canAttackMonster(
     target: Monster,
 ): boolean {
     if (!target.flying) return true;
-    return attacker.flying === true || attack.pattern.type !== "adjacent";
+    return (
+        attacker.flying === true ||
+        (attack.pattern.type !== "adjacent" && attack.pattern.type !== "directionalArea")
+    );
 }
 
 export function isWithinRadius(center: Position, target: Position, radius: number): boolean {

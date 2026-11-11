@@ -13,9 +13,12 @@ import {
 } from "../game/diceResources";
 import {
     canAttackMonster,
-    getAttackZones,
+    advanceAttackCooldowns,
+    canUseActionThisTurn,
+    getAttackZoneOptions,
     getFacingFromMovement,
     getGridDistance,
+    getMovementActionsPerTurn,
     getMovementCost,
     getMonsterMovementPath,
     isBehind,
@@ -31,7 +34,6 @@ import { MonsterSpriteView } from "./game/MonsterSpriteView";
 import type { GameHudActions } from "./game/GameHud";
 import type { GameViewState } from "./game/GameViewState";
 import type {
-    AttackPattern,
     BoardActionMode,
     DiceReserve,
     DiceSymbol,
@@ -44,10 +46,6 @@ import type {
     GameSnapshot,
     RemoteGameCommand,
 } from "../types/GameTypes";
-
-function selectsAttackZoneByAnchor(pattern: AttackPattern): boolean {
-    return pattern.type === "jumpArea" || (pattern.type === "line" && (pattern.length ?? 1) > 1);
-}
 
 function isRemoteGameCommand(value: unknown): value is RemoteGameCommand {
     if (typeof value !== "object" || value === null || !("type" in value)) return false;
@@ -94,6 +92,10 @@ function isGameSnapshot(value: unknown): value is GameSnapshot {
     return (
         "currentPlayer" in value &&
         (value.currentPlayer === 1 || value.currentPlayer === 2) &&
+        "turnNumber" in value &&
+        typeof value.turnNumber === "number" &&
+        Number.isInteger(value.turnNumber) &&
+        value.turnNumber > 0 &&
         "playerHealth" in value &&
         typeof value.playerHealth === "object" &&
         value.playerHealth !== null &&
@@ -119,6 +121,7 @@ export class GameScene extends Phaser.Scene {
     private monsterSpriteView!: MonsterSpriteView;
 
     private currentPlayer: PlayerId = 1;
+    private turnNumber = 1;
     private playerHealth: Record<PlayerId, number> = { 1: 3, 2: 3 };
     private playerDecks: Record<PlayerId, string[]> = {
         1: getDefaultDeck(),
@@ -166,6 +169,7 @@ export class GameScene extends Phaser.Scene {
 
     init(data?: Partial<GameSetup>): void {
         this.currentPlayer = 1;
+        this.turnNumber = 1;
         this.playerHealth = { 1: 3, 2: 3 };
         this.playerDecks = {
             1: parseDeck(data?.playerDeck) ?? getDefaultDeck(),
@@ -272,6 +276,7 @@ export class GameScene extends Phaser.Scene {
     private get viewState(): GameViewState {
         return {
             currentPlayer: this.currentPlayer,
+            turnNumber: this.turnNumber,
             playerHealth: this.playerHealth,
             availableMonsters: this.getDeckMonsters(this.currentPlayer),
             computerOpponent: this.computerOpponent,
@@ -427,6 +432,7 @@ export class GameScene extends Phaser.Scene {
     private createSnapshot(): GameSnapshot {
         return {
             currentPlayer: this.currentPlayer,
+            turnNumber: this.turnNumber,
             playerHealth: this.playerHealth,
             winner: this.winner,
             hasRolled: this.hasRolled,
@@ -451,6 +457,7 @@ export class GameScene extends Phaser.Scene {
         if (this.isHost || this.mode !== "online" || !isGameSnapshot(value)) return;
 
         this.currentPlayer = value.currentPlayer;
+        this.turnNumber = value.turnNumber;
         this.playerHealth = value.playerHealth;
         this.winner = value.winner;
         this.hasRolled = value.hasRolled;
@@ -632,6 +639,9 @@ export class GameScene extends Phaser.Scene {
                 facing: this.currentPlayer === 1 ? "east" : "west",
                 currentHp: this.selectedMonster.hp,
                 cells: this.pendingCells,
+                attacksUsedThisTurn: 0,
+                movementsUsedThisTurn: 0,
+                attackCooldowns: this.selectedMonster.attacks.map(() => 0),
             });
             this.recordAction({
                 type: "invocation",
@@ -691,6 +701,10 @@ export class GameScene extends Phaser.Scene {
             (monster) =>
                 monster.owner === this.currentPlayer &&
                 monster.currentHp > 0 &&
+                canUseActionThisTurn(
+                    monster.movementsUsedThisTurn,
+                    getMovementActionsPerTurn(monster.monster),
+                ) &&
                 getMovementCost(monster.monster) <= movementCount,
         );
     }
@@ -737,7 +751,12 @@ export class GameScene extends Phaser.Scene {
     }
 
     private selectAttackMonster(monster: PlacedMonster | undefined): void {
-        if (monster?.owner !== this.currentPlayer) return;
+        if (
+            monster?.owner !== this.currentPlayer ||
+            !canUseActionThisTurn(monster.attacksUsedThisTurn, 1)
+        ) {
+            return;
+        }
         const availableAttackSymbols = getAvailableSymbolCount(
             "attack",
             this.rolledDice,
@@ -745,12 +764,12 @@ export class GameScene extends Phaser.Scene {
         );
         const affordableAttacks = monster.monster.attacks
             .map((attack, index) => ({ attack, index }))
-            .filter(({ attack }) => this.canAffordAttack(attack));
+            .filter(({ index }) => this.canUseMonsterAttack(monster, index));
         const cannotAffordSeveralAttacks =
             availableAttackSymbols <
-            monster.monster.attacks.reduce((total, attack) => total + attack.cost, 0);
+            affordableAttacks.reduce((total, { attack }) => total + attack.cost, 0);
         let defaultAttack: (typeof affordableAttacks)[number] | undefined;
-        if (monster.monster.attacks.length === 1) {
+        if (affordableAttacks.length === 1) {
             defaultAttack = affordableAttacks[0];
         } else if (cannotAffordSeveralAttacks) {
             defaultAttack = affordableAttacks.reduce<
@@ -793,14 +812,33 @@ export class GameScene extends Phaser.Scene {
         const attack = attacker.monster.attacks[attackIndex];
         const zone = this.getAttackZoneForTarget(attacker, attack, targetPosition);
         if (!zone || !this.spendCurrentSymbol("attack", attack.cost)) return;
-        this.monsterSpriteView.playAttack(attacker.id, attackIndex);
+        attacker.attacksUsedThisTurn++;
+        if (attack.cooldownTurns !== undefined) {
+            attacker.attackCooldowns[attackIndex] = attack.cooldownTurns;
+        }
+        const isBackstab =
+            clickedMonster !== undefined &&
+            clickedMonster.owner !== this.currentPlayer &&
+            (attacker.monster.bonusDamageFromBehind ?? 0) > 0 &&
+            isBehind(clickedMonster.position, attacker.position, clickedMonster.facing);
+        this.monsterSpriteView.playAttack(attacker.id, attackIndex, isBackstab);
 
-        if (attack.hitsAllies || attack.movesToZone) {
-            this.executeAreaAttack(attacker, attack, zone);
+        if (
+            attack.hitsAllies ||
+            attack.movesToZone ||
+            attack.pattern.type === "directionalArea"
+        ) {
+            this.executeAreaAttack(attacker, attack, zone.cells);
             return;
         }
 
-        this.executeSingleTargetAttack(attacker, attack, targetPosition, clickedMonster);
+        this.executeSingleTargetAttack(
+            attacker,
+            attack,
+            targetPosition,
+            clickedMonster,
+            isBackstab,
+        );
     }
 
     private executeAreaAttack(
@@ -830,6 +868,7 @@ export class GameScene extends Phaser.Scene {
                 monster.currentHp > 0 &&
                 monster.id !== attacker.id &&
                 isInZone &&
+                (attack.hitsAllies || monster.owner !== this.currentPlayer) &&
                 canAttackMonster(attacker.monster, attack, monster.monster)
             ) {
                 monster.currentHp -= attack.damage;
@@ -859,6 +898,7 @@ export class GameScene extends Phaser.Scene {
         attack: Monster["attacks"][number],
         targetPosition: Position,
         target: PlacedMonster | undefined,
+        isBackstab: boolean,
     ): void {
         if (!target) {
             if (this.isOpponentStartingPosition(targetPosition)) {
@@ -873,9 +913,7 @@ export class GameScene extends Phaser.Scene {
         }
         if (target.owner === this.currentPlayer) return;
         const backstabBonus = attacker.monster.bonusDamageFromBehind ?? 0;
-        const damage =
-            attack.damage +
-            (isBehind(target.position, attacker.position, target.facing) ? backstabBonus : 0);
+        const damage = attack.damage + (isBackstab ? backstabBonus : 0);
         target.currentHp -= damage;
         this.monsterSpriteView.takeDamage(target.id, target.currentHp, target.position);
         this.recordAttack(attacker, `${target.monster.name} (J${target.owner})`, damage);
@@ -905,15 +943,8 @@ export class GameScene extends Phaser.Scene {
         );
         if (this.winner !== null || remainingAttacks === 0) {
             this.actionMode = { type: "idle" };
-        } else if (this.actionMode.type === "attack" && this.actionMode.attackerId) {
-            const attacker = this.getLivingMonster(this.actionMode.attackerId);
-            const selectedAttack =
-                this.actionMode.attackIndex === null
-                    ? undefined
-                    : attacker?.monster.attacks[this.actionMode.attackIndex];
-            if (!selectedAttack || !this.canAffordAttack(selectedAttack)) {
-                this.actionMode = { ...this.actionMode, attackIndex: null };
-            }
+        } else if (this.actionMode.type === "attack") {
+            this.actionMode = { type: "attack", attackerId: null, attackIndex: null };
         }
         this.render();
     }
@@ -946,16 +977,7 @@ export class GameScene extends Phaser.Scene {
         if (this.actionMode.type !== "attack" || !this.actionMode.attackerId) return;
         const attacker = this.getLivingMonster(this.actionMode.attackerId);
         const attack = attacker?.monster.attacks[attackIndex];
-        if (
-            !attack ||
-            getAvailableSymbolCount(
-                "attack",
-                this.rolledDice,
-                this.diceReserves[this.currentPlayer],
-            ) < attack.cost
-        ) {
-            return;
-        }
+        if (!attacker || !attack || !this.canUseMonsterAttack(attacker, attackIndex)) return;
 
         this.actionMode = { ...this.actionMode, attackIndex };
         this.render();
@@ -971,42 +993,36 @@ export class GameScene extends Phaser.Scene {
         if (
             !attacker ||
             !attack ||
-            getAvailableSymbolCount(
-                "attack",
-                this.rolledDice,
-                this.diceReserves[this.currentPlayer],
-            ) < attack.cost
+            !this.canUseMonsterAttack(attacker, attackIndex)
         ) {
             return false;
         }
 
         const zone = this.getAttackZoneForTarget(attacker, attack, targetPosition);
         if (!zone) return false;
-        return this.isAttackZoneUsable(attacker, attack, zone);
+        return this.isAttackZoneUsable(attacker, attack, zone.cells);
     }
 
     private getAttackRangeCells(attackerId: string, attackIndex: number): Position[] {
         const attacker = this.getLivingMonster(attackerId);
         const attack = attacker?.monster.attacks[attackIndex];
-        if (!attacker || !attack || !this.canAffordAttack(attack)) return [];
+        if (!attacker || !attack || !this.canUseMonsterAttack(attacker, attackIndex)) return [];
 
-        const validZones = getAttackZones(
+        const validZones = getAttackZoneOptions(
             attacker.position,
             attacker.facing,
             attack.pattern,
-        ).filter((zone) => this.isAttackZoneUsable(attacker, attack, zone));
-        return selectsAttackZoneByAnchor(attack.pattern)
-            ? validZones.map((zone) => zone[0])
-            : validZones.flat();
+        ).filter((option) => this.isAttackZoneUsable(attacker, attack, option.cells));
+        return validZones.map((option) => option.target);
     }
 
     private getAttackCandidateCells(attackerId: string, attackIndex: number): Position[] {
         const attacker = this.getLivingMonster(attackerId);
         const attack = attacker?.monster.attacks[attackIndex];
-        if (!attacker || !attack || !this.canAffordAttack(attack)) return [];
+        if (!attacker || !attack || !this.canUseMonsterAttack(attacker, attackIndex)) return [];
 
-        return getAttackZones(attacker.position, attacker.facing, attack.pattern)
-            .flatMap((zone) => (selectsAttackZoneByAnchor(attack.pattern) ? [zone[0]] : zone))
+        return getAttackZoneOptions(attacker.position, attacker.facing, attack.pattern)
+            .map((option) => option.target)
             .filter(
                 (cell) =>
                     cell.x >= 0 &&
@@ -1025,7 +1041,7 @@ export class GameScene extends Phaser.Scene {
         const attacker = this.getLivingMonster(attackerId);
         const attack = attacker?.monster.attacks[attackIndex];
         if (!attacker || !attack) return [];
-        const zone = this.getAttackZoneForTarget(attacker, attack, targetPosition) ?? [];
+        const zone = this.getAttackZoneForTarget(attacker, attack, targetPosition)?.cells ?? [];
         return zone.filter((cell) => this.isAttackCellInRange(attacker.position, attack, cell));
     }
 
@@ -1036,6 +1052,18 @@ export class GameScene extends Phaser.Scene {
                 this.rolledDice,
                 this.diceReserves[this.currentPlayer],
             ) >= attack.cost
+        );
+    }
+
+    private canUseMonsterAttack(attacker: PlacedMonster, attackIndex: number): boolean {
+        const attack = attacker.monster.attacks[attackIndex];
+        return (
+            attack !== undefined &&
+            attacker.owner === this.currentPlayer &&
+            attacker.currentHp > 0 &&
+            canUseActionThisTurn(attacker.attacksUsedThisTurn, 1) &&
+            (attacker.attackCooldowns[attackIndex] ?? 0) === 0 &&
+            this.canAffordAttack(attack)
         );
     }
 
@@ -1070,13 +1098,13 @@ export class GameScene extends Phaser.Scene {
         attacker: PlacedMonster,
         attack: Monster["attacks"][number],
         target: Position,
-    ): Position[] | undefined {
-        return getAttackZones(attacker.position, attacker.facing, attack.pattern).find((zone) => {
-            const isSelectedAnchor = selectsAttackZoneByAnchor(attack.pattern)
-                ? zone[0].x === target.x && zone[0].y === target.y
-                : zone.some((cell) => cell.x === target.x && cell.y === target.y);
-            return isSelectedAnchor && this.isAttackZoneUsable(attacker, attack, zone);
-        });
+    ): { target: Position; cells: Position[] } | undefined {
+        return getAttackZoneOptions(attacker.position, attacker.facing, attack.pattern).find(
+            (option) =>
+                option.target.x === target.x &&
+                option.target.y === target.y &&
+                this.isAttackZoneUsable(attacker, attack, option.cells),
+        );
     }
 
     private getSlimeLanding(
@@ -1140,6 +1168,7 @@ export class GameScene extends Phaser.Scene {
         const path = getMonsterMovementPath(this.getMovementOptions(monster, position));
         if (path.length < 2) return;
         if (!this.spendCurrentSymbol("movement", getMovementCost(monster.monster))) return;
+        monster.movementsUsedThisTurn++;
 
         const distance = path.length - 1;
         monster.facing = getFacingFromMovement(monster.position, position, monster.facing);
@@ -1168,6 +1197,10 @@ export class GameScene extends Phaser.Scene {
         return (
             monster.owner === this.currentPlayer &&
             monster.currentHp > 0 &&
+            canUseActionThisTurn(
+                monster.movementsUsedThisTurn,
+                getMovementActionsPerTurn(monster.monster),
+            ) &&
             getMovementCost(monster.monster) <=
                 getAvailableSymbolCount(
                     "movement",
@@ -1265,7 +1298,15 @@ export class GameScene extends Phaser.Scene {
     }
 
     private endTurn(): void {
-        this.currentPlayer = this.currentPlayer === 1 ? 2 : 1;
+        const previousPlayer = this.currentPlayer;
+        this.currentPlayer = previousPlayer === 1 ? 2 : 1;
+        if (previousPlayer === 2) this.turnNumber++;
+        for (const monster of this.placedMonsters) {
+            if (monster.owner !== this.currentPlayer) continue;
+            monster.attacksUsedThisTurn = 0;
+            monster.movementsUsedThisTurn = 0;
+            monster.attackCooldowns = advanceAttackCooldowns(monster.attackCooldowns);
+        }
         this.hasRolled = false;
         this.rolledDice = [];
         this.selectedMonster = null;
@@ -1331,6 +1372,9 @@ export class GameScene extends Phaser.Scene {
                     facing: "west",
                     currentHp: monster.hp,
                     cells: placement.cells,
+                    attacksUsedThisTurn: 0,
+                    movementsUsedThisTurn: 0,
+                    attackCooldowns: monster.attacks.map(() => 0),
                 });
                 this.recordAction({
                     type: "invocation",
@@ -1427,13 +1471,8 @@ export class GameScene extends Phaser.Scene {
     }
 
     private performComputerAttackWith(attacker: PlacedMonster): boolean {
-        for (const [attackIndex, attack] of attacker.monster.attacks.entries()) {
-            if (
-                getAvailableSymbolCount("attack", this.rolledDice, this.diceReserves[2]) <
-                attack.cost
-            ) {
-                continue;
-            }
+        for (const attackIndex of attacker.monster.attacks.keys()) {
+            if (!this.canUseMonsterAttack(attacker, attackIndex)) continue;
 
             const targetPosition = this.getAttackCandidateCells(attacker.id, attackIndex).find(
                 (position) => this.canAttackTarget(attacker.id, attackIndex, position),

@@ -4,7 +4,11 @@ import { GAME_CONFIG } from "../../config";
 import { DICE_SYMBOLS, DICE_SYMBOL_PRESENTATION } from "../../data/dice";
 import { PLACEMENT_PATTERNS } from "../../data/placementPatterns";
 import { getAvailableSymbolCount } from "../../game/diceResources";
-import { getMovementCost } from "../../game/monsterActions";
+import {
+    canUseActionThisTurn,
+    getMovementActionsPerTurn,
+    getMovementCost,
+} from "../../game/monsterActions";
 
 import type { GameViewState } from "./GameViewState";
 import type { Monster, MonsterAttack, PlayerId } from "../../types/GameTypes";
@@ -122,6 +126,7 @@ export class GameHud {
             "#ffffff",
             15,
         );
+        this.addText(`TOUR ${state.turnNumber}`, 20, 63, "#aab5c2", 12);
         this.renderPlayerHealth(state.playerHealth);
         this.renderActionHistory(state);
 
@@ -637,13 +642,20 @@ export class GameHud {
             attacker.monster.attacks.forEach((attack, attackIndex) => {
                 const affordable =
                     getAvailableSymbolCount("attack", state.rolledDice, reserve) >= attack.cost;
+                const cooldown = attacker.attackCooldowns[attackIndex] ?? 0;
+                const alreadyAttacked = attacker.attacksUsedThisTurn > 0;
                 const y = ACTION_PANEL_Y + attackIndex * 40;
                 this.addButton(
-                    `${attack.name} — ${attack.damage} dég. — ${attack.cost} ⚔️`,
+                    `${attack.name} — ${attack.damage} dég. — ${attack.cost} ⚔️${
+                        cooldown > 0 ? ` · recharge ${cooldown} tour${cooldown === 1 ? "" : "s"}` : ""
+                    }${alreadyAttacked ? " · déjà attaqué" : ""}`,
                     HUD_RIGHT,
                     y,
                     () => actions.selectAttack(attackIndex),
-                    { enabled: affordable, rightAligned: true },
+                    {
+                        enabled: affordable && cooldown === 0 && !alreadyAttacked,
+                        rightAligned: true,
+                    },
                 );
             });
             const selectedAttack =
@@ -651,9 +663,11 @@ export class GameHud {
                     ? undefined
                     : attacker.monster.attacks[actionMode.attackIndex];
             this.addText(
-                selectedAttack
-                    ? `Clique une case de ${this.getAttackPatternLabel(selectedAttack.pattern)}`
-                    : "Choisis une attaque",
+                selectedAttack?.pattern.type === "directionalArea"
+                    ? `Clique autour du Pirate (frappe ${selectedAttack.pattern.width}×${selectedAttack.pattern.depth})`
+                    : selectedAttack
+                      ? `Clique une case de ${this.getAttackPatternLabel(selectedAttack.pattern)}`
+                      : "Choisis une attaque",
                 INVOCATION_PANEL_X,
                 ACTION_PANEL_Y + attacker.monster.attacks.length * 40,
                 "#f1cf65",
@@ -698,6 +712,10 @@ export class GameHud {
             (monster) =>
                 monster.owner === state.currentPlayer &&
                 monster.currentHp > 0 &&
+                canUseActionThisTurn(
+                    monster.movementsUsedThisTurn,
+                    getMovementActionsPerTurn(monster.monster),
+                ) &&
                 getMovementCost(monster.monster) <= movementCount,
         );
         let visibleActions = 0;
@@ -950,7 +968,8 @@ export class GameHud {
         if (pattern.type === "jumpArea") {
             return `le carré 2×2 depuis une case à ${pattern.range} pas maximum`;
         }
-        if (pattern.type === "area") return "la zone 2×2";
+        if (pattern.type === "area") return `la zone ${pattern.width}×${pattern.depth}`;
+        if (pattern.type === "directionalArea") return `la zone ${pattern.width}×${pattern.depth}`;
         if (pattern.type === "line" && pattern.allDirections) {
             const minRange = pattern.minRange ?? 1;
             const range =

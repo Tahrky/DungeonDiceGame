@@ -1,5 +1,10 @@
 # Dungeon Dice
 
+## Partie locale à deux joueurs
+
+Depuis le menu, choisissez **Jouer à deux en local**. Les deux joueurs jouent à tour de rôle sur
+le même écran et utilisent le deck sauvegardé sur cet appareil, ou le deck par défaut.
+
 ## Multijoueur avec Ably et Vercel
 
 Le prototype utilise Ably Realtime pour les salles, la présence des joueurs et la synchronisation des tours. Vercel fournit `/api/ably-token`, qui échange la clé secrète Ably contre un jeton limité au canal de la salle.

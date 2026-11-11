@@ -210,6 +210,57 @@ main {
     font-size: 11px;
 }
 
+.monster-info-tooltip {
+    position: fixed;
+    z-index: 1000;
+    width: min(360px, calc(100vw - 24px));
+    max-height: min(380px, calc(100vh - 24px));
+    overflow-y: auto;
+    border: 1px solid #e8bd68;
+    border-radius: 8px;
+    padding: 14px;
+    color: #fff;
+    background: #151b25f5;
+    box-shadow: 0 12px 32px #0009;
+    font-size: 13px;
+    line-height: 1.45;
+    pointer-events: none;
+}
+
+.monster-info-heading {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.monster-info-heading strong,
+.monster-info-heading small {
+    display: block;
+}
+
+.monster-info-heading strong {
+    font-size: 15px;
+}
+
+.monster-info-heading small {
+    margin-top: 3px;
+    color: #aab5c2;
+}
+
+.monster-info-tooltip p {
+    margin: 7px 0 0;
+    overflow-wrap: anywhere;
+}
+
+.monster-info-attacks {
+    display: grid;
+    gap: 3px;
+    border-top: 1px solid #3d4b5a;
+    margin-top: 10px;
+    padding-top: 3px;
+}
+
 .deck-json {
     display: grid;
     gap: 10px;

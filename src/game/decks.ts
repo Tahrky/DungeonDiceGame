@@ -4,7 +4,7 @@ export const DECK_SIZE = 5;
 export const DECK_STORAGE_KEY = "dungeon-dice.deck";
 
 export interface GameSetup {
-    mode: "computer" | "online";
+    mode: "computer" | "local" | "online";
     playerDeck: string[];
     opponentDeck: string[];
     localPlayer?: 1 | 2;

@@ -1,18 +1,49 @@
 import { describe, expect, it } from "vitest";
 
 import {
+    advanceAttackCooldowns,
+    canUseActionThisTurn,
     canAttackMonster,
     canMoveMonsterTo,
     getAttackZones,
+    getAttackZoneOptions,
     getFacingFromMovement,
     getGridDistance,
+    getMovementActionsPerTurn,
     getMovementCost,
     getMonsterMovementPath,
     isBehind,
 } from "../src/game/monsterActions";
+import { MONSTERS } from "../src/data/monsters";
+import {
+    describeMonsterAttack,
+    describeMonsterMovement,
+} from "../src/game/monsterDescriptions";
 import type { Position } from "../src/types/GameTypes";
 
 describe("portée des actions de monstre", () => {
+    it("applique les limites d'actions et de recharge par tour", () => {
+        const thief = MONSTERS.find((monster) => monster.id === "thief");
+        const archer = MONSTERS.find((monster) => monster.id === "archer");
+
+        expect(getMovementActionsPerTurn({})).toBe(1);
+        expect(getMovementActionsPerTurn(thief ?? {})).toBe(2);
+        expect(canUseActionThisTurn(0, 1)).toBe(true);
+        expect(canUseActionThisTurn(1, 1)).toBe(false);
+        expect(canUseActionThisTurn(1, getMovementActionsPerTurn(thief ?? {}))).toBe(true);
+        expect(advanceAttackCooldowns([3, 1, 0])).toEqual([2, 0, 0]);
+        expect(archer?.attacks[1]).toMatchObject({
+            damage: 3,
+            cost: 1,
+            cooldownTurns: 3,
+            pattern: { type: "radius", range: 5 },
+        });
+        const chargedAttack = archer?.attacks[1];
+        if (!thief || !chargedAttack) throw new Error("Profils de test indisponibles.");
+        expect(describeMonsterAttack(chargedAttack)).toContain("recharge : 3 tours du joueur");
+        expect(describeMonsterMovement(thief)).toContain("2 déplacements par tour");
+    });
+
     it("utilise un coût de déplacement configurable avec une valeur par défaut de un", () => {
         expect(getMovementCost({})).toBe(1);
         expect(getMovementCost({ movementCost: 0 })).toBe(0);
@@ -46,6 +77,31 @@ describe("portée des actions de monstre", () => {
             { x: 4, y: 3 },
         ]);
         expect(zones.flat()).toContainEqual({ x: 6, y: 3 });
+    });
+
+    it("permet au pirate de choisir une direction autour de lui et frappe au-delà d'une case", () => {
+        const pirate = MONSTERS.find((monster) => monster.id === "pirate");
+        const pattern = { type: "directionalArea" as const, width: 3, depth: 1 };
+
+        expect(pirate?.attacks[0]?.pattern).toEqual(pattern);
+        expect(getAttackZoneOptions({ x: 2, y: 3 }, "east", pattern)).toEqual([
+            {
+                target: { x: 2, y: 2 },
+                cells: [{ x: 1, y: 2 }, { x: 2, y: 2 }, { x: 3, y: 2 }],
+            },
+            {
+                target: { x: 3, y: 3 },
+                cells: [{ x: 3, y: 2 }, { x: 3, y: 3 }, { x: 3, y: 4 }],
+            },
+            {
+                target: { x: 2, y: 4 },
+                cells: [{ x: 3, y: 4 }, { x: 2, y: 4 }, { x: 1, y: 4 }],
+            },
+            {
+                target: { x: 1, y: 3 },
+                cells: [{ x: 1, y: 4 }, { x: 1, y: 3 }, { x: 1, y: 2 }],
+            },
+        ]);
     });
 
     it("génère un carré 2×2 depuis les points à cinq pas maximum, même s'il déborde", () => {

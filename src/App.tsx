@@ -262,6 +262,21 @@ export function App() {
         setScreen("game");
     }
 
+    function startLocalGame(): void {
+        const instance = gameRef.current;
+        if (!instance) throw new Error("Le moteur de jeu n’est pas encore initialisé.");
+
+        const deck = getSavedDeck() ?? getDefaultDeck();
+        const setup: GameSetup = {
+            mode: "local",
+            playerDeck: deck,
+            opponentDeck: deck,
+        };
+        instance.scene.stop("GameScene");
+        instance.scene.start("GameScene", setup);
+        setScreen("game");
+    }
+
     function createRoom(): void {
         const randomValues = window.crypto.getRandomValues(new Uint8Array(8));
         const code = [...randomValues]
@@ -331,6 +346,7 @@ export function App() {
                     <MainMenu
                         canPlay={game !== null}
                         onPlay={startComputerGame}
+                        onLocalPlay={startLocalGame}
                         onCreateRoom={createRoom}
                         onEditDeck={() => setScreen("deck")}
                     />
