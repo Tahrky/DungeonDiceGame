@@ -31,6 +31,7 @@ export class MonsterTooltip {
     private readonly scene: Phaser.Scene;
     private readonly container: Phaser.GameObjects.Container;
     private readonly toScreen: (position: Position) => Position;
+    private readonly toGrid: (position: Position) => Position;
     private readonly createMonsterPreview: (
         monster: Monster,
         facing: Facing,
@@ -44,11 +45,13 @@ export class MonsterTooltip {
         scene: Phaser.Scene,
         container: Phaser.GameObjects.Container,
         toScreen: (position: Position) => Position,
+        toGrid: (position: Position) => Position,
         createMonsterPreview: MonsterTooltip["createMonsterPreview"],
     ) {
         this.scene = scene;
         this.container = container;
         this.toScreen = toScreen;
+        this.toGrid = toGrid;
         this.createMonsterPreview = createMonsterPreview;
     }
 
@@ -57,16 +60,19 @@ export class MonsterTooltip {
         monsters: readonly PlacedMonster[],
         invocationMonster: Monster | null = null,
         currentPlayer: PlayerId = 1,
+        enabled = true,
     ): void {
+        if (!enabled) {
+            this.hide();
+            return;
+        }
+
+        const hoveredCell = this.toGrid({ x: pointer.x, y: pointer.y });
         const hovered = monsters.find((monster) => {
             if (monster.currentHp <= 0) return false;
 
-            const center = this.toScreen(monster.position);
-            const sprite = MONSTER_SPRITES[monster.monster.id];
-            const hitRadius = sprite ? (sprite.frameWidth * sprite.scale) / 2 : 9;
             return (
-                Math.abs(pointer.x - center.x) <= hitRadius &&
-                Math.abs(pointer.y - center.y) <= hitRadius
+                hoveredCell.x === monster.position.x && hoveredCell.y === monster.position.y
             );
         });
 
@@ -97,6 +103,10 @@ export class MonsterTooltip {
             return;
         }
 
+        this.hide();
+    }
+
+    private hide(): void {
         this.container.removeAll(true);
         this.hoveredMonsterKey = null;
     }

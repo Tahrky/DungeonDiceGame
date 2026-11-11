@@ -220,6 +220,7 @@ export class GameScene extends Phaser.Scene {
             this,
             this.tooltipContainer,
             (position) => this.gridToScreen(position),
+            (position) => this.boardView.screenToGrid(position),
             (monster, facing, container, x, y, spriteFacingOverride) =>
                 this.monsterSpriteView.createPreview(
                     monster,
@@ -249,6 +250,7 @@ export class GameScene extends Phaser.Scene {
                 this.placedMonsters,
                 this.hoveredInvocationMonster,
                 this.currentPlayer,
+                !this.selectedMonster && !this.pendingCells,
             );
             this.drawBoard();
         });
@@ -332,6 +334,7 @@ export class GameScene extends Phaser.Scene {
                     this.placedMonsters,
                     monster,
                     this.currentPlayer,
+                    !this.selectedMonster && !this.pendingCells,
                 );
             },
             storeDie: (dieIndex) =>
