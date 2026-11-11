@@ -92,6 +92,31 @@ export const MONSTERS: Monster[] = [
     },
 
     {
+        id: "black-knight",
+        name: "Chevalier Noir",
+        symbol: "K",
+        color: 0xa17bd4,
+        cost: 0,
+        hp: 6,
+        attacks: [
+            {
+                name: "Corps à corps",
+                damage: 2,
+                cost: 0,
+                pattern: { type: "adjacent" },
+            },
+            {
+                name: "Corps à corps puissant",
+                damage: 4,
+                cost: 0,
+                pattern: { type: "adjacent" },
+            },
+        ],
+        movementRange: 2,
+        movementCost: 0,
+    },
+
+    {
         id: "thief",
         name: "Voleur Sournois",
         symbol: "V",

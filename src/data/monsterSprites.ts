@@ -63,19 +63,20 @@ const ICE_GOLEM_ASSET_ROOT = "/sprites/golem";
 const PANTHER_KNIGHT_ASSET_ROOT = "/sprites/panther-knight";
 const ARCHER_ASSET_ROOT = "/sprites/archer";
 const ARCHER_HUMAN_ASSET_ROOT = "/sprites/archerHuman";
+const BLACK_KNIGHT_ASSET_ROOT = "/sprites/blackKnight";
 
-function archerAtlas(file: string): Pick<
+function teamAtlas(assetRoot: string, file: string): Pick<
     Extract<MonsterSpriteAnimation, { spriteSheet: string }>,
     "spriteSheet" | "playerSpriteSheets" | "framesPerRow" | "rows"
 > {
     return {
         spriteSheet:
             file === "Idle"
-                ? `${ARCHER_ASSET_ROOT}/${file}.png`
-                : `${ARCHER_ASSET_ROOT}/red/${file}.png`,
+                ? `${assetRoot}/${file}.png`
+                : `${assetRoot}/red/${file}.png`,
         playerSpriteSheets: {
-            1: `${ARCHER_ASSET_ROOT}/red/${file}.png`,
-            2: `${ARCHER_ASSET_ROOT}/blue/${file}.png`,
+            1: `${assetRoot}/red/${file}.png`,
+            2: `${assetRoot}/blue/${file}.png`,
         },
         framesPerRow: 15,
         rows: {
@@ -202,26 +203,70 @@ export const MONSTER_SPRITES: Readonly<Record<string, MonsterSpriteDefinition>> 
         previewOffsetY: -12,
         originX: 0.5,
         originY: 0.67,
+        facingOffsetY: {
+            north: 8,
+            east: 4,
+            south: 4,
+            west: 8,
+        },
         animations: {
             idle: {
                 frameRate: 8,
-                ...archerAtlas("Idle"),
+                ...teamAtlas(ARCHER_ASSET_ROOT, "Idle"),
             },
             attack: {
                 frameRate: 8,
-                ...archerAtlas("Attack"),
+                ...teamAtlas(ARCHER_ASSET_ROOT, "Attack"),
             },
             death: {
                 frameRate: 8,
-                ...archerAtlas("Die"),
+                ...teamAtlas(ARCHER_ASSET_ROOT, "Die"),
             },
             move: {
                 frameRate: 8,
-                ...archerAtlas("Walk"),
+                ...teamAtlas(ARCHER_ASSET_ROOT, "Walk"),
             },
             hit: {
                 frameRate: 8,
-                ...archerAtlas("TakeDamage"),
+                ...teamAtlas(ARCHER_ASSET_ROOT, "TakeDamage"),
+            },
+        },
+    },
+    "black-knight": {
+        frameWidth: 128,
+        frameHeight: 128,
+        scale: 0.9,
+        previewScale: 1.8,
+        previewOffsetX: -2,
+        previewOffsetY: -12,
+        originX: 0.5,
+        originY: 0.67,
+        facingOffsetY: {
+            north: 8,
+            east: 4,
+            south: 4,
+            west: 8,
+        },
+        animations: {
+            idle: {
+                frameRate: 8,
+                ...teamAtlas(BLACK_KNIGHT_ASSET_ROOT, "Idle"),
+            },
+            attack: {
+                frameRate: 8,
+                ...teamAtlas(BLACK_KNIGHT_ASSET_ROOT, "Attack"),
+            },
+            death: {
+                frameRate: 8,
+                ...teamAtlas(BLACK_KNIGHT_ASSET_ROOT, "Die"),
+            },
+            move: {
+                frameRate: 8,
+                ...teamAtlas(BLACK_KNIGHT_ASSET_ROOT, "Walk"),
+            },
+            hit: {
+                frameRate: 8,
+                ...teamAtlas(BLACK_KNIGHT_ASSET_ROOT, "TakeDamage"),
             },
         },
     },
