@@ -37,6 +37,7 @@ export interface MonsterSpriteDefinition {
     readonly frameHeight: number;
     readonly scale: number;
     readonly previewScale?: number;
+    readonly previewOffsetX?: number;
     readonly previewOffsetY?: number;
     readonly tooltipVerticalPadding?: number;
     readonly originX: number;
@@ -68,7 +69,10 @@ function archerAtlas(file: string): Pick<
     "spriteSheet" | "playerSpriteSheets" | "framesPerRow" | "rows"
 > {
     return {
-        spriteSheet: `${ARCHER_ASSET_ROOT}/${file}.png`,
+        spriteSheet:
+            file === "Idle"
+                ? `${ARCHER_ASSET_ROOT}/${file}.png`
+                : `${ARCHER_ASSET_ROOT}/red/${file}.png`,
         playerSpriteSheets: {
             1: `${ARCHER_ASSET_ROOT}/red/${file}.png`,
             2: `${ARCHER_ASSET_ROOT}/blue/${file}.png`,
@@ -192,8 +196,10 @@ export const MONSTER_SPRITES: Readonly<Record<string, MonsterSpriteDefinition>> 
     archer: {
         frameWidth: 128,
         frameHeight: 128,
-        scale: 0.65,
-        previewScale: 1,
+        scale: 0.9,
+        previewScale: 1.8,
+        previewOffsetX: -2,
+        previewOffsetY: -12,
         originX: 0.5,
         originY: 0.67,
         animations: {
@@ -201,21 +207,21 @@ export const MONSTER_SPRITES: Readonly<Record<string, MonsterSpriteDefinition>> 
                 frameRate: 8,
                 ...archerAtlas("Idle"),
             },
-            move: {
-                frameRate: 12,
-                ...archerAtlas("Walk"),
-            },
             attack: {
-                frameRate: 12,
+                frameRate: 8,
                 ...archerAtlas("Attack"),
             },
-            hit: {
-                frameRate: 12,
-                ...archerAtlas("TakeDamage"),
-            },
             death: {
-                frameRate: 10,
+                frameRate: 8,
                 ...archerAtlas("Die"),
+            },
+            move: {
+                frameRate: 8,
+                ...archerAtlas("Walk"),
+            },
+            hit: {
+                frameRate: 8,
+                ...archerAtlas("TakeDamage"),
             },
         },
     },

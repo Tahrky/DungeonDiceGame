@@ -189,6 +189,7 @@ export class MonsterTooltip {
             const width = contentX + textWidth;
             const tooltipVerticalPadding =
                 MONSTER_SPRITES[monster.id]?.tooltipVerticalPadding ?? 32;
+            const previewOffsetX = MONSTER_SPRITES[monster.id]?.previewOffsetX ?? 0;
             const previewOffsetY = MONSTER_SPRITES[monster.id]?.previewOffsetY ?? 0;
             const background = this.scene.add
                 .rectangle(
@@ -206,7 +207,7 @@ export class MonsterTooltip {
                 monster,
                 "south",
                 this.container,
-                52,
+                52 + previewOffsetX,
                 background.height / 2 + previewOffsetY,
                 "south",
             );
