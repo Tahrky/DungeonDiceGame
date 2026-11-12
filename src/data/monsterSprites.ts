@@ -185,9 +185,8 @@ export const MONSTER_SPRITES: Readonly<Record<string, MonsterSpriteDefinition>> 
                 ...teamAtlas(BLACK_KNIGHT_ASSET_ROOT, "Attack"),
             },
             strongAttack: {
-                frameRate: 8,
-                ...teamAtlas(BLACK_KNIGHT_ASSET_ROOT, "Attack"),
-                frameRange: [7, 14],
+                frameRate: 15,
+                ...teamAtlas(BLACK_KNIGHT_ASSET_ROOT, "AttackPuissante"),
             },
             death: {
                 frameRate: 8,

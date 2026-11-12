@@ -213,12 +213,12 @@ main {
 .monster-info-tooltip {
     position: fixed;
     z-index: 1000;
-    width: min(360px, calc(100vw - 24px));
+    width: min(320px, calc(100vw - 24px));
     max-height: min(380px, calc(100vh - 24px));
     overflow-y: auto;
     border: 1px solid #e8bd68;
     border-radius: 8px;
-    padding: 14px;
+    padding: 10px;
     color: #fff;
     background: #151b25f5;
     box-shadow: 0 12px 32px #0009;
@@ -230,8 +230,24 @@ main {
 .monster-info-heading {
     display: flex;
     align-items: center;
+    width: 100%;
     gap: 10px;
     margin-bottom: 10px;
+}
+
+.monster-info-sprite {
+    flex: 0 0 auto;
+    background-repeat: no-repeat;
+}
+
+@keyframes monster-idle-south {
+    from {
+        background-position: var(--monster-sprite-south-x) var(--monster-sprite-south-y);
+    }
+
+    to {
+        background-position: var(--monster-sprite-last-frame-x) var(--monster-sprite-south-y);
+    }
 }
 
 .monster-info-heading strong,
@@ -246,6 +262,13 @@ main {
 .monster-info-heading small {
     margin-top: 3px;
     color: #aab5c2;
+}
+
+.monster-info-heading > div {
+    flex: 1;
+    min-width: 0;
+    text-align: center;
+    transform: translateX(-15px);
 }
 
 .monster-info-tooltip p {

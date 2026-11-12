@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, type CSSProperties } from 'react';
 
 import { MONSTERS } from '../data/monsters';
+import { MONSTER_SPRITES } from '../data/monsterSprites';
 import {
     DECK_SIZE,
     DECK_STORAGE_KEY,
@@ -14,6 +15,52 @@ import { describeMonsterAttack, describeMonsterMovement } from '../game/monsterD
 import type { Monster } from '../types/GameTypes';
 interface DeckEditorProps {
     readonly onBack: () => void;
+}
+
+function MonsterIdlePreview({ monster }: { readonly monster: Monster }) {
+    const spriteDefinition = MONSTER_SPRITES[monster.id];
+    const idleAnimation = spriteDefinition?.animations.idle;
+    if (!idleAnimation || !('spriteSheet' in idleAnimation)) {
+        return (
+            <span
+                className="monster-symbol"
+                style={{ color: `#${monster.color.toString(16).padStart(6, '0')}` }}
+            >
+                {monster.symbol}
+            </span>
+        );
+    }
+
+    const frameSize = 216;
+    const frameWidth = spriteDefinition.frameWidth;
+    const frameHeight = spriteDefinition.frameHeight;
+    const spriteCropLeft = 38;
+    const spriteCropTop = 43;
+    const spriteCropHeight = 56;
+    const frameCount = idleAnimation.framesPerRow;
+    const style: CSSProperties & {
+        '--monster-sprite-south-x': string;
+        '--monster-sprite-south-y': string;
+        '--monster-sprite-last-frame-x': string;
+    } = {
+        backgroundImage: `url("${idleAnimation.spriteSheet}")`,
+        backgroundSize: `${frameSize * frameCount}px ${frameSize * Object.keys(idleAnimation.rows).length}px`,
+        animation: `monster-idle-south ${frameCount / idleAnimation.frameRate}s steps(${frameCount - 1}) infinite`,
+        width: `${(frameSize * (frameWidth - spriteCropLeft)) / frameWidth}px`,
+        height: `${(frameSize * spriteCropHeight) / frameHeight}px`,
+        '--monster-sprite-south-x': `${-(frameSize * spriteCropLeft) / frameWidth}px`,
+        '--monster-sprite-south-y': `${-frameSize * (2 + spriteCropTop / frameHeight)}px`,
+        '--monster-sprite-last-frame-x': `${-frameSize * (frameCount - 1 + spriteCropLeft / frameWidth)}px`,
+    };
+
+    return (
+        <span
+            className="monster-info-sprite"
+            role="img"
+            aria-label={`${monster.name} au repos`}
+            style={style}
+        />
+    );
 }
 
 export function DeckEditor({ onBack }: DeckEditorProps) {
@@ -151,14 +198,7 @@ export function DeckEditor({ onBack }: DeckEditorProps) {
                         style={{ left: hoveredMonster.left, top: hoveredMonster.top }}
                     >
                         <div className="monster-info-heading">
-                            <span
-                                className="monster-symbol"
-                                style={{
-                                    color: `#${hoveredMonster.monster.color.toString(16).padStart(6, '0')}`,
-                                }}
-                            >
-                                {hoveredMonster.monster.symbol}
-                            </span>
+                            <MonsterIdlePreview monster={hoveredMonster.monster} />
                             <div>
                                 <strong>{hoveredMonster.monster.name}</strong>
                                 {hoveredMonster.monster.flying && <small>Volant</small>}
