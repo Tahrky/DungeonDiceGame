@@ -9,11 +9,14 @@ export function getInvokedMonsterCount(
     return monsters.filter((monster) => monster.owner === player).length;
 }
 
-export function getMonsterEliminationWinner(monsters: readonly PlacedMonster[]): PlayerId | null {
+export function getMonsterEliminationWinner(
+    monsters: readonly PlacedMonster[],
+    maxMonstersPerPlayer = MAX_MONSTERS_PER_PLAYER,
+): PlayerId | null {
     for (const player of [1, 2] as const) {
         const opponent: PlayerId = player === 1 ? 2 : 1;
         const hasInvokedAllMonsters =
-            getInvokedMonsterCount(monsters, player) >= MAX_MONSTERS_PER_PLAYER;
+            getInvokedMonsterCount(monsters, player) >= maxMonstersPerPlayer;
         const hasLivingMonster = monsters.some(
             (monster) => monster.owner === player && monster.currentHp > 0,
         );

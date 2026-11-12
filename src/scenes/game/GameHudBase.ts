@@ -1,7 +1,7 @@
 import Phaser from "phaser";
 import { GAME_CONFIG } from "../../config";
 import { PLACEMENT_PATTERNS } from "../../data/placementPatterns";
-import { getInvokedMonsterCount, MAX_MONSTERS_PER_PLAYER } from "../../game/matchRules";
+import { getInvokedMonsterCount } from "../../game/matchRules";
 import type { GameViewState } from "./GameViewState";
 import type { Monster, PlayerId } from "../../types/GameTypes";
 
@@ -111,8 +111,6 @@ export const ACTION_LOG_TRACK_HEIGHT = ACTION_LOG_HEIGHT - 68;
 export const ACTION_LOG_THUMB_MIN_HEIGHT = 24;
 
 export const ACTION_LOG_VISIBLE_COUNT = 6;
-
-export const PLAYER_MAX_HEALTH = 3;
 
 const HUD_STATUS_X = 12;
 const MENU_BUTTON_WIDTH = 99;
@@ -260,11 +258,11 @@ export abstract class GameHudBase {
             const currentHealth = Phaser.Math.Clamp(
                 state.playerHealth[player],
                 0,
-                PLAYER_MAX_HEALTH,
+                state.playerMaxHealth,
             );
             const remainingToInvoke = Math.max(
                 0,
-                MAX_MONSTERS_PER_PLAYER -
+                state.maxMonstersPerPlayer -
                     getInvokedMonsterCount(state.placedMonsters, player),
             );
             const defeatedOpponentMonsters = state.placedMonsters.filter(
@@ -272,16 +270,14 @@ export abstract class GameHudBase {
             ).length;
             this.addText(`JOUEUR ${player}`, x + 12, y + 9, color, 16);
             this.addText(
-                Array.from({ length: PLAYER_MAX_HEALTH }, (_, life) =>
-                    life < currentHealth ? "♥" : "♡",
-                ).join("  "),
+                `PV : ${currentHealth}/${state.playerMaxHealth}`,
                 x + 12,
                 y + 31,
                 color,
                 20,
             );
             this.addText(
-                `À invoquer : ${remainingToInvoke}/8`,
+                `À invoquer : ${remainingToInvoke}/${state.maxMonstersPerPlayer}`,
                 x + 12,
                 y + 61,
                 "#cbd2da",

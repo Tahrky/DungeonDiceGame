@@ -6,7 +6,7 @@ import { getAvailableSymbolCount, spendSymbols, storeRolledDie } from "../game/d
 import { getInitialAttackCooldowns } from "../game/monsterActions";
 import { canPlaceCells, getPatternCells } from "../game/placement";
 import type { Position } from "../types/GameTypes";
-import { getInvokedMonsterCount, MAX_MONSTERS_PER_PLAYER } from "../game/matchRules";
+import { getInvokedMonsterCount } from "../game/matchRules";
 
 export abstract class GameSceneInvocation extends GameSceneState {
     protected rollDice(computerInitiated = false): void {
@@ -20,7 +20,7 @@ export abstract class GameSceneInvocation extends GameSceneState {
             return;
         }
 
-        this.rolledDice = DICE.map((die) => ({
+        this.rolledDice = DICE.slice(0, this.gameConfiguration.diceCount).map((die) => ({
             definitionId: die.id,
             symbol: die.faces[Phaser.Math.Between(0, die.faces.length - 1)],
             status: "available",
@@ -40,7 +40,7 @@ export abstract class GameSceneInvocation extends GameSceneState {
         if (
             !monster ||
             getInvokedMonsterCount(this.placedMonsters, this.currentPlayer) >=
-                MAX_MONSTERS_PER_PLAYER ||
+                this.gameConfiguration.maxMonstersPerPlayer ||
             this.actionMode.type !== "idle" ||
             getAvailableSymbolCount(
                 "invocation",
@@ -135,7 +135,7 @@ export abstract class GameSceneInvocation extends GameSceneState {
         if (
             !this.selectedMonster ||
             getInvokedMonsterCount(this.placedMonsters, this.currentPlayer) >=
-                MAX_MONSTERS_PER_PLAYER
+                this.gameConfiguration.maxMonstersPerPlayer
         ) {
             return;
         }

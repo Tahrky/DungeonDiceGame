@@ -273,7 +273,10 @@ export abstract class GameSceneCombat extends GameSceneInvocation {
     }
 
     protected finishAttack(): void {
-        this.winner ??= getMonsterEliminationWinner(this.placedMonsters);
+        this.winner ??= getMonsterEliminationWinner(
+            this.placedMonsters,
+            this.gameConfiguration.maxMonstersPerPlayer,
+        );
         const remainingAttacks = getAvailableSymbolCount(
             "attack",
             this.rolledDice,

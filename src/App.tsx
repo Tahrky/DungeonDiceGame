@@ -3,16 +3,22 @@ import { createClient, type Message, type PresenceMessage, type RealtimeChannel 
 import Phaser from "phaser";
 
 import { DeckEditor } from "./components/DeckEditor";
+import { GameSettings } from "./components/GameSettings";
 import { MainMenu } from "./components/MainMenu";
 import { RoomScreen } from "./components/RoomScreen";
 import { GAME_CONFIG } from "./config";
-import { getDefaultBoard, parseBoardDefinition } from "./game/boards";
+import { getDefaultBoard, getRandomBoard, parseBoardDefinition } from "./game/boards";
 import { getDefaultDeck, getSavedDeck, parseDeck, type GameSetup } from "./game/decks";
+import {
+    getSavedGameConfiguration,
+    parseGameConfiguration,
+    type GameConfiguration,
+} from "./game/gameConfiguration";
 import { GameScene } from "./scenes/GameScene";
 
 import type { GameSnapshot, PlayerId, RemoteGameCommand } from "./types/GameTypes";
 
-type Screen = "menu" | "deck" | "room" | "game";
+type Screen = "menu" | "deck" | "settings" | "room" | "game";
 type RoomRole = "host" | "guest";
 type RoomStatus = "connecting" | "connected" | "error";
 
@@ -48,6 +54,7 @@ function startOnlineGame(
     playerDeck: string[],
     opponentDeck: string[],
     board: NonNullable<GameSetup["board"]>,
+    configuration: GameConfiguration,
 ): void {
     if (!game) throw new Error("Le moteur de jeu n’est pas encore initialisé.");
 
@@ -58,6 +65,7 @@ function startOnlineGame(
         playerDeck,
         opponentDeck,
         board,
+        configuration,
     };
     game.scene.stop("GameScene");
     game.scene.start("GameScene", setup);
@@ -72,6 +80,7 @@ export function App() {
     const roomStartRequestedRef = useRef(false);
     const [game, setGame] = useState<Phaser.Game | null>(null);
     const [screen, setScreen] = useState<Screen>("menu");
+    const [gameConfiguration, setGameConfiguration] = useState(getSavedGameConfiguration);
     const [roomCode, setRoomCode] = useState("");
     const [roomRole, setRoomRole] = useState<RoomRole | null>(null);
     const [roomStatus, setRoomStatus] = useState<RoomStatus>("connecting");
@@ -196,12 +205,24 @@ export function App() {
             const guestDeck = parseDeck(message.data.guestDeck);
             const board =
                 "board" in message.data ? parseBoardDefinition(message.data.board) : null;
-            if (!hostDeck || !guestDeck || !board) {
+            const configuration =
+                "configuration" in message.data
+                    ? parseGameConfiguration(message.data.configuration)
+                    : null;
+            if (!hostDeck || !guestDeck || !board || !configuration) {
                 setRoomError("L’hôte a envoyé des données de partie invalides.");
                 return;
             }
             try {
-                startOnlineGame(gameRef.current, 2, false, guestDeck, hostDeck, board);
+                startOnlineGame(
+                    gameRef.current,
+                    2,
+                    false,
+                    guestDeck,
+                    hostDeck,
+                    board,
+                    configuration,
+                );
                 setScreen("game");
             } catch (error) {
                 setRoomStatus("error");
@@ -287,7 +308,8 @@ export function App() {
             mode: "computer",
             playerDeck: getSavedDeck() ?? getDefaultDeck(),
             opponentDeck: getDefaultDeck(),
-            board: getDefaultBoard(),
+            board: gameConfiguration.randomBoard ? getRandomBoard() : getDefaultBoard(),
+            configuration: gameConfiguration,
         };
         instance.scene.stop("GameScene");
         instance.scene.start("GameScene", setup);
@@ -303,7 +325,8 @@ export function App() {
             mode: "local",
             playerDeck: deck,
             opponentDeck: deck,
-            board: getDefaultBoard(),
+            board: gameConfiguration.randomBoard ? getRandomBoard() : getDefaultBoard(),
+            configuration: gameConfiguration,
         };
         instance.scene.stop("GameScene");
         instance.scene.start("GameScene", setup);
@@ -343,16 +366,29 @@ export function App() {
 
         roomStartRequestedRef.current = true;
         try {
-            const board = getDefaultBoard();
-            await channel.publish("start", { hostDeck, guestDeck, board });
-            startOnlineGame(gameRef.current, 1, true, hostDeck, guestDeck, board);
+            const board = gameConfiguration.randomBoard ? getRandomBoard() : getDefaultBoard();
+            await channel.publish("start", {
+                hostDeck,
+                guestDeck,
+                board,
+                configuration: gameConfiguration,
+            });
+            startOnlineGame(
+                gameRef.current,
+                1,
+                true,
+                hostDeck,
+                guestDeck,
+                board,
+                gameConfiguration,
+            );
             setScreen("game");
         } catch (error) {
             roomStartRequestedRef.current = false;
             setRoomStatus("error");
             setRoomError(getErrorMessage(error));
         }
-    }, [roomPlayers, roomRole]);
+    }, [gameConfiguration, roomPlayers, roomRole]);
 
     useEffect(() => {
         if (roomRole === "host" && roomStatus === "connected" && roomPlayers.length === 2) {
@@ -390,9 +426,17 @@ export function App() {
                         onLocalPlay={startLocalGame}
                         onCreateRoom={createRoom}
                         onEditDeck={() => setScreen("deck")}
+                        onEditSettings={() => setScreen("settings")}
                     />
                 )}
                 {screen === "deck" && <DeckEditor onBack={() => setScreen("menu")} />}
+                {screen === "settings" && (
+                    <GameSettings
+                        configuration={gameConfiguration}
+                        onBack={() => setScreen("menu")}
+                        onSave={setGameConfiguration}
+                    />
+                )}
                 {screen === "room" && roomRole && (
                     <RoomScreen
                         roomCode={roomCode}

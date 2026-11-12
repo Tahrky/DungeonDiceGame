@@ -4,6 +4,7 @@ interface MainMenuProps {
     readonly onLocalPlay: () => void;
     readonly onCreateRoom: () => void;
     readonly onEditDeck: () => void;
+    readonly onEditSettings: () => void;
 }
 
 export function MainMenu({
@@ -12,6 +13,7 @@ export function MainMenu({
     onLocalPlay,
     onCreateRoom,
     onEditDeck,
+    onEditSettings,
 }: MainMenuProps) {
     return (
         <section id="menu-screen" aria-live="polite">
@@ -62,6 +64,18 @@ export function MainMenu({
                         <span>
                             <strong>Fabriquer mon deck</strong>
                             <small>Choisissez cinq monstres et exportez leur JSON.</small>
+                        </span>
+                        <span className="choice-arrow" aria-hidden="true">
+                            →
+                        </span>
+                    </button>
+                    <button className="menu-choice" onClick={onEditSettings}>
+                        <span className="choice-icon" aria-hidden="true">
+                            ⚙
+                        </span>
+                        <span>
+                            <strong>Configurer les règles</strong>
+                            <small>Modifiez les options et les profils de monstres.</small>
                         </span>
                         <span className="choice-arrow" aria-hidden="true">
                             →

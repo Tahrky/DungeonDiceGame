@@ -5,7 +5,7 @@ import { getInitialAttackCooldowns } from "../game/monsterActions";
 import { findValidPlacement } from "../game/placement";
 import { isBoardCell } from "../game/boards";
 import type { PlacedMonster, Position } from "../types/GameTypes";
-import { getInvokedMonsterCount, MAX_MONSTERS_PER_PLAYER } from "../game/matchRules";
+import { getInvokedMonsterCount } from "../game/matchRules";
 
 export abstract class GameSceneComputer extends GameSceneMovement {
     protected playComputerTurn(): void {
@@ -25,7 +25,8 @@ export abstract class GameSceneComputer extends GameSceneMovement {
         let deployments = 0;
         while (
             deployments < this.playerDecks[2].length &&
-            getInvokedMonsterCount(this.placedMonsters, 2) < MAX_MONSTERS_PER_PLAYER
+            getInvokedMonsterCount(this.placedMonsters, 2) <
+                this.gameConfiguration.maxMonstersPerPlayer
         ) {
             deployments++;
             const availableInvocation = getAvailableSymbolCount(

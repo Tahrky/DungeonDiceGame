@@ -1,6 +1,5 @@
 import { useState, type CSSProperties } from 'react';
 
-import { MONSTERS } from '../data/monsters';
 import { MONSTER_SPRITES } from '../data/monsterSprites';
 import {
     DECK_SIZE,
@@ -10,6 +9,7 @@ import {
     parseDeck,
     serializeDeck,
 } from '../game/decks';
+import { getSavedGameConfiguration } from '../game/gameConfiguration';
 import { describeMonsterAttack, describeMonsterMovement } from '../game/monsterDescriptions';
 
 import type { Monster } from '../types/GameTypes';
@@ -65,6 +65,7 @@ function MonsterIdlePreview({ monster }: { readonly monster: Monster }) {
 
 export function DeckEditor({ onBack }: DeckEditorProps) {
     const [selectedDeck, setSelectedDeck] = useState(() => getSavedDeck() ?? getDefaultDeck());
+    const [monsters] = useState(() => getSavedGameConfiguration().monsters);
     const [deckJson, setDeckJson] = useState(() => serializeDeck(selectedDeck));
     const [notice, setNotice] = useState('');
     const [hoveredMonster, setHoveredMonster] = useState<{
@@ -157,7 +158,7 @@ export function DeckEditor({ onBack }: DeckEditorProps) {
                     monstres les moins chers sont utilisés.
                 </p>
                 <div className="monster-list">
-                    {MONSTERS.map((monster) => {
+                    {monsters.map((monster) => {
                         const selected = selectedDeck.includes(monster.id);
                         return (
                             <button

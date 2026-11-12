@@ -1,8 +1,12 @@
 import Phaser from "phaser";
 import { isGameSnapshot } from "./GameSceneProtocol";
 import { GAME_CONFIG } from "../config";
-import { MONSTERS } from "../data/monsters";
 import { createEmptyDiceReserve, spendSymbols } from "../game/diceResources";
+import {
+    getDefaultGameConfiguration,
+    parseGameConfiguration,
+    type GameConfiguration,
+} from "../game/gameConfiguration";
 import {
     canUseActionThisTurn,
     getAttackActionsPerTurn,
@@ -45,6 +49,8 @@ export abstract class GameSceneState extends Phaser.Scene {
     protected turnNumber = 1;
 
     protected playerHealth: Record<PlayerId, number> = { 1: 3, 2: 3 };
+
+    protected gameConfiguration: GameConfiguration = getDefaultGameConfiguration();
 
     protected playerDecks: Record<PlayerId, string[]> = {
         1: getDefaultDeck(),
@@ -113,6 +119,11 @@ export abstract class GameSceneState extends Phaser.Scene {
     }
 
     init(data?: Partial<GameSetup>): void {
+        const configuration = data?.configuration
+            ? parseGameConfiguration(data.configuration)
+            : getDefaultGameConfiguration();
+        if (!configuration) throw new Error("La configuration de partie est invalide.");
+        this.gameConfiguration = configuration;
         let board: BoardDefinition;
         if (data?.board !== undefined) {
             const parsedBoard = parseBoardDefinition(data.board);
@@ -127,7 +138,10 @@ export abstract class GameSceneState extends Phaser.Scene {
         this.startingPositions = getStartingPositions(this.board);
         this.currentPlayer = 1;
         this.turnNumber = 1;
-        this.playerHealth = { 1: 3, 2: 3 };
+        this.playerHealth = {
+            1: configuration.initialPlayerHealth,
+            2: configuration.initialPlayerHealth,
+        };
         this.playerDecks = {
             1: parseDeck(data?.playerDeck) ?? getDefaultDeck(),
             2: parseDeck(data?.opponentDeck) ?? getDefaultDeck(),
@@ -174,6 +188,8 @@ export abstract class GameSceneState extends Phaser.Scene {
             currentPlayer: this.currentPlayer,
             turnNumber: this.turnNumber,
             playerHealth: this.playerHealth,
+            playerMaxHealth: this.gameConfiguration.initialPlayerHealth,
+            maxMonstersPerPlayer: this.gameConfiguration.maxMonstersPerPlayer,
             availableMonsters: this.getDeckMonsters(this.currentPlayer),
             computerOpponent: this.computerOpponent,
             onlineGame: this.mode === "online",
@@ -285,7 +301,9 @@ export abstract class GameSceneState extends Phaser.Scene {
         this.selectedMonster =
             value.selectedMonsterId === null
                 ? null
-                : (MONSTERS.find((monster) => monster.id === value.selectedMonsterId) ?? null);
+                : (this.gameConfiguration.monsters.find(
+                      (monster) => monster.id === value.selectedMonsterId,
+                  ) ?? null);
         this.selectedPattern = value.selectedPattern;
         this.patternRotation = value.patternRotation;
         this.patternMirrored = value.patternMirrored;
@@ -301,7 +319,7 @@ export abstract class GameSceneState extends Phaser.Scene {
 
     protected getDeckMonsters(player: PlayerId): Monster[] {
         return this.playerDecks[player]
-            .map((id) => MONSTERS.find((monster) => monster.id === id))
+            .map((id) => this.gameConfiguration.monsters.find((monster) => monster.id === id))
             .filter((monster): monster is Monster => monster !== undefined);
     }
 

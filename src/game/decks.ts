@@ -1,5 +1,6 @@
 import { MONSTERS } from "../data/monsters";
 import type { BoardDefinition, BoardSelection } from "./boards";
+import type { GameConfiguration } from "./gameConfiguration";
 
 export const DECK_SIZE = 5;
 export const DECK_STORAGE_KEY = "dungeon-dice.deck";
@@ -8,6 +9,7 @@ export interface GameSetup {
     mode: "computer" | "local" | "online";
     playerDeck: string[];
     opponentDeck: string[];
+    configuration?: GameConfiguration;
     board?: BoardDefinition;
     boardSelection?: BoardSelection;
     localPlayer?: 1 | 2;

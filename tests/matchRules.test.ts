@@ -44,4 +44,19 @@ describe("limite d'invocations et victoire par élimination", () => {
             getMonsterEliminationWinner([...createMonsters(1, 8, 0), ...createMonsters(2, 1, 0)]),
         ).toBe(null);
     });
+
+    it("utilise la limite d'invocations configurée pour la victoire par élimination", () => {
+        expect(
+            getMonsterEliminationWinner([
+                ...createMonsters(1, 1, 0),
+                ...createMonsters(2, 1, 1),
+            ], 2),
+        ).toBe(null);
+        expect(
+            getMonsterEliminationWinner([
+                ...createMonsters(1, 2, 0),
+                ...createMonsters(2, 1, 1),
+            ], 2),
+        ).toBe(2);
+    });
 });

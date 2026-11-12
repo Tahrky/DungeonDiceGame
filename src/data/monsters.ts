@@ -37,8 +37,8 @@ export const MONSTERS: Monster[] = [
             {
                 name: "Explosion de Givre",
                 damage: 3,
-                cost: 0,
-                pattern: { type: "selfRadius", range: 2 },
+                cost: 3,
+                pattern: { type: "selfRadius", range: 3 },
                 hitsAllies: true,
             },
         ],

@@ -25,7 +25,7 @@ describe("profils de monstres", () => {
         const archer = MONSTERS.find((monster) => monster.id === "archer");
 
         expect(archer).toMatchObject({
-            cost: 1,
+            cost: 2,
             hp: 2,
             movementRange: 2,
         });

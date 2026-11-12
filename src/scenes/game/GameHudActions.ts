@@ -12,7 +12,7 @@ import Phaser from "phaser";
 import { DICE_SYMBOLS, DICE_SYMBOL_PRESENTATION } from "../../data/dice";
 import { getAvailableSymbolCount } from "../../game/diceResources";
 import { canUseActionThisTurn, getAttackActionsPerTurn, getMovementActionsPerTurn, getMovementCost } from "../../game/monsterActions";
-import { getInvokedMonsterCount, MAX_MONSTERS_PER_PLAYER } from "../../game/matchRules";
+import { getInvokedMonsterCount } from "../../game/matchRules";
 import type { GameViewState } from "./GameViewState";
 import type { MonsterAttack, PlayerId } from "../../types/GameTypes";
 
@@ -26,7 +26,7 @@ export abstract class GameHudActionsPanel extends GameHudHistory {
         const canInvokeMonster =
             state.availableMonsters.some((monster) => monster.cost <= availableInvocationCount) &&
             getInvokedMonsterCount(state.placedMonsters, state.currentPlayer) <
-                MAX_MONSTERS_PER_PLAYER;
+                state.maxMonstersPerPlayer;
         const invocationArrow = state.invocationMenuOpen ? "▲" : "▼";
         const rightX = getHudRightX(this.scene);
         const invocationPanelX = rightX - INVOCATION_PANEL_WIDTH;
@@ -48,7 +48,7 @@ export abstract class GameHudActionsPanel extends GameHudHistory {
             const invocationHeader = this.addText(
                 state.pendingCells
                     ? "Dé posé : choisis une case"
-                    : `MONSTRE — COÛT (${getInvokedMonsterCount(state.placedMonsters, state.currentPlayer)}/${MAX_MONSTERS_PER_PLAYER})`,
+                    : `MONSTRE — COÛT (${getInvokedMonsterCount(state.placedMonsters, state.currentPlayer)}/${state.maxMonstersPerPlayer})`,
                 invocationPanelX + INVOCATION_PANEL_WIDTH / 2,
                 50,
                 "#ffffff",
@@ -61,7 +61,7 @@ export abstract class GameHudActionsPanel extends GameHudHistory {
                 .forEach((monster, index) => {
                     const hasCapacity =
                         getInvokedMonsterCount(state.placedMonsters, state.currentPlayer) <
-                        MAX_MONSTERS_PER_PLAYER;
+                        state.maxMonstersPerPlayer;
                     const affordable =
                         hasCapacity &&
                         getAvailableSymbolCount(
