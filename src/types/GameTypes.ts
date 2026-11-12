@@ -77,6 +77,7 @@ export type AttackPattern =
       }
     | { type: "area"; range: number; width: number; depth: number }
     | { type: "directionalArea"; width: number; depth: number }
+    | { type: "selfRadius"; range: number }
     | { type: "jumpArea"; range: number; width: 2; depth: 2 }
     | { type: "radius"; range: number };
 
@@ -100,6 +101,7 @@ export interface Monster {
     hp: number;
     attacks: MonsterAttack[];
     movementRange: number;
+    attackActionsPerTurn?: number;
     movementActionsPerTurn?: number;
     movementCost?: number;
     flying?: boolean;

@@ -4,6 +4,7 @@ export type MonsterSpriteAction =
     | "idle"
     | "move"
     | "attack"
+    | "attackAoe"
     | "strongAttack"
     | "backstab"
     | "hit"
@@ -226,6 +227,10 @@ export const MONSTER_SPRITES: Readonly<Record<string, MonsterSpriteDefinition>> 
             attack: {
                 frameRate: 8,
                 ...teamAtlas(FROST_MAGE_ASSET_ROOT, "Attack"),
+            },
+            attackAoe: {
+                frameRate: 15,
+                ...teamAtlas(FROST_MAGE_ASSET_ROOT, "AttackAoe"),
             },
             death: {
                 frameRate: 8,

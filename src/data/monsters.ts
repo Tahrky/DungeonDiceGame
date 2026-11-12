@@ -6,7 +6,7 @@ export const MONSTERS: Monster[] = [
         name: "Pirate",
         symbol: "P",
         color: 0x993f00,
-        cost: 2,
+        cost: 3,
         hp: 5,
         attacks: [
             {
@@ -24,7 +24,7 @@ export const MONSTERS: Monster[] = [
         name: "Mage de Givre",
         symbol: "M",
         color: 0x54b8e8,
-        cost: 4,
+        cost: 6,
         hp: 5,
         attacks: [
             {
@@ -32,6 +32,13 @@ export const MONSTERS: Monster[] = [
                 damage: 3,
                 cost: 2,
                 pattern: { type: "line", range: 4, length: 3, allDirections: true },
+                hitsAllies: true,
+            },
+            {
+                name: "Explosion de Givre",
+                damage: 3,
+                cost: 0,
+                pattern: { type: "selfRadius", range: 2 },
                 hitsAllies: true,
             },
         ],
@@ -73,7 +80,7 @@ export const MONSTERS: Monster[] = [
         name: "Chevalier Noir",
         symbol: "BK",
         color: 0x111111,
-        cost: 3,
+        cost: 4,
         hp: 6,
         attacks: [
             {
@@ -90,7 +97,9 @@ export const MONSTERS: Monster[] = [
             },
         ],
         movementRange: 1,
+        attackActionsPerTurn: 2,
         movementCost: 1,
+        movementActionsPerTurn: 2,
     },
 
     {
@@ -118,7 +127,7 @@ export const MONSTERS: Monster[] = [
         name: "Archer Squelette",
         symbol: "A",
         color: 0x888888,
-        cost: 1,
+        cost: 2,
         hp: 2,
         attacks: [
             {

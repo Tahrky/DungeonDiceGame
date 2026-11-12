@@ -12,6 +12,13 @@ describe("profils de monstres", () => {
             hitsAllies: true,
             pattern: { type: "line", range: 4, length: 3, allDirections: true },
         });
+        expect(frostMage?.attacks[1]).toMatchObject({
+            name: "Explosion de Givre",
+            cost: 3,
+            damage: 3,
+            hitsAllies: true,
+            pattern: { type: "selfRadius", range: 3 },
+        });
     });
 
     it("configure l'Archer squelette et son attaque circulaire à distance", () => {

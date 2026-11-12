@@ -1,5 +1,15 @@
 import { GameHudActionsPanel } from "./GameHudActions";
-import { PATTERN_COLUMNS, PATTERN_CARD_WIDTH, PATTERN_CARD_HEIGHT, PATTERN_COLUMN_GAP, PATTERN_ROW_GAP, HUD_RIGHT, PATTERN_START_X, PATTERN_START_Y, COLLAPSED_PATTERN_Y } from "./GameHudBase";
+import {
+    PATTERN_COLUMNS,
+    PATTERN_CARD_WIDTH,
+    PATTERN_CARD_HEIGHT,
+    PATTERN_COLUMN_GAP,
+    PATTERN_ROW_GAP,
+    PATTERN_START_Y,
+    COLLAPSED_PATTERN_Y,
+    getHudRightX,
+    getPatternStartX,
+} from "./GameHudBase";
 import type { GameHudActions, IconButtonOptions } from "./GameHudBase";
 import Phaser from "phaser";
 import { PLACEMENT_PATTERNS } from "../../data/placementPatterns";
@@ -8,9 +18,11 @@ import type { GameViewState } from "./GameViewState";
 export class GameHudPatterns extends GameHudActionsPanel {
     protected renderPatternSelector(state: GameViewState, actions: GameHudActions): void {
         const patternStartY = state.patternSelectorExpanded ? PATTERN_START_Y : COLLAPSED_PATTERN_Y;
+        const rightX = getHudRightX(this.scene);
+        const patternStartX = getPatternStartX(this.scene);
         this.addButton(
             state.patternSelectorExpanded ? "PATRONS ▲" : "PATRONS ▼",
-            HUD_RIGHT,
+            rightX,
             patternStartY - 29,
             actions.togglePatternSelector,
             { rightAligned: true },
@@ -30,7 +42,7 @@ export class GameHudPatterns extends GameHudActionsPanel {
                 ? index % PATTERN_COLUMNS
                 : PATTERN_COLUMNS - 1;
             const row = state.patternSelectorExpanded ? Math.floor(index / PATTERN_COLUMNS) : 0;
-            const x = PATTERN_START_X + column * PATTERN_COLUMN_GAP;
+            const x = patternStartX + column * PATTERN_COLUMN_GAP;
             const y = patternStartY + row * PATTERN_ROW_GAP;
             const selected = index === state.selectedPattern;
             const background = this.scene.add
@@ -86,7 +98,7 @@ export class GameHudPatterns extends GameHudActionsPanel {
 
         const mirrorColumn = 11 % PATTERN_COLUMNS;
         const mirrorRow = Math.floor(11 / PATTERN_COLUMNS);
-        const mirrorX = PATTERN_START_X + mirrorColumn * PATTERN_COLUMN_GAP;
+        const mirrorX = patternStartX + mirrorColumn * PATTERN_COLUMN_GAP;
         const mirrorY = patternStartY + mirrorRow * PATTERN_ROW_GAP;
         const canMirror =
             state.selectedMonster !== null &&

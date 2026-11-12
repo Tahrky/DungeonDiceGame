@@ -1,7 +1,7 @@
 import { GameSceneInvocation } from "./GameSceneInvocation";
 import { isBoardCell } from "../game/boards";
 import { getAvailableSymbolCount } from "../game/diceResources";
-import { canAttackMonster, canUseActionThisTurn, getAttackZoneOptions, getFacingFromMovement, getGridDistance, getMovementActionsPerTurn, getMovementCost, isBehind } from "../game/monsterActions";
+import { canAttackMonster, canUseActionThisTurn, getAttackActionsPerTurn, getAttackZoneOptions, getFacingFromMovement, getGridDistance, getMovementActionsPerTurn, getMovementCost, isBehind } from "../game/monsterActions";
 import type { DiceSymbol, Monster, PlayerId, PlacedMonster, Position } from "../types/GameTypes";
 import { getMonsterEliminationWinner } from "../game/matchRules";
 
@@ -91,7 +91,10 @@ export abstract class GameSceneCombat extends GameSceneInvocation {
     protected selectAttackMonster(monster: PlacedMonster | undefined): void {
         if (
             monster?.owner !== this.currentPlayer ||
-            !canUseActionThisTurn(monster.attacksUsedThisTurn, 1)
+            !canUseActionThisTurn(
+                monster.attacksUsedThisTurn,
+                getAttackActionsPerTurn(monster.monster),
+            )
         ) {
             return;
         }
@@ -164,7 +167,8 @@ export abstract class GameSceneCombat extends GameSceneInvocation {
         if (
             attack.hitsAllies ||
             attack.movesToZone ||
-            attack.pattern.type === "directionalArea"
+            attack.pattern.type === "directionalArea" ||
+            attack.pattern.type === "selfRadius"
         ) {
             this.executeAreaAttack(attacker, attack, zone.cells);
             return;
@@ -392,7 +396,10 @@ export abstract class GameSceneCombat extends GameSceneInvocation {
             attack !== undefined &&
             attacker.owner === this.currentPlayer &&
             attacker.currentHp > 0 &&
-            canUseActionThisTurn(attacker.attacksUsedThisTurn, 1) &&
+            canUseActionThisTurn(
+                attacker.attacksUsedThisTurn,
+                getAttackActionsPerTurn(attacker.monster),
+            ) &&
             (attacker.attackCooldowns[attackIndex] ?? 0) === 0 &&
             this.canAffordAttack(attack)
         );

@@ -6,6 +6,7 @@ import {
     canAttackMonster,
     canMoveMonsterTo,
     getAttackZones,
+    getAttackActionsPerTurn,
     getAttackZoneOptions,
     getFacingFromMovement,
     getGridDistance,
@@ -25,8 +26,17 @@ import type { Position } from "../src/types/GameTypes";
 describe("portée des actions de monstre", () => {
     it("applique les limites d'actions et de recharge par tour", () => {
         const thief = MONSTERS.find((monster) => monster.id === "thief");
+        const blackKnight = MONSTERS.find((monster) => monster.id === "black-knight");
         const archer = MONSTERS.find((monster) => monster.id === "archer");
 
+        expect(getAttackActionsPerTurn({})).toBe(1);
+        expect(getAttackActionsPerTurn(blackKnight ?? {})).toBe(2);
+        expect(
+            canUseActionThisTurn(1, getAttackActionsPerTurn(blackKnight ?? {})),
+        ).toBe(true);
+        expect(
+            canUseActionThisTurn(2, getAttackActionsPerTurn(blackKnight ?? {})),
+        ).toBe(false);
         expect(getMovementActionsPerTurn({})).toBe(1);
         expect(getMovementActionsPerTurn(thief ?? {})).toBe(2);
         expect(canUseActionThisTurn(0, 1)).toBe(true);
@@ -79,6 +89,17 @@ describe("portée des actions de monstre", () => {
             { x: 4, y: 3 },
         ]);
         expect(zones.flat()).toContainEqual({ x: 6, y: 3 });
+    });
+
+    it("crée une zone circulaire centrée sur le mage jusqu'à trois cases", () => {
+        const center = { x: 6, y: 6 };
+        const zones = getAttackZones(center, "east", { type: "selfRadius", range: 3 });
+        const cells = zones.flat();
+
+        expect(zones).toHaveLength(1);
+        expect(cells).not.toContainEqual(center);
+        expect(cells).toContainEqual({ x: 9, y: 6 });
+        expect(cells).not.toContainEqual({ x: 10, y: 6 });
     });
 
     it("permet au pirate de choisir une direction autour de lui et frappe au-delà d'une case", () => {

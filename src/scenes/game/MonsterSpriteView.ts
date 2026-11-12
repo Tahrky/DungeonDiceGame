@@ -264,6 +264,8 @@ export class MonsterSpriteView {
                 ? "backstab"
                 : attackIndex > 0 && animations?.strongAttack
                   ? "strongAttack"
+                  : attackIndex > 0 && animations?.attackAoe
+                    ? "attackAoe"
                   : "attack";
         if (!animations?.[action]) return;
 
@@ -414,6 +416,7 @@ export class MonsterSpriteView {
                             frameRate: animation.frameRate,
                             repeat:
                                 action === "attack" ||
+                                action === "attackAoe" ||
                                 action === "strongAttack" ||
                                 action === "backstab" ||
                                 action === "hit" ||

@@ -1,10 +1,17 @@
 import { GameHudHistory } from "./GameHudHistory";
-import { HUD_RIGHT, INVOCATION_PANEL_WIDTH, INVOCATION_PANEL_X, INVOCATION_ROW_HEIGHT, INVOCATION_ROW_GAP, ACTION_PANEL_Y } from "./GameHudBase";
+import {
+    INVOCATION_PANEL_WIDTH,
+    INVOCATION_ROW_HEIGHT,
+    INVOCATION_ROW_GAP,
+    ACTION_PANEL_Y,
+    getHudLeftX,
+    getHudRightX,
+} from "./GameHudBase";
 import type { GameHudActions } from "./GameHudBase";
 import Phaser from "phaser";
 import { DICE_SYMBOLS, DICE_SYMBOL_PRESENTATION } from "../../data/dice";
 import { getAvailableSymbolCount } from "../../game/diceResources";
-import { canUseActionThisTurn, getMovementActionsPerTurn, getMovementCost } from "../../game/monsterActions";
+import { canUseActionThisTurn, getAttackActionsPerTurn, getMovementActionsPerTurn, getMovementCost } from "../../game/monsterActions";
 import { getInvokedMonsterCount, MAX_MONSTERS_PER_PLAYER } from "../../game/matchRules";
 import type { GameViewState } from "./GameViewState";
 import type { MonsterAttack, PlayerId } from "../../types/GameTypes";
@@ -21,10 +28,12 @@ export abstract class GameHudActionsPanel extends GameHudHistory {
             getInvokedMonsterCount(state.placedMonsters, state.currentPlayer) <
                 MAX_MONSTERS_PER_PLAYER;
         const invocationArrow = state.invocationMenuOpen ? "▲" : "▼";
+        const rightX = getHudRightX(this.scene);
+        const invocationPanelX = rightX - INVOCATION_PANEL_WIDTH;
 
         this.addButton(
             `INVOCATION ${DICE_SYMBOL_PRESENTATION.invocation.emoji} (${availableInvocationCount}) ${invocationArrow}`,
-            HUD_RIGHT,
+            rightX,
             12,
             actions.toggleInvocationMenu,
             {
@@ -40,7 +49,7 @@ export abstract class GameHudActionsPanel extends GameHudHistory {
                 state.pendingCells
                     ? "Dé posé : choisis une case"
                     : `MONSTRE — COÛT (${getInvokedMonsterCount(state.placedMonsters, state.currentPlayer)}/${MAX_MONSTERS_PER_PLAYER})`,
-                INVOCATION_PANEL_X + INVOCATION_PANEL_WIDTH / 2,
+                invocationPanelX + INVOCATION_PANEL_WIDTH / 2,
                 50,
                 "#ffffff",
                 15,
@@ -76,7 +85,7 @@ export abstract class GameHudActionsPanel extends GameHudHistory {
                     }
                     const background = this.scene.add
                         .rectangle(
-                            INVOCATION_PANEL_X,
+                            invocationPanelX,
                             y,
                             INVOCATION_PANEL_WIDTH,
                             INVOCATION_ROW_HEIGHT,
@@ -110,14 +119,14 @@ export abstract class GameHudActionsPanel extends GameHudHistory {
 
                     const button = this.addText(
                         monster.name,
-                        INVOCATION_PANEL_X + 5,
+                        invocationPanelX + 5,
                         y + 8,
                         monsterNameColor,
                         14,
                     );
                     const cost = this.addText(
                         `${monster.cost} 🐍`,
-                        INVOCATION_PANEL_X + INVOCATION_PANEL_WIDTH - 6,
+                        invocationPanelX + INVOCATION_PANEL_WIDTH - 6,
                         y + 8,
                         affordable ? "#f1cf65" : "#75808d",
                         14,
@@ -129,19 +138,16 @@ export abstract class GameHudActionsPanel extends GameHudHistory {
 
             if (state.selectedMonster) {
                 const controlsY = 68 + state.availableMonsters.length * INVOCATION_ROW_GAP + 4;
-                this.addText(
+                const instruction = this.addRightInstruction(
                     state.pendingCells
                         ? `Monstre : ${state.selectedMonster.name} — sélectionne une case du dé`
                         : `Monstre : ${state.selectedMonster.name} — choisis un patron et une position`,
-                    INVOCATION_PANEL_X,
                     controlsY,
-                    "#f1cf65",
-                    14,
                 );
                 this.addButton(
                     "ANNULER",
-                    HUD_RIGHT,
-                    controlsY + 22,
+                    rightX,
+                    controlsY + instruction.height + 8,
                     actions.cancelInvocation,
                     { rightAligned: true },
                 );
@@ -152,7 +158,7 @@ export abstract class GameHudActionsPanel extends GameHudHistory {
     }
 
     protected renderDiceAndReserves(state: GameViewState, actions: GameHudActions): void {
-        const diceStartX = 12;
+        const diceStartX = getHudLeftX(this.scene);
         this.addText("DÉS DU TOUR", diceStartX, 600, "#ffffff", 14);
 
         state.rolledDice.forEach((die, index) => {
@@ -213,23 +219,21 @@ export abstract class GameHudActionsPanel extends GameHudHistory {
     }
 
     protected renderActionStatus(state: GameViewState, actions: GameHudActions): void {
+        const rightX = getHudRightX(this.scene);
         if (state.actionMode.type === "attack") {
             const actionMode = state.actionMode;
             const attacker = state.placedMonsters.find(
                 (monster) => monster.id === actionMode.attackerId,
             );
             if (!attacker) {
-                this.addText(
+                const instruction = this.addRightInstruction(
                     "Choisis un de tes monstres pour attaquer",
-                    INVOCATION_PANEL_X,
                     ACTION_PANEL_Y,
-                    "#f1cf65",
-                    14,
                 );
                 this.addButton(
                     "ANNULER",
-                    HUD_RIGHT,
-                    ACTION_PANEL_Y + 22,
+                    rightX,
+                    ACTION_PANEL_Y + instruction.height + 8,
                     actions.cancelBoardAction,
                     { rightAligned: true },
                 );
@@ -241,17 +245,24 @@ export abstract class GameHudActionsPanel extends GameHudHistory {
                 const affordable =
                     getAvailableSymbolCount("attack", state.rolledDice, reserve) >= attack.cost;
                 const cooldown = attacker.attackCooldowns[attackIndex] ?? 0;
-                const alreadyAttacked = attacker.attacksUsedThisTurn > 0;
+                const attackLimit = getAttackActionsPerTurn(attacker.monster);
+                const attacksRemaining = Math.max(0, attackLimit - attacker.attacksUsedThisTurn);
+                const attackStatus =
+                    attacksRemaining === 0
+                        ? " · attaques épuisées"
+                        : attacker.attacksUsedThisTurn > 0
+                          ? ` · encore ${attacksRemaining} attaque${attacksRemaining > 1 ? "s" : ""}`
+                          : "";
                 const y = ACTION_PANEL_Y + attackIndex * 40;
                 this.addButton(
                     `${attack.name} — ${attack.damage} dég. — ${attack.cost} ⚔️${
                         cooldown > 0 ? ` · recharge ${cooldown} tour${cooldown === 1 ? "" : "s"}` : ""
-                    }${alreadyAttacked ? " · déjà attaqué" : ""}`,
-                    HUD_RIGHT,
+                    }${attackStatus}`,
+                    rightX,
                     y,
                     () => actions.selectAttack(attackIndex),
                     {
-                        enabled: affordable && cooldown === 0 && !alreadyAttacked,
+                        enabled: affordable && cooldown === 0 && attacksRemaining > 0,
                         rightAligned: true,
                     },
                 );
@@ -260,21 +271,21 @@ export abstract class GameHudActionsPanel extends GameHudHistory {
                 actionMode.attackIndex === null
                     ? undefined
                     : attacker.monster.attacks[actionMode.attackIndex];
-            this.addText(
+            const instruction = this.addRightInstruction(
                 selectedAttack?.pattern.type === "directionalArea"
                     ? `Clique autour du Pirate (frappe ${selectedAttack.pattern.width}×${selectedAttack.pattern.depth})`
                     : selectedAttack
                       ? `Clique une case de ${this.getAttackPatternLabel(selectedAttack.pattern)}`
                       : "Choisis une attaque",
-                INVOCATION_PANEL_X,
                 ACTION_PANEL_Y + attacker.monster.attacks.length * 40,
-                "#f1cf65",
-                14,
             );
             this.addButton(
                 "ANNULER",
-                HUD_RIGHT,
-                ACTION_PANEL_Y + 28 + attacker.monster.attacks.length * 40,
+                rightX,
+                ACTION_PANEL_Y +
+                    attacker.monster.attacks.length * 40 +
+                    instruction.height +
+                    8,
                 actions.cancelBoardAction,
                 { rightAligned: true },
             );
@@ -286,18 +297,19 @@ export abstract class GameHudActionsPanel extends GameHudHistory {
             const movingMonster = state.placedMonsters.find(
                 (monster) => monster.id === actionMode.monsterId,
             );
-            this.addText(
+            const instruction = this.addRightInstruction(
                 actionMode.monsterId
                     ? `Choisis une case libre à ${movingMonster?.monster.movementRange ?? 2} pas sur un dé posé`
                     : "Choisis un monstre à déplacer",
-                INVOCATION_PANEL_X,
                 ACTION_PANEL_Y,
-                "#f1cf65",
-                14,
             );
-            this.addButton("ANNULER", HUD_RIGHT, ACTION_PANEL_Y + 22, actions.cancelBoardAction, {
-                rightAligned: true,
-            });
+            this.addButton(
+                "ANNULER",
+                rightX,
+                ACTION_PANEL_Y + instruction.height + 8,
+                actions.cancelBoardAction,
+                { rightAligned: true },
+            );
             return;
         }
 
@@ -320,7 +332,7 @@ export abstract class GameHudActionsPanel extends GameHudHistory {
         if (attackCount > 0) {
             this.addButton(
                 `ATTAQUER ⚔️ (${attackCount})`,
-                HUD_RIGHT,
+                rightX,
                 ACTION_PANEL_Y + visibleActions * 42,
                 actions.startAttack,
                 { rightAligned: true, uniformSize: true },
@@ -330,7 +342,7 @@ export abstract class GameHudActionsPanel extends GameHudHistory {
         if (canMove) {
             this.addButton(
                 movementCount > 0 ? `DÉPLACER ➡️ (${movementCount})` : "DÉPLACER ➡️ (gratuit)",
-                HUD_RIGHT,
+                rightX,
                 ACTION_PANEL_Y + visibleActions * 42,
                 actions.startMovement,
                 { rightAligned: true, uniformSize: true },
@@ -339,7 +351,7 @@ export abstract class GameHudActionsPanel extends GameHudHistory {
         }
         this.addButton(
             "FIN DU TOUR",
-            HUD_RIGHT,
+            rightX,
             ACTION_PANEL_Y + visibleActions * 42,
             actions.finishTurn,
             { rightAligned: true, uniformSize: true },
@@ -362,6 +374,9 @@ export abstract class GameHudActionsPanel extends GameHudHistory {
         }
         if (pattern.type === "line") return `la ligne de ${pattern.range} cases`;
         if (pattern.type === "radius") return `la zone circulaire de ${pattern.range} cases`;
+        if (pattern.type === "selfRadius") {
+            return `la zone circulaire autour de lui, jusqu’à ${pattern.range} cases`;
+        }
         return "une cible au corps à corps";
     }
 

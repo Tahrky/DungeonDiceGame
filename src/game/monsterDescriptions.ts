@@ -23,6 +23,8 @@ export function getAttackPatternDescription(pattern: AttackPattern): string {
             return `saut 2×2, portée ${pattern.range} cases`;
         case "radius":
             return `zone circulaire, portée ${pattern.range}`;
+        case "selfRadius":
+            return `zone circulaire autour de lui, portée ${pattern.range}`;
         case "adjacent":
             return "corps à corps";
     }

@@ -53,6 +53,12 @@ export function getMovementActionsPerTurn(
     return monster.movementActionsPerTurn ?? 1;
 }
 
+export function getAttackActionsPerTurn(
+    monster: Pick<Monster, "attackActionsPerTurn">,
+): number {
+    return monster.attackActionsPerTurn ?? 1;
+}
+
 export function canUseActionThisTurn(actionsUsed: number, actionLimit: number): boolean {
     return actionsUsed < actionLimit;
 }
@@ -77,6 +83,8 @@ export function getAttackZones(
             return getLineAttackZones(attacker, facing, pattern);
         case "radius":
             return getRadiusAttackZones(attacker, pattern.range);
+        case "selfRadius":
+            return [getSelfRadiusAttackZone(attacker, pattern.range)];
         case "jumpArea":
             return getJumpAttackZones(attacker, pattern);
         case "area":
@@ -95,7 +103,9 @@ export function getAttackZoneOptions(
 
     return getAttackZones(attacker, facing, pattern).flatMap((cells) => {
         const targetCells =
-            pattern.type === "jumpArea" ||
+            pattern.type === "selfRadius"
+                ? cells
+                : pattern.type === "jumpArea" ||
             (pattern.type === "line" && (pattern.length ?? 1) > 1)
                 ? [cells[0]]
                 : cells;
@@ -167,6 +177,20 @@ function getRadiusAttackZones(attacker: Position, range: number): Position[][] {
         }
     }
     return cells.map((cell) => [cell]);
+}
+
+function getSelfRadiusAttackZone(attacker: Position, range: number): Position[] {
+    const cells: Position[] = [];
+    for (let y = attacker.y - range; y <= attacker.y + range; y++) {
+        for (let x = attacker.x - range; x <= attacker.x + range; x++) {
+            const dx = x - attacker.x;
+            const dy = y - attacker.y;
+            if ((dx !== 0 || dy !== 0) && dx * dx + dy * dy <= range * range) {
+                cells.push({ x, y });
+            }
+        }
+    }
+    return cells;
 }
 
 function getJumpAttackZones(

@@ -3,7 +3,11 @@ import { isGameSnapshot } from "./GameSceneProtocol";
 import { GAME_CONFIG } from "../config";
 import { MONSTERS } from "../data/monsters";
 import { createEmptyDiceReserve, spendSymbols } from "../game/diceResources";
-import { canUseActionThisTurn, getMovementActionsPerTurn } from "../game/monsterActions";
+import {
+    canUseActionThisTurn,
+    getAttackActionsPerTurn,
+    getMovementActionsPerTurn,
+} from "../game/monsterActions";
 import { getDefaultDeck, parseDeck, type GameSetup } from "../game/decks";
 import { BoardView } from "./game/BoardView";
 import { GameHud } from "./game/GameHud";
@@ -214,7 +218,10 @@ export abstract class GameSceneState extends Phaser.Scene {
             } else if (
                 monster.owner === this.currentPlayer &&
                 ((this.actionMode.type === "attack" &&
-                    !canUseActionThisTurn(monster.attacksUsedThisTurn, 1)) ||
+                    !canUseActionThisTurn(
+                        monster.attacksUsedThisTurn,
+                        getAttackActionsPerTurn(monster.monster),
+                    )) ||
                     (this.actionMode.type === "movement" &&
                         !canUseActionThisTurn(
                             monster.movementsUsedThisTurn,

@@ -6,7 +6,7 @@ import { DeckEditor } from "./components/DeckEditor";
 import { MainMenu } from "./components/MainMenu";
 import { RoomScreen } from "./components/RoomScreen";
 import { GAME_CONFIG } from "./config";
-import { getRandomBoard, parseBoardDefinition } from "./game/boards";
+import { getDefaultBoard, parseBoardDefinition } from "./game/boards";
 import { getDefaultDeck, getSavedDeck, parseDeck, type GameSetup } from "./game/decks";
 import { GameScene } from "./scenes/GameScene";
 
@@ -287,7 +287,7 @@ export function App() {
             mode: "computer",
             playerDeck: getSavedDeck() ?? getDefaultDeck(),
             opponentDeck: getDefaultDeck(),
-            board: getRandomBoard(),
+            board: getDefaultBoard(),
         };
         instance.scene.stop("GameScene");
         instance.scene.start("GameScene", setup);
@@ -303,7 +303,7 @@ export function App() {
             mode: "local",
             playerDeck: deck,
             opponentDeck: deck,
-            board: getRandomBoard(),
+            board: getDefaultBoard(),
         };
         instance.scene.stop("GameScene");
         instance.scene.start("GameScene", setup);
@@ -343,7 +343,7 @@ export function App() {
 
         roomStartRequestedRef.current = true;
         try {
-            const board = getRandomBoard();
+            const board = getDefaultBoard();
             await channel.publish("start", { hostDeck, guestDeck, board });
             startOnlineGame(gameRef.current, 1, true, hostDeck, guestDeck, board);
             setScreen("game");

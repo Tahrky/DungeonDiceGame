@@ -54,14 +54,25 @@ export const PATTERN_COLUMN_GAP = 126;
 
 export const PATTERN_ROW_GAP = 44;
 
-export const HUD_RIGHT = 1280;
-
 export const HUD_BOTTOM = 752;
 
-export const PATTERN_START_X =
-    HUD_RIGHT -
-    PATTERN_COLUMNS * PATTERN_CARD_WIDTH -
+export const PATTERN_GRID_WIDTH =
+    PATTERN_COLUMNS * PATTERN_CARD_WIDTH +
     (PATTERN_COLUMNS - 1) * (PATTERN_COLUMN_GAP - PATTERN_CARD_WIDTH);
+
+export function getPatternStartX(scene: Phaser.Scene): number {
+    return getHudRightX(scene) - PATTERN_GRID_WIDTH;
+}
+
+export const HUD_EDGE_MARGIN = 12;
+
+export function getHudLeftX(scene: Phaser.Scene): number {
+    return scene.cameras.main.getWorldPoint(HUD_EDGE_MARGIN, 0).x;
+}
+
+export function getHudRightX(scene: Phaser.Scene): number {
+    return scene.cameras.main.getWorldPoint(scene.scale.width - HUD_EDGE_MARGIN, 0).x;
+}
 
 export const PATTERN_ROW_COUNT = Math.ceil((PLACEMENT_PATTERNS.length + 1) / PATTERN_COLUMNS);
 
@@ -77,15 +88,11 @@ export const HUD_BUTTON_HEIGHT = 32;
 
 export const INVOCATION_PANEL_WIDTH = HUD_BUTTON_WIDTH;
 
-export const INVOCATION_PANEL_X = HUD_RIGHT - INVOCATION_PANEL_WIDTH;
-
 export const INVOCATION_ROW_HEIGHT = 30;
 
 export const INVOCATION_ROW_GAP = 34;
 
 export const ACTION_PANEL_Y = 54;
-
-export const ACTION_LOG_X = 12;
 
 export const ACTION_LOG_Y = 142;
 
@@ -95,7 +102,7 @@ export const ACTION_LOG_HEIGHT = 438;
 
 export const ACTION_LOG_ROW_HEIGHT = 62;
 
-export const ACTION_LOG_TRACK_X = ACTION_LOG_X + ACTION_LOG_WIDTH - 10;
+export const ACTION_LOG_TRACK_OFFSET_X = ACTION_LOG_WIDTH - 10;
 
 export const ACTION_LOG_TRACK_Y = ACTION_LOG_Y + 38;
 
@@ -111,6 +118,7 @@ const HUD_STATUS_X = 12;
 const MENU_BUTTON_WIDTH = 99;
 const MENU_BUTTON_HEIGHT = 30;
 const MENU_BUTTON_GAP = 10;
+const RIGHT_INSTRUCTION_WIDTH = 280;
 
 export abstract class GameHudBase {
     protected readonly scene: Phaser.Scene;
@@ -135,7 +143,7 @@ export abstract class GameHudBase {
         this.container.removeAll(true);
         this.addButton(
             "MENU",
-            ACTION_LOG_X,
+            getHudLeftX(this.scene),
             ACTION_LOG_Y - MENU_BUTTON_HEIGHT - MENU_BUTTON_GAP,
             actions.leaveGame,
             {
@@ -206,7 +214,7 @@ export abstract class GameHudBase {
             const waitingForOpponent = state.onlineGame && !state.isLocalTurn;
             this.addButton(
                 waitingForOpponent ? "TOUR DE L’ADVERSAIRE" : "LANCER LES DES",
-                HUD_RIGHT,
+                getHudRightX(this.scene),
                 12,
                 actions.rollDice,
                 {
@@ -321,6 +329,21 @@ export abstract class GameHudBase {
             color,
             fontStyle: "bold",
         });
+        this.container.add(text);
+        return text;
+    }
+
+    protected addRightInstruction(label: string, y: number): Phaser.GameObjects.Text {
+        const text = this.scene.add
+            .text(getHudRightX(this.scene), y, label, {
+                fontFamily: "Arial",
+                fontSize: "14px",
+                color: "#f1cf65",
+                fontStyle: "bold",
+                align: "right",
+                wordWrap: { width: RIGHT_INSTRUCTION_WIDTH },
+            })
+            .setOrigin(1, 0);
         this.container.add(text);
         return text;
     }
