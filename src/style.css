@@ -10,6 +10,12 @@ body {
 }
 
 #app {
+    width: 100%;
+    min-height: 100vh;
+}
+
+.app-shell {
+    width: 100%;
     min-height: 100vh;
     display: flex;
     flex-direction: column;
@@ -17,9 +23,23 @@ body {
     overflow: hidden;
 }
 
+.app-shell.game-active {
+    width: 100%;
+    height: 100vh;
+    height: 100dvh;
+    min-height: 0;
+}
+
 header {
+    position: relative;
+    width: 100%;
+    max-width: 1300px;
     text-align: center;
     padding: 42px 15px 20px;
+}
+
+.game-active header {
+    display: none;
 }
 
 header h1 {
@@ -423,18 +443,53 @@ main {
 }
 
 #game-container {
-    width: 100%;
-    max-width: 1300px;
-    aspect-ratio: 1300 / 760;
+    position: fixed;
+    z-index: 0;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
     overflow: hidden;
-    border: 3px solid #465367;
-    border-radius: 8px;
+    visibility: hidden;
+    pointer-events: none;
+}
+
+.game-active main {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    padding: 0;
+}
+
+.game-active #game-container {
+    visibility: visible;
+    pointer-events: auto;
+}
+
+.game-active .notice {
+    position: absolute;
+    z-index: 21;
+    top: 64px;
+    left: 50%;
+    max-width: calc(100% - 24px);
+    margin: 0;
+    transform: translateX(-50%);
 }
 
 canvas {
     display: block;
     width: 100% !important;
     height: auto !important;
+}
+
+.game-active canvas {
+    height: 100% !important;
+}
+
+.portrait-orientation-message {
+    display: none;
 }
 
 footer {
@@ -469,5 +524,59 @@ footer {
 
     .deck-actions > button {
         flex: 1 1 100%;
+    }
+}
+
+@media (orientation: portrait) and (max-width: 900px) {
+    .portrait-orientation-message {
+        position: fixed;
+        z-index: 25;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        background: #151b25f5;
+        text-align: center;
+        pointer-events: auto;
+    }
+
+    .portrait-orientation-message > div {
+        max-width: 360px;
+    }
+
+    .portrait-orientation-message span {
+        display: block;
+        margin-bottom: 20px;
+        color: #f0c974;
+        font-size: 56px;
+    }
+
+    .portrait-orientation-message strong {
+        color: #f0c974;
+        font-family: Georgia, serif;
+        font-size: clamp(22px, 6vw, 30px);
+        font-weight: 500;
+    }
+
+    .portrait-orientation-message p {
+        color: #c1cbd6;
+        font-size: 16px;
+        line-height: 1.5;
+    }
+
+    .portrait-return-button {
+        min-width: 99px;
+        min-height: 44px;
+        border: 2px solid #293441;
+        padding: 8px 18px;
+        color: #ffffff;
+        background: #a45e39;
+        font: 14px Arial, sans-serif;
+        cursor: pointer;
+        pointer-events: auto;
+    }
+
+    .portrait-return-button:hover {
+        background: #c47b4e;
     }
 }

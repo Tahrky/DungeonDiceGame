@@ -10,6 +10,7 @@ export type RemoteGameCommand =
     | { type: "mirrorPattern" }
     | { type: "togglePatternSelector" }
     | { type: "toggleInvocationMenu" }
+    | { type: "cancelInvocation" }
     | { type: "storeDie"; dieIndex: number }
     | { type: "startAttack" }
     | { type: "selectAttack"; attackIndex: number }

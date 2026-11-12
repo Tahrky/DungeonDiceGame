@@ -9,7 +9,7 @@ const STANDARD_DIE_FACES: readonly DiceSymbol[] = [
     "movement",
 ];
 
-export const DICE: readonly DieDefinition[] = [1, 2, 3].map((number) => ({
+export const DICE: readonly DieDefinition[] = [1, 2, 3, 4, 5].map((number) => ({
     id: `standard-${number}`,
     faces: STANDARD_DIE_FACES,
 }));

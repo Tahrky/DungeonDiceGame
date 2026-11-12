@@ -9,6 +9,7 @@ import {
     getAttackZoneOptions,
     getFacingFromMovement,
     getGridDistance,
+    getInitialAttackCooldowns,
     getMovementActionsPerTurn,
     getMovementCost,
     getMonsterMovementPath,
@@ -32,6 +33,7 @@ describe("portée des actions de monstre", () => {
         expect(canUseActionThisTurn(1, 1)).toBe(false);
         expect(canUseActionThisTurn(1, getMovementActionsPerTurn(thief ?? {}))).toBe(true);
         expect(advanceAttackCooldowns([3, 1, 0])).toEqual([2, 0, 0]);
+        expect(getInitialAttackCooldowns(archer ?? { attacks: [] })).toEqual([0, 3]);
         expect(archer?.attacks[1]).toMatchObject({
             damage: 3,
             cost: 1,
@@ -264,6 +266,44 @@ describe("portée des actions de monstre", () => {
                 range: 3,
             }),
         ).toBe(true);
+    });
+
+    it("respecte séparément les limites de largeur et de longueur", () => {
+        const movement = (
+            source: Position,
+            destination: Position,
+        ): Parameters<typeof canMoveMonsterTo>[0] => ({
+            source,
+            destination,
+            deployedCells: [destination],
+            occupiedCells: [],
+            blockedCells: [],
+            boardWidth: 15,
+            boardHeight: 19,
+        });
+
+        expect(canMoveMonsterTo(movement({ x: 13, y: 18 }, { x: 14, y: 18 }))).toBe(true);
+        expect(canMoveMonsterTo(movement({ x: 14, y: 18 }, { x: 15, y: 18 }))).toBe(false);
+        expect(canMoveMonsterTo(movement({ x: 13, y: 18 }, { x: 13, y: 19 }))).toBe(false);
+    });
+
+    it("empêche de traverser une case absente du plateau", () => {
+        expect(
+            canMoveMonsterTo({
+                source: { x: 1, y: 1 },
+                destination: { x: 3, y: 1 },
+                deployedCells: [
+                    { x: 1, y: 1 },
+                    { x: 2, y: 1 },
+                    { x: 3, y: 1 },
+                ],
+                occupiedCells: [],
+                blockedCells: [{ x: 2, y: 1 }],
+                range: 2,
+                boardWidth: 5,
+                boardHeight: 5,
+            }),
+        ).toBe(false);
     });
 
     it("empêche de franchir un ennemi, mais autorise le détour et le passage par un allié", () => {

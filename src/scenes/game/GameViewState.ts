@@ -34,4 +34,5 @@ export interface GameViewState {
     actionHistoryScrollOffset: number;
     hoveredCell: Position | null;
     startingPositions: Record<PlayerId, Position>;
+    boardOrigin: Position;
 }

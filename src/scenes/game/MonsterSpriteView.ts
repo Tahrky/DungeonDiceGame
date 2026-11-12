@@ -26,6 +26,7 @@ interface MonsterSpriteState {
     action: MonsterSpriteAction;
     isMoving: boolean;
     isGrayscale: boolean;
+    shouldBeGrayscale: boolean;
     isDead: boolean;
 }
 
@@ -119,7 +120,7 @@ export class MonsterSpriteView {
         this.createAnimations();
     }
 
-    render(monsters: readonly PlacedMonster[], grayscale = false): void {
+    render(monsters: readonly PlacedMonster[], grayscaleMonsterIds: ReadonlySet<string>): void {
         const spriteMonsters = monsters.filter(
             (monster) =>
                 MONSTER_SPRITES[monster.monster.id] &&
@@ -137,10 +138,8 @@ export class MonsterSpriteView {
         for (const monster of spriteMonsters) {
             const state = this.sprites.get(monster.id) ?? this.createSprite(monster);
             if (state.isDead) continue;
-            if (grayscale && !state.isGrayscale) {
-                state.sprite.postFX.addColorMatrix().grayscale();
-                state.isGrayscale = true;
-            }
+            state.shouldBeGrayscale = grayscaleMonsterIds.has(monster.id);
+            this.updateGrayscale(state);
             const angleChanged = state.facing !== monster.facing;
             if (!state.isMoving) {
                 state.facing = monster.facing;
@@ -232,6 +231,7 @@ export class MonsterSpriteView {
                 state.isMoving = false;
                 state.action = "idle";
                 this.play(state, "idle");
+                this.updateGrayscale(state);
                 onComplete();
                 return;
             }
@@ -274,6 +274,7 @@ export class MonsterSpriteView {
             if (state.action !== action) return;
             state.action = "idle";
             this.play(state, "idle");
+            this.updateGrayscale(state);
         });
     }
 
@@ -296,6 +297,7 @@ export class MonsterSpriteView {
             if (state.action !== animation || state.isDead) return;
             state.action = "idle";
             this.play(state, "idle");
+            this.updateGrayscale(state);
         });
     }
 
@@ -326,6 +328,7 @@ export class MonsterSpriteView {
             action: "idle",
             isMoving: false,
             isGrayscale: false,
+            shouldBeGrayscale: false,
             isDead: false,
         };
         this.container.add(sprite);
@@ -338,6 +341,17 @@ export class MonsterSpriteView {
         const center = this.toScreen(position);
         const offsetY = MONSTER_SPRITES[monsterId]?.facingOffsetY?.[facing] ?? 0;
         return { x: center.x, y: center.y - 3 + offsetY };
+    }
+
+    private updateGrayscale(state: MonsterSpriteState): void {
+        if (state.isMoving || state.action !== "idle") return;
+        if (state.shouldBeGrayscale && !state.isGrayscale) {
+            state.sprite.postFX.addColorMatrix().grayscale();
+            state.isGrayscale = true;
+        } else if (!state.shouldBeGrayscale && state.isGrayscale) {
+            state.sprite.clearFX();
+            state.isGrayscale = false;
+        }
     }
 
     private createAnimations(): void {

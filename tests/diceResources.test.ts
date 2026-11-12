@@ -12,8 +12,8 @@ import {
 import type { RolledDie } from "../src/types/GameTypes";
 
 describe("dés", () => {
-    it("configure trois dés identiques avec la distribution de faces demandée", () => {
-        expect(DICE).toHaveLength(3);
+    it("configure cinq dés identiques avec la distribution de faces demandée", () => {
+        expect(DICE).toHaveLength(5);
         expect(new Set(DICE.map((die) => die.faces.join(","))).size).toBe(1);
         expect(DICE[0].faces).toHaveLength(6);
         expect(DICE[0].faces.filter((face) => face === "invocation")).toHaveLength(3);

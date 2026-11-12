@@ -1,5 +1,6 @@
 export const GAME_CONFIG = {
-    boardSize: 19,
+    boardWidth: 19,
+    boardHeight: 15,
 
     tileWidth: 48,
     tileHeight: 24,

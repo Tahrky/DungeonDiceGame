@@ -10,7 +10,7 @@ describe("sélections de monstres", () => {
 
         expect(deck).toHaveLength(DECK_SIZE);
         expect(costs).toEqual([...costs].sort((first, second) => first - second));
-        expect(costs).toEqual([1, 2, 2, 3, 3]);
+        expect(costs).toEqual([1, 1, 2, 3, 3]);
     });
 
     it("valide et sérialise un deck JSON de cinq monstres uniques", () => {

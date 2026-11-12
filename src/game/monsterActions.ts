@@ -16,7 +16,8 @@ export interface MovementOptions {
     range?: number;
     readonly hostileCells?: readonly Position[];
     readonly canPassHostiles?: boolean;
-    boardSize?: number;
+    boardWidth?: number;
+    boardHeight?: number;
 }
 
 export interface AttackZoneOption {
@@ -30,11 +31,16 @@ interface TraversalContext {
     deployedCells: readonly Position[];
     hostileKeys: ReadonlySet<string>;
     canPassHostiles: boolean;
-    boardSize: number;
+    boardWidth: number;
+    boardHeight: number;
 }
 
 export function getGridDistance(first: Position, second: Position): number {
     return Math.abs(first.x - second.x) + Math.abs(first.y - second.y);
+}
+
+export function getInitialAttackCooldowns(monster: Pick<Monster, "attacks">): number[] {
+    return monster.attacks.map((attack) => attack.cooldownTurns ?? 0);
 }
 
 export function getMovementCost(monster: Pick<Monster, "movementCost">): number {
@@ -269,7 +275,8 @@ export function getMonsterMovementPath(options: MovementOptions): Position[] {
         range = 2,
         hostileCells = [],
         canPassHostiles = false,
-        boardSize = Number.POSITIVE_INFINITY,
+        boardWidth = Number.POSITIVE_INFINITY,
+        boardHeight = Number.POSITIVE_INFINITY,
     } = options;
     if (!isValidDestination(destination, deployedCells, occupiedCells, blockedCells, range)) {
         return [];
@@ -285,7 +292,8 @@ export function getMonsterMovementPath(options: MovementOptions): Position[] {
         deployedCells,
         hostileKeys,
         canPassHostiles,
-        boardSize,
+        boardWidth,
+        boardHeight,
     };
     const queue = [source];
 
@@ -352,8 +360,8 @@ function isTraversableCell(
     return (
         position.x >= 0 &&
         position.y >= 0 &&
-        position.x < context.boardSize &&
-        position.y < context.boardSize &&
+        position.x < context.boardWidth &&
+        position.y < context.boardHeight &&
         !context.visited.has(positionKey) &&
         !context.blockedKeys.has(positionKey) &&
         context.deployedCells.some((cell) => isSamePosition(cell, position)) &&

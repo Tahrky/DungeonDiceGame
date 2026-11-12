@@ -17,6 +17,8 @@
 - Avoid unnecessary state.
 - Keep JSX concise and readable.
 - Always correct SonarQube issues and warnings.
+- Try to stay under 300 lines of code per file.
+- Strictly no more than 550 lines of code per file.
 
 ## Context management
 

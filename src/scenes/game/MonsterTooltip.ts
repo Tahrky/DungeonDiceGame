@@ -21,6 +21,7 @@ interface MonsterTooltipOptions {
     readonly monster: Monster;
     readonly hp: number;
     readonly owner: PlayerId;
+    readonly attackCooldowns?: readonly number[];
     readonly x: number;
     readonly y: number;
     readonly alignLeft: boolean;
@@ -67,7 +68,8 @@ export class MonsterTooltip {
             return;
         }
 
-        const hoveredCell = this.toGrid({ x: pointer.x, y: pointer.y });
+        const pointerPosition = this.scene.cameras.main.getWorldPoint(pointer.x, pointer.y);
+        const hoveredCell = this.toGrid(pointerPosition);
         const hovered = monsters.find((monster) => {
             if (monster.currentHp <= 0) return false;
 
@@ -79,10 +81,11 @@ export class MonsterTooltip {
         if (hovered) {
             const center = this.toScreen(hovered.position);
             this.show({
-                key: `${hovered.id}:${hovered.position.x},${hovered.position.y}:${hovered.currentHp}`,
+                key: `${hovered.id}:${hovered.position.x},${hovered.position.y}:${hovered.currentHp}:${hovered.attackCooldowns.join(",")}`,
                 monster: hovered.monster,
                 hp: hovered.currentHp,
                 owner: hovered.owner,
+                attackCooldowns: hovered.attackCooldowns,
                 x: center.x,
                 y: center.y - 40,
                 alignLeft: false,
@@ -96,8 +99,8 @@ export class MonsterTooltip {
                 monster: invocationMonster,
                 hp: invocationMonster.hp,
                 owner: currentPlayer,
-                x: pointer.x,
-                y: pointer.y - 40,
+                x: pointerPosition.x,
+                y: pointerPosition.y - 40,
                 alignLeft: true,
             });
             return;
@@ -112,11 +115,21 @@ export class MonsterTooltip {
     }
 
     private show(options: MonsterTooltipOptions): void {
-        const { key, monster, hp, owner, x, y, alignLeft } = options;
+        const { key, monster, hp, owner, attackCooldowns = [], x, y, alignLeft } =
+            options;
         const isNewTooltip = this.hoveredMonsterKey !== key;
         if (isNewTooltip) {
             this.container.removeAll(true);
-            const attacks = monster.attacks.map(describeMonsterAttack).join("\n");
+            const attacks = monster.attacks
+                .map((attack, index) => {
+                    const cooldown = attackCooldowns[index] ?? 0;
+                    const remainingCooldown =
+                        cooldown > 0
+                            ? ` — Recharge restante : ${cooldown} tour${cooldown === 1 ? "" : "s"} du joueur`
+                            : "";
+                    return `${describeMonsterAttack(attack)}${remainingCooldown}`;
+                })
+                .join("\n");
             const backstab = monster.bonusDamageFromBehind
                 ? `\nBonus de dos : +${monster.bonusDamageFromBehind} dégâts`
                 : "";
@@ -232,11 +245,15 @@ export class MonsterTooltip {
 
         if (isNewTooltip) {
             const tooltipX = alignLeft ? x - this.container.width - 12 : x + 12;
+            const view = this.scene.cameras.main.worldView;
+            const minX = view.x + 4;
+            const maxX = Math.max(minX, view.x + view.width - this.container.width - 4);
+            const minY = view.y + 4;
+            const maxY = Math.max(minY, view.y + view.height - this.container.height - 4);
             this.container.setPosition(
-                Phaser.Math.Clamp(tooltipX, 4, GAME_CONFIG.screenWidth - this.container.width - 4),
-                Phaser.Math.Clamp(y, 4, GAME_CONFIG.screenHeight - this.container.height - 4),
+                Phaser.Math.Clamp(tooltipX, minX, maxX),
+                Phaser.Math.Clamp(y, minY, maxY),
             );
         }
     }
-
 }

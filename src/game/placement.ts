@@ -2,11 +2,13 @@ import type { Position } from "../types/GameTypes";
 
 export interface PlacementSearchOptions {
     readonly patterns: readonly (readonly Position[])[];
-    readonly boardSize: number;
+    readonly boardWidth: number;
+    readonly boardHeight: number;
     readonly start: Position;
     readonly occupiedCells: readonly Position[];
     readonly connectedCells: readonly Position[];
     readonly overlappingCells?: readonly Position[];
+    readonly blockedCells?: readonly Position[];
     readonly isPlacementAllowed?: (position: Position, cells: readonly Position[]) => boolean;
     readonly scorePlacement?: (position: Position, cells: readonly Position[]) => number;
 }
@@ -47,10 +49,12 @@ export function getPatternCells(
 
 export function canPlaceCells(
     cells: readonly Position[],
-    boardSize: number,
+    boardWidth: number,
     occupiedCells: readonly Position[],
     connectedCells: readonly Position[],
     overlappingCells: readonly Position[] = [],
+    boardHeight = boardWidth,
+    blockedCells: readonly Position[] = [],
 ): boolean {
     if (cells.length !== 6) return false;
 
@@ -58,7 +62,12 @@ export function canPlaceCells(
     if (cellKeys.size !== 6) return false;
 
     const insideBoard = cells.every(
-        (cell) => cell.x >= 0 && cell.y >= 0 && cell.x < boardSize && cell.y < boardSize,
+        (cell) =>
+            cell.x >= 0 &&
+            cell.y >= 0 &&
+            cell.x < boardWidth &&
+            cell.y < boardHeight &&
+            !blockedCells.some((blocked) => blocked.x === cell.x && blocked.y === cell.y),
     );
     if (!insideBoard) return false;
 
@@ -79,11 +88,10 @@ export function canPlaceCells(
 export function findValidPlacement(
     options: PlacementSearchOptions,
 ): { position: Position; cells: Position[] } | null {
-    const coordinates = Array.from({ length: options.boardSize }, (_, index) => index);
-    const columns = [...coordinates].sort(
+    const columns = Array.from({ length: options.boardWidth }, (_, index) => index).sort(
         (first, second) => Math.abs(first - options.start.x) - Math.abs(second - options.start.x),
     );
-    const rows = [...coordinates].sort(
+    const rows = Array.from({ length: options.boardHeight }, (_, index) => index).sort(
         (first, second) => Math.abs(first - options.start.y) - Math.abs(second - options.start.y),
     );
 
@@ -142,10 +150,12 @@ function scorePatternPlacement(
     if (
         !canPlaceCells(
             cells,
-            options.boardSize,
+            options.boardWidth,
             options.occupiedCells,
             options.connectedCells,
             options.overlappingCells,
+            options.boardHeight,
+            options.blockedCells,
         )
     ) {
         return null;

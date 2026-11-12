@@ -3,6 +3,7 @@ import Phaser from "phaser";
 import { GAME_CONFIG } from "../../config";
 import { MONSTER_SPRITES } from "../../data/monsterSprites";
 import { PLACEMENT_PATTERNS } from "../../data/placementPatterns";
+import { getBoardOrigin, isBoardCell, type BoardDefinition } from "../../game/boards";
 import { getPatternCells } from "../../game/placement";
 
 import type { GameViewState } from "./GameViewState";
@@ -58,23 +59,27 @@ function toGrayscale(color: number): number {
 export class BoardView {
     private readonly scene: Phaser.Scene;
     private readonly graphics: Phaser.GameObjects.Graphics;
+    private readonly board: BoardDefinition;
     private readonly toScreen: (position: Position) => Position;
 
     constructor(
         scene: Phaser.Scene,
         graphics: Phaser.GameObjects.Graphics,
+        board: BoardDefinition,
         toScreen: (position: Position) => Position,
     ) {
         this.scene = scene;
         this.graphics = graphics;
+        this.board = board;
         this.toScreen = toScreen;
         if (GAME_CONFIG.showDirectionLabels) this.drawDirectionLabels();
     }
 
-    screenToGrid(position: Position): Position {
-        const { tileWidth, tileHeight, boardOffsetX, boardOffsetY } = GAME_CONFIG;
-        const dx = position.x - boardOffsetX;
-        const dy = position.y - boardOffsetY;
+    worldToGrid(position: Position): Position {
+        const { tileWidth, tileHeight } = GAME_CONFIG;
+        const origin = getBoardOrigin(this.board);
+        const dx = position.x - origin.x;
+        const dy = position.y - origin.y;
 
         return {
             x: Math.round(dx / tileWidth + dy / tileHeight),
@@ -83,17 +88,12 @@ export class BoardView {
     }
 
     isInsideBoard(position: Position): boolean {
-        return (
-            position.x >= 0 &&
-            position.y >= 0 &&
-            position.x < GAME_CONFIG.boardSize &&
-            position.y < GAME_CONFIG.boardSize
-        );
+        return isBoardCell(this.board, position);
     }
 
     draw(state: GameViewState, actions: BoardActions): void {
         this.graphics.clear();
-        const { boardSize } = GAME_CONFIG;
+        const { width: boardWidth, height: boardHeight } = this.board;
         const previewCells = this.getPreviewCells(state);
         const attackRange = this.getAttackRange(state, actions);
         const attackCandidates = this.getAttackCandidates(state, actions);
@@ -109,8 +109,9 @@ export class BoardView {
             movementCandidates,
         };
 
-        for (let y = 0; y < boardSize; y++) {
-            for (let x = 0; x < boardSize; x++) {
+        for (let y = 0; y < boardHeight; y++) {
+            for (let x = 0; x < boardWidth; x++) {
+                if (!isBoardCell(this.board, { x, y })) continue;
                 this.drawCell({ x, y }, context);
             }
         }
@@ -140,8 +141,9 @@ export class BoardView {
     }
 
     private drawDirectionLabels(): void {
-        const { boardSize, tileWidth, tileHeight } = GAME_CONFIG;
-        const lastIndex = boardSize - 1;
+        const { tileWidth, tileHeight } = GAME_CONFIG;
+        const lastColumn = this.board.width - 1;
+        const lastRow = this.board.height - 1;
         const labels = [
             {
                 text: "N",
@@ -151,19 +153,19 @@ export class BoardView {
             },
             {
                 text: "E",
-                position: this.toScreen({ x: lastIndex, y: 0 }),
+                position: this.toScreen({ x: lastColumn, y: 0 }),
                 offsetX: tileWidth / 2 + 14,
                 offsetY: 0,
             },
             {
                 text: "S",
-                position: this.toScreen({ x: lastIndex, y: lastIndex }),
+                position: this.toScreen({ x: lastColumn, y: lastRow }),
                 offsetX: 0,
                 offsetY: tileHeight / 2 + 14,
             },
             {
                 text: "O",
-                position: this.toScreen({ x: 0, y: lastIndex }),
+                position: this.toScreen({ x: 0, y: lastRow }),
                 offsetX: -(tileWidth / 2 + 14),
                 offsetY: 0,
             },

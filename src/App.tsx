@@ -6,6 +6,7 @@ import { DeckEditor } from "./components/DeckEditor";
 import { MainMenu } from "./components/MainMenu";
 import { RoomScreen } from "./components/RoomScreen";
 import { GAME_CONFIG } from "./config";
+import { getRandomBoard, parseBoardDefinition } from "./game/boards";
 import { getDefaultDeck, getSavedDeck, parseDeck, type GameSetup } from "./game/decks";
 import { GameScene } from "./scenes/GameScene";
 
@@ -46,6 +47,7 @@ function startOnlineGame(
     isHost: boolean,
     playerDeck: string[],
     opponentDeck: string[],
+    board: NonNullable<GameSetup["board"]>,
 ): void {
     if (!game) throw new Error("Le moteur de jeu n’est pas encore initialisé.");
 
@@ -55,6 +57,7 @@ function startOnlineGame(
         isHost,
         playerDeck,
         opponentDeck,
+        board,
     };
     game.scene.stop("GameScene");
     game.scene.start("GameScene", setup);
@@ -87,8 +90,7 @@ export function App() {
             backgroundColor: "#202a36",
             scene: [GameScene],
             scale: {
-                mode: Phaser.Scale.FIT,
-                autoCenter: Phaser.Scale.CENTER_BOTH,
+                mode: Phaser.Scale.RESIZE,
             },
             render: {
                 antialias: false,
@@ -98,14 +100,41 @@ export function App() {
         gameRef.current = instance;
         setGame(instance);
 
+        const handleLeaveGame = (): void => {
+            instance.scene.stop("GameScene");
+            roomStartRequestedRef.current = false;
+            setRoomRole(null);
+            setRoomCode("");
+            setRoomPlayers([]);
+            setRoomError("");
+            setScreen("menu");
+        };
+        instance.events.on("leave-game", handleLeaveGame);
+
         return () => {
+            instance.events.off("leave-game", handleLeaveGame);
             gameRef.current = null;
             instance.destroy(true);
         };
     }, []);
 
     useEffect(() => {
-        if (screen === "game" && game) game.scale.refresh();
+        if (screen !== "game" || !game) return;
+
+        const container = gameContainerRef.current;
+        if (!container) throw new Error("Conteneur du jeu manquant.");
+
+        const resizeGame = (): void => {
+            const { width, height } = container.getBoundingClientRect();
+            if (width > 0 && height > 0) {
+                game.scale.resize(Math.round(width), Math.round(height));
+            }
+        };
+        const observer = new ResizeObserver(resizeGame);
+        observer.observe(container);
+        resizeGame();
+
+        return () => observer.disconnect();
     }, [game, screen]);
 
     useEffect(() => {
@@ -165,12 +194,14 @@ export function App() {
 
             const hostDeck = parseDeck(message.data.hostDeck);
             const guestDeck = parseDeck(message.data.guestDeck);
-            if (!hostDeck || !guestDeck) {
-                setRoomError("L’hôte a envoyé des decks invalides.");
+            const board =
+                "board" in message.data ? parseBoardDefinition(message.data.board) : null;
+            if (!hostDeck || !guestDeck || !board) {
+                setRoomError("L’hôte a envoyé des données de partie invalides.");
                 return;
             }
             try {
-                startOnlineGame(gameRef.current, 2, false, guestDeck, hostDeck);
+                startOnlineGame(gameRef.current, 2, false, guestDeck, hostDeck, board);
                 setScreen("game");
             } catch (error) {
                 setRoomStatus("error");
@@ -256,6 +287,7 @@ export function App() {
             mode: "computer",
             playerDeck: getSavedDeck() ?? getDefaultDeck(),
             opponentDeck: getDefaultDeck(),
+            board: getRandomBoard(),
         };
         instance.scene.stop("GameScene");
         instance.scene.start("GameScene", setup);
@@ -271,6 +303,7 @@ export function App() {
             mode: "local",
             playerDeck: deck,
             opponentDeck: deck,
+            board: getRandomBoard(),
         };
         instance.scene.stop("GameScene");
         instance.scene.start("GameScene", setup);
@@ -310,8 +343,9 @@ export function App() {
 
         roomStartRequestedRef.current = true;
         try {
-            await channel.publish("start", { hostDeck, guestDeck });
-            startOnlineGame(gameRef.current, 1, true, hostDeck, guestDeck);
+            const board = getRandomBoard();
+            await channel.publish("start", { hostDeck, guestDeck, board });
+            startOnlineGame(gameRef.current, 1, true, hostDeck, guestDeck, board);
             setScreen("game");
         } catch (error) {
             roomStartRequestedRef.current = false;
@@ -335,8 +369,15 @@ export function App() {
         setScreen("menu");
     }
 
+    function leaveGame(): void {
+        const instance = gameRef.current;
+        if (!instance) throw new Error("Le moteur de jeu n’est pas encore initialisé.");
+
+        instance.events.emit("leave-game");
+    }
+
     return (
-        <div id="app">
+        <div className={`app-shell${screen === "game" ? " game-active" : ""}`}>
             <header>
                 <h1>DUNGEON DICE</h1>
             </header>
@@ -368,7 +409,23 @@ export function App() {
                         {roomError}
                     </output>
                 )}
-                <div id="game-container" ref={gameContainerRef} hidden={screen !== "game"} />
+                {screen === "game" && (
+                    <div className="portrait-orientation-message" role="status" aria-live="polite">
+                        <div>
+                            <span aria-hidden="true">↻</span>
+                            <strong>Tournez votre appareil</strong>
+                            <p>Le plateau est plus lisible en mode paysage.</p>
+                            <button className="portrait-return-button" onClick={leaveGame}>
+                                MENU
+                            </button>
+                        </div>
+                    </div>
+                )}
+                <div
+                    id="game-container"
+                    ref={gameContainerRef}
+                    aria-hidden={screen !== "game"}
+                />
             </main>
         </div>
     );

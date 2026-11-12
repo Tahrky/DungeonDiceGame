@@ -105,14 +105,38 @@ describe("règles de pose", () => {
         expect(canPlaceCells(line, 10, [owned], [owned])).toBe(true);
     });
 
+    it("respecte les limites rectangulaires du plateau", () => {
+        const cells = Array.from({ length: 6 }, (_, index) => ({ x: 14, y: 10 + index }));
+        const connected = [{ x: 13, y: 10 }];
+
+        expect(canPlaceCells(cells, 15, [], connected, [], 19)).toBe(true);
+        expect(
+            canPlaceCells(
+                cells.map((cell) => ({ ...cell, x: 15 })),
+                15,
+                [],
+                connected,
+                [],
+                19,
+            ),
+        ).toBe(false);
+    });
+
+    it("refuse les cases manquantes d'un plateau irrégulier", () => {
+        expect(
+            canPlaceCells(line, 10, [], [{ x: 0, y: 1 }], [], 10, [{ x: 4, y: 1 }]),
+        ).toBe(false);
+    });
+
     describe("pose de l'ordinateur", () => {
         it("choisit une zone valide adjacente au départ du joueur 2", () => {
             const playerOneStart = { x: 0, y: 9 };
-            const computerStart = { x: 18, y: 9 };
+            const computerStart = { x: 14, y: 9 };
             const placement = findValidPlacement(
                 {
                     patterns: PLACEMENT_PATTERNS,
-                    boardSize: 19,
+                    boardWidth: 15,
+                    boardHeight: 19,
                     start: computerStart,
                     occupiedCells: [playerOneStart, computerStart],
                     connectedCells: [computerStart],
@@ -124,9 +148,11 @@ describe("règles de pose", () => {
             expect(
                 canPlaceCells(
                     placement!.cells,
-                    19,
+                    15,
                     [playerOneStart, computerStart],
                     [computerStart],
+                    [],
+                    19,
                 ),
             ).toBe(true);
             expect(placement!.cells).not.toContainEqual(playerOneStart);
@@ -134,12 +160,12 @@ describe("règles de pose", () => {
         });
 
         it("étend sa zone depuis ses cases déjà posées, sans chevaucher celle de l'adversaire", () => {
-            const computerStart = { x: 18, y: 9 };
+            const computerStart = { x: 14, y: 9 };
             const playerOneStart = { x: 0, y: 9 };
             const computerPath: Position[] = [
-                { x: 15, y: 9 },
-                { x: 16, y: 9 },
-                { x: 17, y: 9 },
+                { x: 11, y: 9 },
+                { x: 12, y: 9 },
+                { x: 13, y: 9 },
             ];
             const enemyPath: Position[] = [
                 { x: 1, y: 9 },
@@ -150,7 +176,8 @@ describe("règles de pose", () => {
                 findValidPlacement(
                     {
                         patterns: PLACEMENT_PATTERNS,
-                        boardSize: 19,
+                        boardWidth: 15,
+                        boardHeight: 19,
                         start: computerStart,
                         occupiedCells: [
                             computerStart,
@@ -176,10 +203,11 @@ describe("règles de pose", () => {
             expect(
                 canPlaceCells(
                     placement!.cells,
-                    19,
+                    15,
                     [computerStart, playerOneStart, ...computerPath, ...enemyPath],
                     [computerStart, ...computerPath],
                     computerPath,
+                    19,
                 ),
             ).toBe(true);
             expect(
@@ -190,19 +218,20 @@ describe("règles de pose", () => {
         });
 
         it("étend progressivement son territoire vers le joueur adverse", () => {
-            const computerStart = { x: 18, y: 9 };
+            const computerStart = { x: 14, y: 9 };
             const playerOneStart = { x: 0, y: 9 };
             const territory = [computerStart];
             const occupied = [computerStart, playerOneStart];
             const monsterPositions: Position[] = [];
 
-            for (let turn = 0; turn < 4; turn++) {
+            for (let turn = 0; turn < 3; turn++) {
                 const territoryKeys = new Set(territory.map(positionKey));
                 const frontierX = Math.min(...territory.map((cell) => cell.x));
                 const placement = findValidPlacement(
                     {
                         patterns: PLACEMENT_PATTERNS,
-                        boardSize: 19,
+                        boardWidth: 15,
+                        boardHeight: 19,
                         start: computerStart,
                         occupiedCells: occupied,
                         connectedCells: territory,
@@ -237,7 +266,7 @@ describe("règles de pose", () => {
         });
 
         it("refuse les placements dont la forme ou le monstre recouvre le chemin adverse", () => {
-            const computerStart = { x: 18, y: 9 };
+            const computerStart = { x: 14, y: 9 };
             const opponentStart = { x: 0, y: 9 };
             const opponentPath: Position[] = [
                 { x: 3, y: 9 },
@@ -249,7 +278,8 @@ describe("règles de pose", () => {
             const placement = findValidPlacement(
                 {
                     patterns: PLACEMENT_PATTERNS,
-                    boardSize: 19,
+                    boardWidth: 15,
+                    boardHeight: 19,
                     start: computerStart,
                     occupiedCells: occupied,
                     connectedCells: [computerStart],
