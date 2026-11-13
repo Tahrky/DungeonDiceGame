@@ -1,7 +1,7 @@
 import Phaser from "phaser";
 import { isGameSnapshot } from "./GameSceneProtocol";
 import { GAME_CONFIG } from "../config";
-import { createEmptyDiceReserve, spendSymbols } from "../game/diceResources";
+import { addSymbolsToReserve, createEmptyDiceReserve, spendSymbols } from "../game/diceResources";
 import {
     getDefaultGameConfiguration,
     parseGameConfiguration,
@@ -263,6 +263,13 @@ export abstract class GameSceneState extends Phaser.Scene {
         }
     }
 
+    protected addDebugSymbols(): void {
+        if (!this.gameConfiguration.testBoard) return;
+
+        addSymbolsToReserve(this.diceReserves[this.currentPlayer], 100);
+        this.render();
+    }
+
     protected createSnapshot(): GameSnapshot {
         return {
             currentPlayer: this.currentPlayer,
@@ -289,6 +296,20 @@ export abstract class GameSceneState extends Phaser.Scene {
 
     protected applyRemoteSnapshot(value: unknown): void {
         if (this.isHost || this.mode !== "online" || !isGameSnapshot(value)) return;
+
+        const previousMonsters = new Map(
+            this.placedMonsters.map((monster) => [monster.id, monster]),
+        );
+        for (const monster of value.placedMonsters) {
+            const previousMonster = previousMonsters.get(monster.id);
+            if (previousMonster && monster.currentHp < previousMonster.currentHp) {
+                this.monsterSpriteView.takeDamage(
+                    monster.id,
+                    monster.currentHp,
+                    monster.position,
+                );
+            }
+        }
 
         this.currentPlayer = value.currentPlayer;
         this.turnNumber = value.turnNumber;

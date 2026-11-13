@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { DICE } from "../src/data/dice";
 import {
+    addSymbolsToReserve,
     createEmptyDiceReserve,
     getAvailableSymbolCount,
     spendSymbols,
@@ -23,6 +24,14 @@ describe("dés", () => {
 });
 
 describe("réserve et dépense des symboles", () => {
+    it("ajoute le même nombre de symboles à chaque réserve", () => {
+        const reserve = { invocation: 1, attack: 2, movement: 3 };
+
+        addSymbolsToReserve(reserve, 100);
+
+        expect(reserve).toEqual({ invocation: 101, attack: 102, movement: 103 });
+    });
+
     it("stocke un dé dans la réserve du symbole correspondant une seule fois", () => {
         const rolledDice: RolledDie[] = [
             { definitionId: "standard-1", symbol: "attack", status: "available" },

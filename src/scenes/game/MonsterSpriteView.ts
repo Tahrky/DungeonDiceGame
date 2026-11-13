@@ -255,9 +255,18 @@ export class MonsterSpriteView {
         moveToStep(0);
     }
 
-    playAttack(id: string, attackIndex = 0, backstab = false): void {
+    playAttack(id: string, attackIndex = 0, backstab = false, facing?: Facing): void {
         const state = this.sprites.get(id);
         if (!state || state.isDead) return;
+        if (facing && state.facing !== facing) {
+            state.facing = facing;
+            const spritePosition = this.getSpritePosition(
+                state.position,
+                state.monster.id,
+                state.facing,
+            );
+            state.sprite.setPosition(spritePosition.x, spritePosition.y);
+        }
         const animations = MONSTER_SPRITES[state.monster.id]?.animations;
         const action =
             backstab && animations?.backstab

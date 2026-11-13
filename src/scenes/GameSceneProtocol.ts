@@ -14,6 +14,7 @@ export function isRemoteGameCommand(value: unknown): value is RemoteGameCommand 
         case "startMovement":
         case "cancelBoardAction":
         case "finishTurn":
+        case "debugAddSymbols":
             return true;
         case "selectMonster":
             return "monsterId" in value && typeof value.monsterId === "string";

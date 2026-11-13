@@ -4,6 +4,16 @@ export function createEmptyDiceReserve(): DiceReserve {
     return { invocation: 0, attack: 0, movement: 0 };
 }
 
+export function addSymbolsToReserve(reserve: DiceReserve, amountPerSymbol: number): void {
+    if (!Number.isInteger(amountPerSymbol) || amountPerSymbol < 0) {
+        throw new RangeError("Le nombre de symboles à ajouter doit être un entier positif.");
+    }
+
+    reserve.invocation += amountPerSymbol;
+    reserve.attack += amountPerSymbol;
+    reserve.movement += amountPerSymbol;
+}
+
 export function getAvailableSymbolCount(
     symbol: DiceSymbol,
     rolledDice: readonly RolledDie[],

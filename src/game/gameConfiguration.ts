@@ -11,6 +11,7 @@ export interface GameConfiguration {
     version: typeof GAME_CONFIGURATION_VERSION;
     diceCount: number;
     randomBoard: boolean;
+    testBoard: boolean;
     initialPlayerHealth: number;
     maxMonstersPerPlayer: number;
     monsters: Monster[];
@@ -39,6 +40,7 @@ export function getDefaultGameConfiguration(): GameConfiguration {
         version: GAME_CONFIGURATION_VERSION,
         diceCount: MAX_DICE_COUNT,
         randomBoard: false,
+        testBoard: false,
         initialPlayerHealth: 3,
         maxMonstersPerPlayer: MAX_MONSTERS_PER_PLAYER,
         monsters: MONSTERS.map(cloneMonster),
@@ -205,6 +207,7 @@ export function parseGameConfiguration(value: unknown): GameConfiguration | null
         value.version !== GAME_CONFIGURATION_VERSION ||
         !isIntegerInRange(value.diceCount, 1, MAX_DICE_COUNT) ||
         typeof value.randomBoard !== "boolean" ||
+        (value.testBoard !== undefined && typeof value.testBoard !== "boolean") ||
         !isIntegerInRange(value.initialPlayerHealth, 1, 20) ||
         !isIntegerInRange(value.maxMonstersPerPlayer, 1, 20) ||
         !Array.isArray(value.monsters) ||
@@ -228,6 +231,7 @@ export function parseGameConfiguration(value: unknown): GameConfiguration | null
         version: GAME_CONFIGURATION_VERSION,
         diceCount: value.diceCount,
         randomBoard: value.randomBoard,
+        testBoard: value.testBoard === true,
         initialPlayerHealth: value.initialPlayerHealth,
         maxMonstersPerPlayer: value.maxMonstersPerPlayer,
         monsters,

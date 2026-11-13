@@ -1,88 +1,36 @@
 interface MainMenuProps {
-    readonly canPlay: boolean;
-    readonly onPlay: () => void;
-    readonly onLocalPlay: () => void;
-    readonly onCreateRoom: () => void;
+    readonly onOpenPlay: () => void;
     readonly onEditDeck: () => void;
-    readonly onEditSettings: () => void;
+    readonly onOpenOptions: () => void;
 }
 
-export function MainMenu({
-    canPlay,
-    onPlay,
-    onLocalPlay,
-    onCreateRoom,
-    onEditDeck,
-    onEditSettings,
-}: MainMenuProps) {
+export function MainMenu({ onOpenPlay, onEditDeck, onOpenOptions }: MainMenuProps) {
     return (
-        <section id="menu-screen" aria-live="polite">
+        <section id="menu-screen">
             <section id="main-menu" className="menu-panel">
-                <p className="eyebrow">LE DONJON VOUS ATTEND</p>
-                <h2>Comment voulez-vous jouer&nbsp;?</h2>
-                <div className="menu-choices">
-                    <button className="menu-choice" onClick={onPlay} disabled={!canPlay}>
+                <div className="menu-card-grid">
+                    <button className="menu-card" onClick={onOpenPlay}>
                         <span className="choice-icon" aria-hidden="true">
                             ⚔
                         </span>
-                        <span>
-                            <strong>Jouer contre l’ordinateur</strong>
-                            <small>Une partie en solo avec votre deck.</small>
-                        </span>
-                        <span className="choice-arrow" aria-hidden="true">
-                            →
-                        </span>
+                        <strong>Jouer</strong>
                     </button>
-                    <button className="menu-choice" onClick={onLocalPlay} disabled={!canPlay}>
-                        <span className="choice-icon" aria-hidden="true">
-                            ⚔
-                        </span>
-                        <span>
-                            <strong>Jouer à deux en local</strong>
-                            <small>Jouez chacun votre tour sur cet écran.</small>
-                        </span>
-                        <span className="choice-arrow" aria-hidden="true">
-                            →
-                        </span>
+                    <button className="menu-card" onClick={onEditDeck}>
+                        <svg className="choice-die-icon" viewBox="0 0 48 48" aria-hidden="true">
+                            <path d="M24 4 41 13.5v21L24 44 7 34.5v-21L24 4Z" />
+                            <path d="M7 13.5 24 23l17-9.5M24 23v21" />
+                            <circle cx="16" cy="14" r="1.8" />
+                            <circle cx="32" cy="14" r="1.8" />
+                        </svg>
+                        <strong>Deck</strong>
                     </button>
-                    <button className="menu-choice" onClick={onCreateRoom}>
-                        <span className="choice-icon" aria-hidden="true">
-                            ⌂
-                        </span>
-                        <span>
-                            <strong>Créer ou rejoindre une salle</strong>
-                            <small>Créez un code ou saisissez celui de votre adversaire.</small>
-                        </span>
-                        <span className="choice-arrow" aria-hidden="true">
-                            →
-                        </span>
-                    </button>
-                    <button className="menu-choice" onClick={onEditDeck}>
-                        <span className="choice-icon" aria-hidden="true">
-                            ▦
-                        </span>
-                        <span>
-                            <strong>Fabriquer mon deck</strong>
-                            <small>Choisissez cinq monstres et exportez leur JSON.</small>
-                        </span>
-                        <span className="choice-arrow" aria-hidden="true">
-                            →
-                        </span>
-                    </button>
-                    <button className="menu-choice" onClick={onEditSettings}>
+                    <button className="menu-card" onClick={onOpenOptions}>
                         <span className="choice-icon" aria-hidden="true">
                             ⚙
                         </span>
-                        <span>
-                            <strong>Configurer les règles</strong>
-                            <small>Modifiez les options et les profils de monstres.</small>
-                        </span>
-                        <span className="choice-arrow" aria-hidden="true">
-                            →
-                        </span>
+                        <strong>Options</strong>
                     </button>
                 </div>
-                <output className="notice" aria-live="polite" />
             </section>
         </section>
     );

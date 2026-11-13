@@ -153,6 +153,12 @@ export abstract class GameSceneCombat extends GameSceneInvocation {
         const attack = attacker.monster.attacks[attackIndex];
         const zone = this.getAttackZoneForTarget(attacker, attack, targetPosition);
         if (!zone || !this.spendCurrentSymbol("attack", attack.cost)) return;
+        const attackFacing = getFacingFromMovement(
+            attacker.position,
+            targetPosition,
+            attacker.facing,
+        );
+        attacker.facing = attackFacing;
         attacker.attacksUsedThisTurn++;
         if (attack.cooldownTurns !== undefined) {
             attacker.attackCooldowns[attackIndex] = attack.cooldownTurns;
@@ -162,7 +168,7 @@ export abstract class GameSceneCombat extends GameSceneInvocation {
             clickedMonster.owner !== this.currentPlayer &&
             (attacker.monster.bonusDamageFromBehind ?? 0) > 0 &&
             isBehind(clickedMonster.position, attacker.position, clickedMonster.facing);
-        this.monsterSpriteView.playAttack(attacker.id, attackIndex, isBackstab);
+        this.monsterSpriteView.playAttack(attacker.id, attackIndex, isBackstab, attackFacing);
 
         if (
             attack.hitsAllies ||

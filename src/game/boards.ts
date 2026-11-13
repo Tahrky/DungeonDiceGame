@@ -84,6 +84,10 @@ export function getDefaultBoard(): BoardDefinition {
     return cloneBoard(board);
 }
 
+export function getTestBoard(): BoardDefinition {
+    return createCustomBoard(11, 7);
+}
+
 export function getBoardPreset(presetId: string): BoardDefinition {
     const board = BOARD_PRESETS.find(({ id }) => id === presetId);
     if (!board) throw new Error(`Plateau prédéfini inconnu : ${presetId}`);

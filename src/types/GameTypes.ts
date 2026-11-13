@@ -17,6 +17,7 @@ export type RemoteGameCommand =
     | { type: "startMovement" }
     | { type: "cancelBoardAction" }
     | { type: "finishTurn" }
+    | { type: "debugAddSymbols" }
     | { type: "boardClick"; position: Position };
 
 export interface GameSnapshot {

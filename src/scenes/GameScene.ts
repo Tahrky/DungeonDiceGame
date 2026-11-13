@@ -69,6 +69,11 @@ export class GameScene extends GameSceneComputer {
     }
 
     protected bindInput(): void {
+        this.input.keyboard?.on("keydown-P", () => {
+            if (!this.gameConfiguration.testBoard) return;
+            this.runLocalCommand({ type: "debugAddSymbols" }, () => this.addDebugSymbols());
+        });
+
         this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => {
             const worldPosition = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
             this.hoveredCell = this.boardView.worldToGrid(worldPosition);
@@ -201,6 +206,9 @@ export class GameScene extends GameSceneComputer {
                 break;
             case "finishTurn":
                 this.finishTurn();
+                break;
+            case "debugAddSymbols":
+                this.addDebugSymbols();
                 break;
             case "boardClick":
                 this.tryPlaceMonster(value.position);

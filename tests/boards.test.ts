@@ -7,12 +7,21 @@ import {
     getBoardPreset,
     getRandomBoard,
     getStartingPositions,
+    getTestBoard,
     isBoardCell,
     parseBoardDefinition,
     resolveBoardSelection,
 } from "../src/game/boards";
 
 describe("plateaux", () => {
+    it("fournit le plateau de test compact en 11 par 7", () => {
+        expect(getTestBoard()).toMatchObject({
+            width: 11,
+            height: 7,
+            blockedCells: [],
+        });
+    });
+
     it("fournit des plateaux de tailles différentes et un masque irrégulier", () => {
         expect(getBoardPreset("wide-arena")).toMatchObject({ width: 19, height: 15 });
         expect(getBoardPreset("tall-arena")).toMatchObject({ width: 15, height: 19 });

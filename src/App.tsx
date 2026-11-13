@@ -1,13 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { createClient, type Message, type PresenceMessage, type RealtimeChannel } from "@ably/pubsub-device";
+import {
+    createClient,
+    type Message,
+    type PresenceMessage,
+    type RealtimeChannel,
+} from "@ably/pubsub-device";
 import Phaser from "phaser";
 
 import { DeckEditor } from "./components/DeckEditor";
 import { GameSettings } from "./components/GameSettings";
 import { MainMenu } from "./components/MainMenu";
+import { MonsterSettings } from "./components/MonsterSettings";
+import { OnlineMenu } from "./components/OnlineMenu";
+import { OptionsMenu } from "./components/OptionsMenu";
+import { PlayMenu } from "./components/PlayMenu";
 import { RoomScreen } from "./components/RoomScreen";
 import { GAME_CONFIG } from "./config";
-import { getDefaultBoard, getRandomBoard, parseBoardDefinition } from "./game/boards";
+import { getDefaultBoard, getRandomBoard, getTestBoard, parseBoardDefinition } from "./game/boards";
 import { getDefaultDeck, getSavedDeck, parseDeck, type GameSetup } from "./game/decks";
 import {
     getSavedGameConfiguration,
@@ -18,7 +27,16 @@ import { GameScene } from "./scenes/GameScene";
 
 import type { GameSnapshot, PlayerId, RemoteGameCommand } from "./types/GameTypes";
 
-type Screen = "menu" | "deck" | "settings" | "room" | "game";
+type Screen =
+    | "menu"
+    | "play-menu"
+    | "online-menu"
+    | "options-menu"
+    | "deck"
+    | "settings"
+    | "monster-settings"
+    | "room"
+    | "game";
 type RoomRole = "host" | "guest";
 type RoomStatus = "connecting" | "connected" | "error";
 
@@ -32,6 +50,11 @@ const ROOM_CODE_CHARACTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 function getErrorMessage(error: unknown): string {
     return error instanceof Error ? error.message : "Erreur de connexion inconnue.";
+}
+
+function getConfiguredBoard(configuration: GameConfiguration): NonNullable<GameSetup["board"]> {
+    if (configuration.testBoard) return getTestBoard();
+    return configuration.randomBoard ? getRandomBoard() : getDefaultBoard();
 }
 
 function readRoomPlayer(member: PresenceMessage): RoomPlayer | null {
@@ -86,6 +109,9 @@ export function App() {
     const [roomStatus, setRoomStatus] = useState<RoomStatus>("connecting");
     const [roomError, setRoomError] = useState("");
     const [roomPlayers, setRoomPlayers] = useState<RoomPlayer[]>([]);
+    const showOnlineOptions =
+        !import.meta.env.DEV &&
+        !["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
 
     useEffect(() => {
         const parent = gameContainerRef.current;
@@ -199,12 +225,12 @@ export function App() {
                 message.data === null ||
                 !("hostDeck" in message.data) ||
                 !("guestDeck" in message.data)
-            ) return;
+            )
+                return;
 
             const hostDeck = parseDeck(message.data.hostDeck);
             const guestDeck = parseDeck(message.data.guestDeck);
-            const board =
-                "board" in message.data ? parseBoardDefinition(message.data.board) : null;
+            const board = "board" in message.data ? parseBoardDefinition(message.data.board) : null;
             const configuration =
                 "configuration" in message.data
                     ? parseGameConfiguration(message.data.configuration)
@@ -308,7 +334,7 @@ export function App() {
             mode: "computer",
             playerDeck: getSavedDeck() ?? getDefaultDeck(),
             opponentDeck: getDefaultDeck(),
-            board: gameConfiguration.randomBoard ? getRandomBoard() : getDefaultBoard(),
+            board: getConfiguredBoard(gameConfiguration),
             configuration: gameConfiguration,
         };
         instance.scene.stop("GameScene");
@@ -325,7 +351,7 @@ export function App() {
             mode: "local",
             playerDeck: deck,
             opponentDeck: deck,
-            board: gameConfiguration.randomBoard ? getRandomBoard() : getDefaultBoard(),
+            board: getConfiguredBoard(gameConfiguration),
             configuration: gameConfiguration,
         };
         instance.scene.stop("GameScene");
@@ -354,6 +380,15 @@ export function App() {
         setRoomCode(code);
     }
 
+    function openJoinRoom(): void {
+        roomStartRequestedRef.current = false;
+        setRoomPlayers([]);
+        setRoomError("");
+        setRoomRole("guest");
+        setRoomCode("");
+        setScreen("room");
+    }
+
     const startRoomGame = useCallback(async (): Promise<void> => {
         const hostDeck = getSavedDeck() ?? getDefaultDeck();
         const guestDeck = roomPlayers.find((player) => player.role === "guest")?.deck;
@@ -366,7 +401,7 @@ export function App() {
 
         roomStartRequestedRef.current = true;
         try {
-            const board = gameConfiguration.randomBoard ? getRandomBoard() : getDefaultBoard();
+            const board = getConfiguredBoard(gameConfiguration);
             await channel.publish("start", {
                 hostDeck,
                 guestDeck,
@@ -402,7 +437,7 @@ export function App() {
         setRoomCode("");
         setRoomPlayers([]);
         setRoomError("");
-        setScreen("menu");
+        setScreen("online-menu");
     }
 
     function leaveGame(): void {
@@ -421,19 +456,47 @@ export function App() {
             <main>
                 {screen === "menu" && (
                     <MainMenu
+                        onOpenPlay={() => setScreen("play-menu")}
+                        onEditDeck={() => setScreen("deck")}
+                        onOpenOptions={() => setScreen("options-menu")}
+                    />
+                )}
+                {screen === "play-menu" && (
+                    <PlayMenu
                         canPlay={game !== null}
+                        showOnlineOptions={showOnlineOptions}
+                        onBack={() => setScreen("menu")}
                         onPlay={startComputerGame}
                         onLocalPlay={startLocalGame}
+                        onOnline={() => setScreen("online-menu")}
+                    />
+                )}
+                {screen === "online-menu" && (
+                    <OnlineMenu
+                        onBack={() => setScreen("play-menu")}
                         onCreateRoom={createRoom}
-                        onEditDeck={() => setScreen("deck")}
-                        onEditSettings={() => setScreen("settings")}
+                        onJoinRoom={openJoinRoom}
+                    />
+                )}
+                {screen === "options-menu" && (
+                    <OptionsMenu
+                        onBack={() => setScreen("menu")}
+                        onConfigureRules={() => setScreen("settings")}
+                        onConfigureMonsters={() => setScreen("monster-settings")}
                     />
                 )}
                 {screen === "deck" && <DeckEditor onBack={() => setScreen("menu")} />}
                 {screen === "settings" && (
                     <GameSettings
                         configuration={gameConfiguration}
-                        onBack={() => setScreen("menu")}
+                        onBack={() => setScreen("options-menu")}
+                        onSave={setGameConfiguration}
+                    />
+                )}
+                {screen === "monster-settings" && (
+                    <MonsterSettings
+                        configuration={gameConfiguration}
+                        onBack={() => setScreen("options-menu")}
                         onSave={setGameConfiguration}
                     />
                 )}
@@ -465,11 +528,7 @@ export function App() {
                         </div>
                     </div>
                 )}
-                <div
-                    id="game-container"
-                    ref={gameContainerRef}
-                    aria-hidden={screen !== "game"}
-                />
+                <div id="game-container" ref={gameContainerRef} aria-hidden={screen !== "game"} />
             </main>
         </div>
     );

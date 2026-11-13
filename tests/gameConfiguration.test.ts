@@ -13,6 +13,7 @@ describe("configuration des règles de partie", () => {
         const configuration = getDefaultGameConfiguration();
         configuration.diceCount = 3;
         configuration.randomBoard = true;
+        configuration.testBoard = true;
         configuration.initialPlayerHealth = 7;
         configuration.maxMonstersPerPlayer = 4;
 
@@ -20,6 +21,15 @@ describe("configuration des règles de partie", () => {
             parseGameConfiguration(JSON.parse(serializeGameConfiguration(configuration))),
         ).toEqual(configuration);
         expect(MONSTERS.find((monster) => monster.id === "frost-mage")?.hp).toBe(5);
+    });
+
+    it("désactive le plateau de test par défaut et accepte les anciennes configurations", () => {
+        const configuration = getDefaultGameConfiguration();
+        expect(configuration.testBoard).toBe(false);
+
+        const legacyConfiguration = JSON.parse(serializeGameConfiguration(configuration));
+        delete legacyConfiguration.testBoard;
+        expect(parseGameConfiguration(legacyConfiguration)?.testBoard).toBe(false);
     });
 
     it("valide les motifs et capacités modifiés sans accepter de profil incomplet", () => {
