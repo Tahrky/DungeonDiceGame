@@ -11,7 +11,6 @@ import { DeckEditor } from "./components/DeckEditor";
 import { GameSettings } from "./components/GameSettings";
 import { MainMenu } from "./components/MainMenu";
 import { MonsterSettings } from "./components/MonsterSettings";
-import { OnlineMenu } from "./components/OnlineMenu";
 import { OptionsMenu } from "./components/OptionsMenu";
 import { PlayMenu } from "./components/PlayMenu";
 import { RoomScreen } from "./components/RoomScreen";
@@ -30,7 +29,6 @@ import type { GameSnapshot, PlayerId, RemoteGameCommand } from "./types/GameType
 type Screen =
     | "menu"
     | "play-menu"
-    | "online-menu"
     | "options-menu"
     | "deck"
     | "settings"
@@ -380,15 +378,6 @@ export function App() {
         setRoomCode(code);
     }
 
-    function openJoinRoom(): void {
-        roomStartRequestedRef.current = false;
-        setRoomPlayers([]);
-        setRoomError("");
-        setRoomRole("guest");
-        setRoomCode("");
-        setScreen("room");
-    }
-
     const startRoomGame = useCallback(async (): Promise<void> => {
         const hostDeck = getSavedDeck() ?? getDefaultDeck();
         const guestDeck = roomPlayers.find((player) => player.role === "guest")?.deck;
@@ -437,7 +426,7 @@ export function App() {
         setRoomCode("");
         setRoomPlayers([]);
         setRoomError("");
-        setScreen("online-menu");
+        setScreen("play-menu");
     }
 
     function leaveGame(): void {
@@ -468,14 +457,7 @@ export function App() {
                         onBack={() => setScreen("menu")}
                         onPlay={startComputerGame}
                         onLocalPlay={startLocalGame}
-                        onOnline={() => setScreen("online-menu")}
-                    />
-                )}
-                {screen === "online-menu" && (
-                    <OnlineMenu
-                        onBack={() => setScreen("play-menu")}
-                        onCreateRoom={createRoom}
-                        onJoinRoom={openJoinRoom}
+                        onOnline={createRoom}
                     />
                 )}
                 {screen === "options-menu" && (
