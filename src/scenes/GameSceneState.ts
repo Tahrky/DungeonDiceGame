@@ -102,6 +102,10 @@ export abstract class GameSceneState extends Phaser.Scene {
 
     protected hoveredCell: Position | null = null;
 
+    protected lockedPreviewCell: Position | null = null;
+
+    protected hasLeftLockedPreviewBoard = false;
+
     protected hoveredInvocationMonster: Monster | null = null;
 
     protected nextMonsterId = 1;
@@ -170,6 +174,8 @@ export abstract class GameSceneState extends Phaser.Scene {
         this.actionHistory = [];
         this.actionHistoryScrollOffset = 0;
         this.hoveredCell = null;
+        this.lockedPreviewCell = null;
+        this.hasLeftLockedPreviewBoard = false;
         this.hoveredInvocationMonster = null;
         this.nextMonsterId = 1;
     }
@@ -206,6 +212,7 @@ export abstract class GameSceneState extends Phaser.Scene {
             patternSelectorExpanded: this.patternSelectorExpanded,
             invocationMenuOpen: this.invocationMenuOpen,
             pendingCells: this.pendingCells,
+            lockedPreviewCell: this.lockedPreviewCell,
             placedMonsters: this.placedMonsters,
             actionHistory: this.actionHistory,
             actionHistoryScrollOffset: this.actionHistoryScrollOffset,
@@ -296,6 +303,11 @@ export abstract class GameSceneState extends Phaser.Scene {
 
     protected applyRemoteSnapshot(value: unknown): void {
         if (this.isHost || this.mode !== "online" || !isGameSnapshot(value)) return;
+
+        if (value.currentPlayer !== this.currentPlayer || value.turnNumber !== this.turnNumber) {
+            this.lockedPreviewCell = null;
+            this.hasLeftLockedPreviewBoard = false;
+        }
 
         const previousMonsters = new Map(
             this.placedMonsters.map((monster) => [monster.id, monster]),

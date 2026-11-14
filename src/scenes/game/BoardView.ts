@@ -91,6 +91,19 @@ export class BoardView {
         return isBoardCell(this.board, position);
     }
 
+    isPointerOverBoard(position: Position): boolean {
+        const cell = this.worldToGrid(position);
+        if (!this.isInsideBoard(cell)) return false;
+
+        const center = this.toScreen(cell);
+        const { tileWidth, tileHeight } = GAME_CONFIG;
+        return (
+            Math.abs(position.x - center.x) / (tileWidth / 2) +
+                Math.abs(position.y - center.y) / (tileHeight / 2) <=
+            1
+        );
+    }
+
     draw(state: GameViewState, actions: BoardActions): void {
         this.graphics.clear();
         const { width: boardWidth, height: boardHeight } = this.board;
@@ -196,10 +209,13 @@ export class BoardView {
 
         if (this.hasCell(state.pendingCells, cell)) {
             color = state.currentPlayer === 1 ? 0xc36a60 : 0x5d91bd;
-        } else if (this.hasCell(previewCells, cell) && state.hoveredCell) {
-            const isValid = actions.canPlace(state.hoveredCell);
-            color = this.getPreviewColor(state.currentPlayer, isValid);
-            fillAlpha = isValid ? 1 : 0.7;
+        } else {
+            const previewOrigin = state.lockedPreviewCell ?? state.hoveredCell;
+            if (this.hasCell(previewCells, cell) && previewOrigin) {
+                const isValid = actions.canPlace(previewOrigin);
+                color = this.getPreviewColor(state.currentPlayer, isValid);
+                fillAlpha = isValid ? 1 : 0.7;
+            }
         }
 
         if (this.isHoveredPendingCell(cell, state)) {
@@ -327,9 +343,11 @@ export class BoardView {
 
     private getPreviewCells(state: GameViewState): Position[] {
         if (state.pendingCells) return state.pendingCells;
-        if (!state.selectedMonster || !state.hoveredCell || !state.hasRolled) return [];
+        if (state.onlineGame && !state.isLocalTurn) return [];
+        if (!state.selectedMonster || !state.hasRolled) return [];
 
-        return this.getMonsterCells(state.hoveredCell, state);
+        const previewOrigin = state.lockedPreviewCell ?? state.hoveredCell;
+        return previewOrigin ? this.getMonsterCells(previewOrigin, state) : [];
     }
 
     private getMonsterCells(origin: Position, state: GameViewState): Position[] {

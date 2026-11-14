@@ -165,12 +165,13 @@ export function GameSettings({
                         <input
                             type="checkbox"
                             checked={configuration.randomBoard}
-                            onChange={(event) =>
+                            onChange={(event) => {
+                                const checked = event.currentTarget.checked;
                                 setConfiguration((current) => ({
                                     ...current,
-                                    randomBoard: event.currentTarget.checked,
-                                }))
-                            }
+                                    randomBoard: checked,
+                                }));
+                            }}
                         />
                         Choisir un plateau prédéfini aléatoire à chaque partie
                     </label>
@@ -178,12 +179,13 @@ export function GameSettings({
                         <input
                             type="checkbox"
                             checked={configuration.testBoard}
-                            onChange={(event) =>
+                            onChange={(event) => {
+                                const checked = event.currentTarget.checked;
                                 setConfiguration((current) => ({
                                     ...current,
-                                    testBoard: event.currentTarget.checked,
-                                }))
-                            }
+                                    testBoard: checked,
+                                }));
+                            }}
                         />
                         Utiliser le plateau de test compact (11 × 7)
                     </label>

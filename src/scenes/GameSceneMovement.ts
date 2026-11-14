@@ -154,6 +154,8 @@ export abstract class GameSceneMovement extends GameSceneCombat {
     protected endTurn(): void {
         const previousPlayer = this.currentPlayer;
         this.currentPlayer = previousPlayer === 1 ? 2 : 1;
+        this.lockedPreviewCell = null;
+        this.hasLeftLockedPreviewBoard = false;
         if (previousPlayer === 2) this.turnNumber++;
         for (const monster of this.placedMonsters) {
             if (monster.owner !== this.currentPlayer) continue;

@@ -31,6 +31,7 @@ export interface GameViewState {
     patternSelectorExpanded: boolean;
     invocationMenuOpen: boolean;
     pendingCells: Position[] | null;
+    lockedPreviewCell: Position | null;
     placedMonsters: PlacedMonster[];
     actionHistory: GameActionLogEntry[];
     actionHistoryScrollOffset: number;

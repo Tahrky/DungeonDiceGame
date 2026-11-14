@@ -69,13 +69,15 @@ export class GameScene extends GameSceneComputer {
     }
 
     protected bindInput(): void {
-        this.input.keyboard?.on("keydown-P", () => {
-            if (!this.gameConfiguration.testBoard) return;
-            this.runLocalCommand({ type: "debugAddSymbols" }, () => this.addDebugSymbols());
+        const handleKeyDown = (event: KeyboardEvent) => this.handleKeyDown(event);
+        window.addEventListener("keydown", handleKeyDown, true);
+        this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+            window.removeEventListener("keydown", handleKeyDown, true);
         });
 
         this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => {
             const worldPosition = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+            this.updatePlacementPreviewLock(worldPosition);
             this.hoveredCell = this.boardView.worldToGrid(worldPosition);
             this.monsterTooltip.update(
                 pointer,
@@ -97,6 +99,106 @@ export class GameScene extends GameSceneComputer {
                 this.tryPlaceMonster(cell),
             );
         });
+    }
+
+    private handleKeyDown(event: KeyboardEvent): void {
+        if (event.repeat) return;
+
+        switch (event.code) {
+            case "Escape":
+                this.cancelCurrentAction();
+                break;
+            case "KeyQ":
+                if (!this.hasRolled) {
+                    this.hudActions.rollDice();
+                } else if (this.actionMode.type === "idle" && !this.pendingCells) {
+                    this.hudActions.toggleInvocationMenu();
+                }
+                break;
+            case "KeyW":
+                if (this.actionMode.type === "attack") {
+                    this.hudActions.cancelBoardAction();
+                } else if (
+                    this.actionMode.type === "idle" &&
+                    !this.pendingCells &&
+                    !this.invocationMenuOpen
+                ) {
+                    this.hudActions.startAttack();
+                }
+                break;
+            case "KeyE":
+                if (this.actionMode.type === "movement") {
+                    this.hudActions.cancelBoardAction();
+                } else if (
+                    this.actionMode.type === "idle" &&
+                    !this.pendingCells &&
+                    !this.invocationMenuOpen
+                ) {
+                    this.hudActions.startMovement();
+                }
+                break;
+            case "KeyP":
+                if (this.gameConfiguration.testBoard) {
+                    this.runLocalCommand({ type: "debugAddSymbols" }, () =>
+                        this.addDebugSymbols(),
+                    );
+                }
+                break;
+            case "KeyR":
+                if (this.invocationMenuOpen || this.selectedMonster || this.pendingCells) {
+                    this.togglePlacementPreviewLock();
+                } else {
+                    this.hudActions.finishTurn();
+                }
+                break;
+        }
+    }
+
+    private cancelCurrentAction(): void {
+        if (this.actionMode.type === "attack" || this.actionMode.type === "movement") {
+            this.hudActions.cancelBoardAction();
+        } else if (this.selectedMonster || this.pendingCells) {
+            this.hudActions.cancelInvocation();
+        } else if (this.invocationMenuOpen) {
+            this.hudActions.toggleInvocationMenu();
+        }
+    }
+
+    private togglePlacementPreviewLock(): void {
+        if (this.lockedPreviewCell) {
+            this.lockedPreviewCell = null;
+            this.hasLeftLockedPreviewBoard = false;
+            this.render();
+            return;
+        }
+
+        const pointer = this.input.activePointer;
+        const worldPosition = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+        if (
+            !this.selectedMonster ||
+            !this.hasRolled ||
+            this.pendingCells ||
+            this.winner !== null ||
+            (this.mode === "online" && this.currentPlayer !== this.localPlayer) ||
+            !this.boardView.isPointerOverBoard(worldPosition)
+        ) {
+            return;
+        }
+
+        this.lockedPreviewCell = this.boardView.worldToGrid(worldPosition);
+        this.hasLeftLockedPreviewBoard = false;
+        this.render();
+    }
+
+    private updatePlacementPreviewLock(worldPosition: Phaser.Math.Vector2): void {
+        if (!this.lockedPreviewCell) return;
+
+        if (!this.boardView.isPointerOverBoard(worldPosition)) {
+            this.hasLeftLockedPreviewBoard = true;
+        } else if (this.hasLeftLockedPreviewBoard) {
+            this.lockedPreviewCell = null;
+            this.hasLeftLockedPreviewBoard = false;
+        }
     }
 
     protected get hudActions(): GameHudActions {

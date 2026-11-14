@@ -28,6 +28,8 @@ export abstract class GameSceneInvocation extends GameSceneState {
         this.hasRolled = true;
         this.selectedMonster = null;
         this.pendingCells = null;
+        this.lockedPreviewCell = null;
+        this.hasLeftLockedPreviewBoard = false;
         this.actionMode = { type: "idle" };
         this.invocationMenuOpen = false;
         this.render();
@@ -59,9 +61,15 @@ export abstract class GameSceneInvocation extends GameSceneState {
     protected cancelInvocation(): void {
         if (!this.selectedMonster && !this.pendingCells) return;
 
+        this.clearInvocationSelection();
+        this.render();
+    }
+
+    private clearInvocationSelection(): void {
         this.selectedMonster = null;
         this.pendingCells = null;
-        this.render();
+        this.lockedPreviewCell = null;
+        this.hasLeftLockedPreviewBoard = false;
     }
 
     protected selectPattern(index: number): void {
@@ -91,7 +99,9 @@ export abstract class GameSceneInvocation extends GameSceneState {
     }
 
     protected toggleInvocationMenu(): void {
+        const isClosing = this.invocationMenuOpen;
         this.invocationMenuOpen = !this.invocationMenuOpen;
+        if (isClosing) this.clearInvocationSelection();
         this.render();
     }
 
@@ -178,6 +188,8 @@ export abstract class GameSceneInvocation extends GameSceneState {
             });
             this.selectedMonster = null;
             this.pendingCells = null;
+            this.lockedPreviewCell = null;
+            this.hasLeftLockedPreviewBoard = false;
             this.render();
             return;
         }
