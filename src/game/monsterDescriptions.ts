@@ -32,9 +32,14 @@ export function getAttackPatternDescription(pattern: AttackPattern): string {
 
 export function describeMonsterAttack(attack: MonsterAttack): string {
     const special = attack.movesToZone && attack.pattern.type !== "jumpArea" ? ", saut" : "";
+    const initialCooldown =
+        attack.initialCooldownTurns !== undefined &&
+        attack.initialCooldownTurns !== attack.cooldownTurns
+            ? ` (${attack.initialCooldownTurns} tour${attack.initialCooldownTurns === 1 ? "" : "s"} à l'apparition)`
+            : "";
     const cooldown =
         attack.cooldownTurns !== undefined
-            ? `, recharge : ${attack.cooldownTurns} tour${attack.cooldownTurns === 1 ? "" : "s"} du joueur`
+            ? `, recharge : ${attack.cooldownTurns} tour${attack.cooldownTurns === 1 ? "" : "s"} du joueur${initialCooldown}`
             : "";
     const friendlyFire = attack.hitsAllies ? ", touche aussi les alliés" : "";
     return `${attack.name} : ${attack.damage} dégâts, ${attack.cost} ⚔️ (${getAttackPatternDescription(attack.pattern)}${special}${friendlyFire})${cooldown}`;

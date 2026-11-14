@@ -1,7 +1,7 @@
 import { GameSceneInvocation } from "./GameSceneInvocation";
 import { isBoardCell } from "../game/boards";
 import { getAvailableSymbolCount } from "../game/diceResources";
-import { canAttackMonster, canUseActionThisTurn, getAttackActionsPerTurn, getAttackZoneOptions, getFacingFromMovement, getGridDistance, getMovementActionsPerTurn, getMovementCost, isBehind } from "../game/monsterActions";
+import { canAttackMonster, canUseActionThisTurn, getAttackActionsPerTurn, getAttackZoneOptions, getFacingFromMovement, getGridDistance, getMovementActionsPerTurn, getMovementCost, hasLineOfSight, isBehind } from "../game/monsterActions";
 import type { DiceSymbol, Monster, PlayerId, PlacedMonster, Position } from "../types/GameTypes";
 import { getMonsterEliminationWinner } from "../game/matchRules";
 
@@ -359,7 +359,11 @@ export abstract class GameSceneCombat extends GameSceneInvocation {
             attacker.position,
             attacker.facing,
             attack.pattern,
-        ).filter((option) => this.isAttackZoneUsable(attacker, attack, option.cells));
+        ).filter(
+            (option) =>
+                this.isAttackZoneUsable(attacker, attack, option.cells) &&
+                this.canSeeAttackTarget(attacker, attack, option.target),
+        );
         return validZones.map((option) => option.target);
     }
 
@@ -451,8 +455,34 @@ export abstract class GameSceneCombat extends GameSceneInvocation {
             (option) =>
                 option.target.x === target.x &&
                 option.target.y === target.y &&
-                this.isAttackZoneUsable(attacker, attack, option.cells),
+                this.isAttackZoneUsable(attacker, attack, option.cells) &&
+                this.canSeeAttackTarget(attacker, attack, option.target),
         );
+    }
+
+    protected canSeeAttackTarget(
+        attacker: PlacedMonster,
+        attack: Monster["attacks"][number],
+        target: Position,
+    ): boolean {
+        if (
+            attack.hitsAllies ||
+            attack.movesToZone ||
+            attack.pattern.type === "directionalArea" ||
+            attack.pattern.type === "selfRadius"
+        ) {
+            return true;
+        }
+
+        const blockingCells = [
+            ...this.obstacles
+                .filter((obstacle) => obstacle.height === 1)
+                .map(({ position }) => position),
+            ...this.placedMonsters
+                .filter((monster) => monster.currentHp > 0 && monster.id !== attacker.id)
+                .map(({ position }) => position),
+        ];
+        return hasLineOfSight(attacker.position, target, blockingCells);
     }
 
     protected getSlimeLanding(

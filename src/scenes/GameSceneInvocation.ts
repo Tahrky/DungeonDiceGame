@@ -5,7 +5,8 @@ import { PLACEMENT_PATTERNS } from "../data/placementPatterns";
 import { getAvailableSymbolCount, spendSymbols, storeRolledDie } from "../game/diceResources";
 import { getInitialAttackCooldowns } from "../game/monsterActions";
 import { canPlaceCells, getPatternCells } from "../game/placement";
-import type { Position } from "../types/GameTypes";
+import { isBoardCell } from "../game/boards";
+import type { BoardCellHeight, BoardHeightChange, Position } from "../types/GameTypes";
 import { getInvokedMonsterCount } from "../game/matchRules";
 
 export abstract class GameSceneInvocation extends GameSceneState {
@@ -132,8 +133,41 @@ export abstract class GameSceneInvocation extends GameSceneState {
             connectedCells,
             ownedPathCells,
             this.board.height,
-            this.board.blockedCells,
+            [
+                ...this.board.blockedCells,
+                ...this.obstacles.map(({ position }) => position),
+            ],
         );
+    }
+
+    protected changeCellHeight(delta: BoardHeightChange, position: Position): void {
+        if (this.winner !== null || !isBoardCell(this.board, position)) return;
+
+        const currentHeight =
+            this.obstacles.find(
+                (obstacle) =>
+                    obstacle.position.x === position.x &&
+                    obstacle.position.y === position.y,
+            )?.height ?? 0;
+        const nextHeight: BoardCellHeight =
+            delta > 0
+                ? currentHeight === -1
+                    ? 0
+                    : 1
+                : currentHeight === 1
+                  ? 0
+                  : -1;
+        if (nextHeight === currentHeight) return;
+
+        this.obstacles = this.obstacles.filter(
+            (obstacle) =>
+                obstacle.position.x !== position.x ||
+                obstacle.position.y !== position.y,
+        );
+        if (nextHeight !== 0) {
+            this.obstacles.push({ height: nextHeight, position: { ...position } });
+        }
+        this.render();
     }
 
     protected tryPlaceMonster(position: Position): void {
@@ -158,7 +192,14 @@ export abstract class GameSceneInvocation extends GameSceneState {
             const isStartingCell = Object.values(this.startingPositions).some(
                 (start) => start.x === position.x && start.y === position.y,
             );
-            if (!isOnDie || isOccupied || isStartingCell) return;
+            const isBlocked = this.pendingCells.some((cell) =>
+                this.obstacles.some(
+                    (obstacle) =>
+                        obstacle.position.x === cell.x &&
+                        obstacle.position.y === cell.y,
+                ),
+            );
+            if (!isOnDie || isOccupied || isStartingCell || isBlocked) return;
 
             const didPay = spendSymbols(
                 "invocation",

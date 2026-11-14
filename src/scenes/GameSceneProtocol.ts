@@ -16,6 +16,13 @@ export function isRemoteGameCommand(value: unknown): value is RemoteGameCommand 
         case "finishTurn":
         case "debugAddSymbols":
             return true;
+        case "changeCellHeight":
+            return (
+                "delta" in value &&
+                (value.delta === 1 || value.delta === -1) &&
+                "position" in value &&
+                isPosition(value.position)
+            );
         case "selectMonster":
             return "monsterId" in value && typeof value.monsterId === "string";
         case "selectPattern":
@@ -61,7 +68,29 @@ export function isGameSnapshot(value: unknown): value is GameSnapshot {
         value.diceReserves !== null &&
         "placedMonsters" in value &&
         Array.isArray(value.placedMonsters) &&
+        "obstacles" in value &&
+        Array.isArray(value.obstacles) &&
+        value.obstacles.every(
+            (obstacle) =>
+                typeof obstacle === "object" &&
+                obstacle !== null &&
+                "height" in obstacle &&
+                (obstacle.height === 1 || obstacle.height === -1) &&
+                "position" in obstacle &&
+                isPosition(obstacle.position),
+        ) &&
         "actionHistory" in value &&
         Array.isArray(value.actionHistory)
+    );
+}
+
+function isPosition(value: unknown): value is { x: number; y: number } {
+    return (
+        typeof value === "object" &&
+        value !== null &&
+        "x" in value &&
+        Number.isInteger(value.x) &&
+        "y" in value &&
+        Number.isInteger(value.y)
     );
 }

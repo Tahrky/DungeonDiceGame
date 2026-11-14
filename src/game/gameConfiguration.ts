@@ -118,6 +118,8 @@ function parseAttack(value: unknown): MonsterAttack | null {
     if (
         !pattern ||
         (value.cooldownTurns !== undefined && !isIntegerInRange(value.cooldownTurns, 0, 50)) ||
+        (value.initialCooldownTurns !== undefined &&
+            !isIntegerInRange(value.initialCooldownTurns, 0, 50)) ||
         (value.hitsAllies !== undefined && typeof value.hitsAllies !== "boolean") ||
         (value.movesToZone !== undefined && typeof value.movesToZone !== "boolean")
     ) {
@@ -125,6 +127,8 @@ function parseAttack(value: unknown): MonsterAttack | null {
     }
 
     const cooldownTurns = typeof value.cooldownTurns === "number" ? value.cooldownTurns : undefined;
+    const initialCooldownTurns =
+        typeof value.initialCooldownTurns === "number" ? value.initialCooldownTurns : undefined;
     const hitsAllies = typeof value.hitsAllies === "boolean" ? value.hitsAllies : undefined;
     const movesToZone = typeof value.movesToZone === "boolean" ? value.movesToZone : undefined;
     return {
@@ -133,6 +137,7 @@ function parseAttack(value: unknown): MonsterAttack | null {
         cost: value.cost,
         pattern,
         ...(cooldownTurns === undefined ? {} : { cooldownTurns }),
+        ...(initialCooldownTurns === undefined ? {} : { initialCooldownTurns }),
         ...(hitsAllies === undefined ? {} : { hitsAllies }),
         ...(movesToZone === undefined ? {} : { movesToZone }),
     };

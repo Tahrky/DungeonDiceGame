@@ -39,8 +39,57 @@ export function getGridDistance(first: Position, second: Position): number {
     return Math.abs(first.x - second.x) + Math.abs(first.y - second.y);
 }
 
+export function hasLineOfSight(
+    source: Position,
+    target: Position,
+    blockingCells: readonly Position[],
+): boolean {
+    const blockedKeys = new Set(blockingCells.map(({ x, y }) => `${x},${y}`));
+    const deltaX = target.x - source.x;
+    const deltaY = target.y - source.y;
+    const stepX = Math.sign(deltaX);
+    const stepY = Math.sign(deltaY);
+    const absX = Math.abs(deltaX);
+    const absY = Math.abs(deltaY);
+    let traversedX = 0;
+    let traversedY = 0;
+    let x = source.x;
+    let y = source.y;
+
+    while (traversedX < absX || traversedY < absY) {
+        const nextCell =
+            (1 + 2 * traversedX) * absY - (1 + 2 * traversedY) * absX;
+        if (nextCell === 0) {
+            if (
+                blockedKeys.has(`${x + stepX},${y}`) &&
+                blockedKeys.has(`${x},${y + stepY}`)
+            ) {
+                return false;
+            }
+            x += stepX;
+            y += stepY;
+            traversedX++;
+            traversedY++;
+        } else if (nextCell < 0) {
+            x += stepX;
+            traversedX++;
+        } else {
+            y += stepY;
+            traversedY++;
+        }
+
+        if ((x !== target.x || y !== target.y) && blockedKeys.has(`${x},${y}`)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 export function getInitialAttackCooldowns(monster: Pick<Monster, "attacks">): number[] {
-    return monster.attacks.map((attack) => attack.cooldownTurns ?? 0);
+    return monster.attacks.map(
+        (attack) => attack.initialCooldownTurns ?? attack.cooldownTurns ?? 0,
+    );
 }
 
 export function getMovementCost(monster: Pick<Monster, "movementCost">): number {

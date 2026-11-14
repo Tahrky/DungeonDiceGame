@@ -56,6 +56,13 @@ function toGrayscale(color: number): number {
     return (gray << 16) | (gray << 8) | gray;
 }
 
+function adjustColor(color: number, factor: number): number {
+    const red = Math.min(255, Math.round(((color >> 16) & 0xff) * factor));
+    const green = Math.min(255, Math.round(((color >> 8) & 0xff) * factor));
+    const blue = Math.min(255, Math.round((color & 0xff) * factor));
+    return (red << 16) | (green << 8) | blue;
+}
+
 export class BoardView {
     private readonly scene: Phaser.Scene;
     private readonly graphics: Phaser.GameObjects.Graphics;
@@ -129,12 +136,12 @@ export class BoardView {
             }
         }
 
+        this.drawElevatedCells(state, context);
         this.drawStartingPositions(state);
         this.drawMonsters(state);
     }
 
     private drawCell(cell: Position, context: CellRenderContext): void {
-        const { tileWidth, tileHeight } = GAME_CONFIG;
         const center = this.toScreen(cell);
         const style = this.getCellStyle(cell, context);
 
@@ -143,14 +150,73 @@ export class BoardView {
         this.graphics.fillStyle(color, style.fillAlpha);
         this.graphics.lineStyle(1, borderColor, 0.8);
 
-        const points = [
+        const points = this.getDiamondPoints(center);
+        this.graphics.fillPoints(points, true);
+        this.graphics.strokePoints(points, true);
+    }
+
+    private drawElevatedCells(state: GameViewState, context: CellRenderContext): void {
+        const { tileHeight } = GAME_CONFIG;
+        const elevatedCells = [...state.obstacles].sort(
+            (first, second) =>
+                first.position.x +
+                first.position.y -
+                second.position.x -
+                second.position.y,
+        );
+        for (const obstacle of elevatedCells) {
+            const center = this.toScreen(obstacle.position);
+            const style = this.getCellStyle(obstacle.position, context);
+            if (obstacle.height === -1) {
+                const surfaceColor =
+                    context.state.winner === null ? style.color : toGrayscale(style.color);
+                const points = this.getDiamondPoints(center);
+                this.graphics.fillStyle(0x151b22, 1);
+                this.graphics.lineStyle(3, adjustColor(surfaceColor, 0.52), 1);
+                this.graphics.fillPoints(points, true);
+                continue;
+            }
+
+            const basePoints = this.getDiamondPoints(center);
+            const raisedCenter = {
+                x: center.x,
+                y: center.y - tileHeight * 0.45,
+            };
+            const topPoints = this.getDiamondPoints(raisedCenter);
+            const cellColor = style.color;
+            const color =
+                context.state.winner === null ? cellColor : toGrayscale(cellColor);
+            const faceTone = 0.52;
+            const leftFace = [topPoints[2], topPoints[3], basePoints[3], basePoints[2]];
+            const rightFace = [topPoints[1], topPoints[2], basePoints[2], basePoints[1]];
+
+            this.graphics.fillStyle(adjustColor(color, faceTone), 1);
+            this.graphics.lineStyle(1, 0x30363a, 1);
+            this.graphics.fillPoints(leftFace, true);
+            this.graphics.strokePoints(leftFace, true);
+            this.graphics.fillStyle(adjustColor(color, faceTone * 0.78), 1);
+            this.graphics.fillPoints(rightFace, true);
+            this.graphics.strokePoints(rightFace, true);
+
+            const surfaceColor =
+                context.state.winner === null ? style.color : toGrayscale(style.color);
+            const topColor = adjustColor(surfaceColor, 1.22);
+            const borderColor = context.state.winner === null ? 0x30363a : toGrayscale(0x30363a);
+            this.graphics.fillStyle(topColor, style.fillAlpha);
+            this.graphics.lineStyle(1.5, borderColor, 1);
+            this.graphics.fillPoints(topPoints, true);
+            this.graphics.strokePoints(topPoints, true);
+        }
+    }
+
+    private getDiamondPoints(center: Position): Phaser.Math.Vector2[] {
+        const { tileWidth, tileHeight } = GAME_CONFIG;
+        return [
             new Phaser.Math.Vector2(center.x, center.y - tileHeight / 2),
             new Phaser.Math.Vector2(center.x + tileWidth / 2, center.y),
             new Phaser.Math.Vector2(center.x, center.y + tileHeight / 2),
             new Phaser.Math.Vector2(center.x - tileWidth / 2, center.y),
         ];
-        this.graphics.fillPoints(points, true);
-        this.graphics.strokePoints(points, true);
     }
 
     private drawDirectionLabels(): void {

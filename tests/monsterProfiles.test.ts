@@ -35,7 +35,8 @@ describe("profils de monstres", () => {
         });
         expect(archer?.attacks[1]).toMatchObject({
             damage: 3,
-            cooldownTurns: 3,
+            cooldownTurns: 2,
+            initialCooldownTurns: 1,
             pattern: { type: "radius", range: 5 },
         });
     });

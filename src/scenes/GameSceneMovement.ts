@@ -103,7 +103,11 @@ export abstract class GameSceneMovement extends GameSceneCombat {
             destination,
             deployedCells,
             occupiedCells,
-            blockedCells: [...startingCells, ...this.board.blockedCells],
+            blockedCells: [
+                ...startingCells,
+                ...this.board.blockedCells,
+                ...this.obstacles.map(({ position }) => position),
+            ],
             range: monster.monster.movementRange,
             hostileCells,
             canPassHostiles: monster.monster.flying === true,

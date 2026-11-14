@@ -2,6 +2,14 @@ export type PlayerId = 1 | 2;
 
 export type DiceSymbol = "invocation" | "attack" | "movement";
 
+export type BoardCellHeight = -1 | 0 | 1;
+export type BoardHeightChange = 1 | -1;
+
+export interface BoardObstacle {
+    height: -1 | 1;
+    position: Position;
+}
+
 export type RemoteGameCommand =
     | { type: "rollDice" }
     | { type: "selectMonster"; monsterId: string }
@@ -18,6 +26,7 @@ export type RemoteGameCommand =
     | { type: "cancelBoardAction" }
     | { type: "finishTurn" }
     | { type: "debugAddSymbols" }
+    | { type: "changeCellHeight"; delta: BoardHeightChange; position: Position }
     | { type: "boardClick"; position: Position };
 
 export interface GameSnapshot {
@@ -37,6 +46,7 @@ export interface GameSnapshot {
     invocationMenuOpen: boolean;
     pendingCells: Position[] | null;
     placedMonsters: PlacedMonster[];
+    obstacles: BoardObstacle[];
     actionHistory: GameActionLogEntry[];
     actionHistoryScrollOffset: number;
     nextMonsterId: number;
@@ -88,6 +98,7 @@ export interface MonsterAttack {
     cost: number;
     pattern: AttackPattern;
     cooldownTurns?: number;
+    initialCooldownTurns?: number;
     hitsAllies?: boolean;
     movesToZone?: boolean;
 }

@@ -7,6 +7,7 @@ import { GameHud } from "./game/GameHud";
 import { MonsterTooltip } from "./game/MonsterTooltip";
 import { MonsterSpriteView } from "./game/MonsterSpriteView";
 import type { GameHudActions } from "./game/GameHud";
+import type { BoardHeightChange } from "../types/GameTypes";
 
 export class GameScene extends GameSceneComputer {
     create(): void {
@@ -15,7 +16,6 @@ export class GameScene extends GameSceneComputer {
         this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
             this.scale.off(Phaser.Scale.Events.RESIZE, this.resizeCamera, this);
         });
-        this.resizeCamera(this.scale.gameSize);
         this.boardGraphics = this.add.graphics();
         this.uiContainer = this.add.container(0, 0).setDepth(2);
         this.tooltipContainer = this.add.container(0, 0).setDepth(10);
@@ -43,6 +43,7 @@ export class GameScene extends GameSceneComputer {
                 ),
         );
 
+        this.setCamera(this.scale.gameSize);
         this.render();
         this.bindInput();
         this.game.events.on("remote-game-command", this.handleRemoteCommand, this);
@@ -54,18 +55,25 @@ export class GameScene extends GameSceneComputer {
     }
 
     private resizeCamera(gameSize: { width: number; height: number }): void {
-        if (gameSize.width <= 0 || gameSize.height <= 0) return;
+        if (!this.setCamera(gameSize)) return;
+        if (this.gameHud) this.gameHud.render(this.viewState, this.hudActions);
+    }
+
+    private setCamera(gameSize: { width: number; height: number }): boolean {
+        if (gameSize.width <= 0 || gameSize.height <= 0) return false;
 
         const zoom = Math.min(
             gameSize.width / GAME_CONFIG.screenWidth,
             gameSize.height / GAME_CONFIG.screenHeight,
         );
-        this.cameras.main.setZoom(zoom);
-        this.cameras.main.centerOn(
+        const camera = this.cameras.main;
+        camera.setZoom(zoom);
+        camera.centerOn(
             GAME_CONFIG.screenWidth / 2,
             GAME_CONFIG.screenHeight / 2,
         );
-        if (this.gameHud) this.gameHud.render(this.viewState, this.hudActions);
+        camera.preRender();
+        return true;
     }
 
     protected bindInput(): void {
@@ -144,6 +152,12 @@ export class GameScene extends GameSceneComputer {
                     );
                 }
                 break;
+            case "KeyL":
+                this.changeCellHeightAtHoveredCell(1);
+                break;
+            case "Semicolon":
+                this.changeCellHeightAtHoveredCell(-1);
+                break;
             case "KeyR":
                 if (this.invocationMenuOpen || this.selectedMonster || this.pendingCells) {
                     this.togglePlacementPreviewLock();
@@ -152,6 +166,15 @@ export class GameScene extends GameSceneComputer {
                 }
                 break;
         }
+    }
+
+    private changeCellHeightAtHoveredCell(delta: BoardHeightChange): void {
+        if (!this.hoveredCell) return;
+        const position = { ...this.hoveredCell };
+        this.runLocalCommand(
+            { type: "changeCellHeight", delta, position },
+            () => this.changeCellHeight(delta, position),
+        );
     }
 
     private cancelCurrentAction(): void {
@@ -311,6 +334,9 @@ export class GameScene extends GameSceneComputer {
                 break;
             case "debugAddSymbols":
                 this.addDebugSymbols();
+                break;
+            case "changeCellHeight":
+                this.changeCellHeight(value.delta, value.position);
                 break;
             case "boardClick":
                 this.tryPlaceMonster(value.position);

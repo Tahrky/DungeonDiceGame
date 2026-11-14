@@ -104,7 +104,10 @@ export abstract class GameSceneComputer extends GameSceneMovement {
             occupiedCells,
             connectedCells: computerTerritory,
             overlappingCells: computerPathCells,
-            blockedCells: this.board.blockedCells,
+            blockedCells: [
+                ...this.board.blockedCells,
+                ...this.obstacles.map(({ position }) => position),
+            ],
             isPlacementAllowed: (position, cells) => {
                 const positionKey = `${position.x},${position.y}`;
                 const isStartingCell = opponentTerritoryKeys.has(positionKey);

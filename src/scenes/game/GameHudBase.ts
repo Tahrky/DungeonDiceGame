@@ -241,8 +241,8 @@ export abstract class GameHudBase {
                 ((start.x + start.y) * GAME_CONFIG.tileHeight) / 2;
             const width = 200;
             const height = 100;
-            const x = player === 1 ? startScreenX - width - 12 : startScreenX + 28;
-            const y = player === 1 ? startScreenY - height - 12 : startScreenY + 20;
+            const x = player === 1 ? startScreenX - width - 17 : startScreenX + 28;
+            const y = player === 1 ? startScreenY - height - 17 : startScreenY + 20;
             const color = player === 1 ? "#ff8d78" : "#70bdff";
             const background = this.scene.add
                 .rectangle(x, y, width, height, 0x202a36, 1)

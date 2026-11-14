@@ -14,6 +14,7 @@ import {
     getMovementActionsPerTurn,
     getMovementCost,
     getMonsterMovementPath,
+    hasLineOfSight,
     isBehind,
 } from "../src/game/monsterActions";
 import { MONSTERS } from "../src/data/monsters";
@@ -43,16 +44,19 @@ describe("portée des actions de monstre", () => {
         expect(canUseActionThisTurn(1, 1)).toBe(false);
         expect(canUseActionThisTurn(1, getMovementActionsPerTurn(thief ?? {}))).toBe(true);
         expect(advanceAttackCooldowns([3, 1, 0])).toEqual([2, 0, 0]);
-        expect(getInitialAttackCooldowns(archer ?? { attacks: [] })).toEqual([0, 3]);
+        expect(getInitialAttackCooldowns(archer ?? { attacks: [] })).toEqual([0, 1]);
         expect(archer?.attacks[1]).toMatchObject({
             damage: 3,
             cost: 1,
-            cooldownTurns: 3,
+            cooldownTurns: 2,
+            initialCooldownTurns: 1,
             pattern: { type: "radius", range: 5 },
         });
         const chargedAttack = archer?.attacks[1];
         if (!thief || !chargedAttack) throw new Error("Profils de test indisponibles.");
-        expect(describeMonsterAttack(chargedAttack)).toContain("recharge : 3 tours du joueur");
+        expect(describeMonsterAttack(chargedAttack)).toContain(
+            "recharge : 2 tours du joueur (1 tour à l'apparition)",
+        );
         expect(describeMonsterMovement(thief)).toContain("2 déplacements par tour");
     });
 
@@ -71,6 +75,39 @@ describe("portée des actions de monstre", () => {
             [{ x: 5, y: 3 }],
         ]);
         expect(getGridDistance({ x: 2, y: 3 }, { x: 4, y: 4 })).toBe(3);
+    });
+
+    it("bloque la visibilité derrière une case intermédiaire, mais pas derrière la cible", () => {
+        const source = { x: 1, y: 3 };
+        const target = { x: 5, y: 3 };
+
+        expect(hasLineOfSight(source, target, [{ x: 3, y: 3 }])).toBe(false);
+        expect(hasLineOfSight(source, target, [{ x: 5, y: 3 }])).toBe(true);
+        expect(hasLineOfSight(source, target, [{ x: 3, y: 2 }])).toBe(true);
+    });
+
+    it("autorise une diagonale si une seule des deux cases latérales est bloquée", () => {
+        expect(
+            hasLineOfSight(
+                { x: 1, y: 1 },
+                { x: 4, y: 4 },
+                [{ x: 2, y: 2 }],
+            ),
+        ).toBe(false);
+        expect(
+            hasLineOfSight(
+                { x: 1, y: 1 },
+                { x: 2, y: 2 },
+                [{ x: 2, y: 1 }],
+            ),
+        ).toBe(true);
+        expect(
+            hasLineOfSight(
+                { x: 1, y: 1 },
+                { x: 2, y: 2 },
+                [{ x: 2, y: 1 }, { x: 1, y: 2 }],
+            ),
+        ).toBe(false);
     });
 
     it("forme une zone carrée de 2×2 dans la portée demandée", () => {

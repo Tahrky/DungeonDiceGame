@@ -1,5 +1,6 @@
 import type {
     BoardActionMode,
+    BoardObstacle,
     DiceReserve,
     GameActionLogEntry,
     Monster,
@@ -33,6 +34,7 @@ export interface GameViewState {
     pendingCells: Position[] | null;
     lockedPreviewCell: Position | null;
     placedMonsters: PlacedMonster[];
+    obstacles: BoardObstacle[];
     actionHistory: GameActionLogEntry[];
     actionHistoryScrollOffset: number;
     hoveredCell: Position | null;

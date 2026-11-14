@@ -27,7 +27,7 @@ import {
 } from "../game/boards";
 import type { GameHudActions } from "./game/GameHud";
 import type { GameViewState } from "./game/GameViewState";
-import type { BoardActionMode, DiceReserve, DiceSymbol, GameActionLogEntry, Monster, PlayerId, PlacedMonster, Position, RolledDie, GameSnapshot, RemoteGameCommand } from "../types/GameTypes";
+import type { BoardActionMode, BoardObstacle, DiceReserve, DiceSymbol, GameActionLogEntry, Monster, PlayerId, PlacedMonster, Position, RolledDie, GameSnapshot, RemoteGameCommand } from "../types/GameTypes";
 
 export abstract class GameSceneState extends Phaser.Scene {
     protected boardGraphics!: Phaser.GameObjects.Graphics;
@@ -95,6 +95,8 @@ export abstract class GameSceneState extends Phaser.Scene {
     protected pendingCells: Position[] | null = null;
 
     protected placedMonsters: PlacedMonster[] = [];
+
+    protected obstacles: BoardObstacle[] = [];
 
     protected actionHistory: GameActionLogEntry[] = [];
 
@@ -171,6 +173,7 @@ export abstract class GameSceneState extends Phaser.Scene {
         this.invocationMenuOpen = false;
         this.pendingCells = null;
         this.placedMonsters = [];
+        this.obstacles = [];
         this.actionHistory = [];
         this.actionHistoryScrollOffset = 0;
         this.hoveredCell = null;
@@ -214,6 +217,7 @@ export abstract class GameSceneState extends Phaser.Scene {
             pendingCells: this.pendingCells,
             lockedPreviewCell: this.lockedPreviewCell,
             placedMonsters: this.placedMonsters,
+            obstacles: this.obstacles,
             actionHistory: this.actionHistory,
             actionHistoryScrollOffset: this.actionHistoryScrollOffset,
             hoveredCell: this.hoveredCell,
@@ -295,6 +299,7 @@ export abstract class GameSceneState extends Phaser.Scene {
             invocationMenuOpen: this.invocationMenuOpen,
             pendingCells: this.pendingCells,
             placedMonsters: this.placedMonsters,
+            obstacles: this.obstacles,
             actionHistory: this.actionHistory,
             actionHistoryScrollOffset: this.actionHistoryScrollOffset,
             nextMonsterId: this.nextMonsterId,
@@ -344,6 +349,7 @@ export abstract class GameSceneState extends Phaser.Scene {
         this.invocationMenuOpen = value.invocationMenuOpen;
         this.pendingCells = value.pendingCells;
         this.placedMonsters = value.placedMonsters;
+        this.obstacles = value.obstacles;
         this.actionHistory = value.actionHistory;
         this.actionHistoryScrollOffset = value.actionHistoryScrollOffset;
         this.nextMonsterId = value.nextMonsterId;
