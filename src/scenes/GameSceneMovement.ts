@@ -2,7 +2,7 @@ import { GameSceneCombat } from "./GameSceneCombat";
 import Phaser from "phaser";
 import { getAvailableSymbolCount, storeRemainingDice } from "../game/diceResources";
 import { isBoardCell } from "../game/boards";
-import { advanceAttackCooldowns, canUseActionThisTurn, getFacingFromMovement, getGridDistance, getMovementActionsPerTurn, getMovementCost, getMonsterMovementPath, type MovementOptions } from "../game/monsterActions";
+import { advanceAttackCooldowns, canUseActionThisTurn, getFacingFromMovement, getGridDistance, getInitialAttackUses, getMovementActionsPerTurn, getMovementCost, getMonsterMovementPath, type MovementOptions } from "../game/monsterActions";
 import { ACTION_LOG_VISIBLE_COUNT } from "./game/GameHudBase";
 import type { PlacedMonster, Position } from "../types/GameTypes";
 
@@ -150,7 +150,7 @@ export abstract class GameSceneMovement extends GameSceneCombat {
     }
 
     protected finishTurn(): void {
-        if (!this.hasRolled || this.winner !== null) return;
+        if (!this.hasRolled || this.winner !== null || this.actionMode.type !== "idle") return;
         storeRemainingDice(this.rolledDice, this.diceReserves[this.currentPlayer]);
         this.endTurn();
     }
@@ -164,6 +164,7 @@ export abstract class GameSceneMovement extends GameSceneCombat {
         for (const monster of this.placedMonsters) {
             if (monster.owner !== this.currentPlayer) continue;
             monster.attacksUsedThisTurn = 0;
+            monster.attackUsesThisTurn = getInitialAttackUses(monster.monster);
             monster.movementsUsedThisTurn = 0;
             monster.attackCooldowns = advanceAttackCooldowns(monster.attackCooldowns);
         }

@@ -68,3 +68,23 @@ export function spendSymbols(
     if (remaining > 0) reserve[symbol] -= remaining;
     return true;
 }
+
+export function convertReservedSymbols(
+    reserve: DiceReserve,
+    selectedSymbols: readonly DiceSymbol[],
+    targetSymbol: DiceSymbol,
+): boolean {
+    if (selectedSymbols.length !== 2) return false;
+    const [firstSymbol, secondSymbol] = selectedSymbols;
+    if (!firstSymbol || !secondSymbol) return false;
+    if (firstSymbol === secondSymbol) {
+        if (reserve[firstSymbol] < 2) return false;
+    } else if (reserve[firstSymbol] < 1 || reserve[secondSymbol] < 1) {
+        return false;
+    }
+
+    reserve[firstSymbol]--;
+    reserve[secondSymbol]--;
+    reserve[targetSymbol]++;
+    return true;
+}

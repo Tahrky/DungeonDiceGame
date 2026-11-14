@@ -59,6 +59,33 @@ describe("configuration des règles de partie", () => {
         ).toBeNull();
     });
 
+    it("préserve les effets de soutien et exige une cible alliée", () => {
+        const priest = getDefaultGameConfiguration().monsters.find(
+            (monster) => monster.id === "priest",
+        );
+        expect(priest).toBeDefined();
+
+        expect(parseMonsterConfiguration(priest, "priest")?.attacks).toEqual(priest?.attacks);
+        expect(
+            parseMonsterConfiguration({
+                ...priest,
+                attacks: [
+                    { ...priest!.attacks[0], targetsAlliesOnly: false },
+                    priest!.attacks[1],
+                ],
+            }),
+        ).toBeNull();
+        expect(
+            parseMonsterConfiguration({
+                ...priest,
+                attacks: [
+                    { ...priest!.attacks[0], usesPerTurn: 0 },
+                    priest!.attacks[1],
+                ],
+            }),
+        ).toBeNull();
+    });
+
     it("refuse les configurations de version ou de limites invalides", () => {
         const configuration = getDefaultGameConfiguration();
         expect(parseGameConfiguration({ ...configuration, version: 2 })).toBeNull();

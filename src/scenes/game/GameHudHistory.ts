@@ -97,7 +97,7 @@ export abstract class GameHudHistory extends GameHudBase {
                     description = `${entry.monsterName} · ${entry.distance} case${entry.distance > 1 ? "s" : ""}`;
                     break;
                 case "attack":
-                    description = `${entry.attackerName} → ${entry.targetName} · ${entry.damage} dégât${entry.damage > 1 ? "s" : ""}`;
+                    description = `${entry.attackerName} → ${entry.targetName} · ${entry.effect ?? `${entry.damage} dégât${entry.damage > 1 ? "s" : ""}`}`;
                     break;
             }
             const details = this.scene.add.text(actionLogX + 16, y + 23, description, {

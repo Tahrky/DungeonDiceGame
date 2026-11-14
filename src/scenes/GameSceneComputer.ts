@@ -1,7 +1,7 @@
 import { GameSceneMovement } from "./GameSceneMovement";
 import { PLACEMENT_PATTERNS } from "../data/placementPatterns";
 import { getAvailableSymbolCount, spendSymbols } from "../game/diceResources";
-import { getInitialAttackCooldowns } from "../game/monsterActions";
+import { getInitialAttackCooldowns, getInitialAttackUses } from "../game/monsterActions";
 import { findValidPlacement } from "../game/placement";
 import { isBoardCell } from "../game/boards";
 import type { PlacedMonster, Position } from "../types/GameTypes";
@@ -57,6 +57,7 @@ export abstract class GameSceneComputer extends GameSceneMovement {
                     currentHp: monster.hp,
                     cells: placement.cells,
                     attacksUsedThisTurn: 0,
+                    attackUsesThisTurn: getInitialAttackUses(monster),
                     movementsUsedThisTurn: 0,
                     attackCooldowns: getInitialAttackCooldowns(monster),
                 });

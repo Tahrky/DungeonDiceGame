@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { DICE } from "../src/data/dice";
 import {
     addSymbolsToReserve,
+    convertReservedSymbols,
     createEmptyDiceReserve,
     getAvailableSymbolCount,
     spendSymbols,
@@ -81,6 +82,26 @@ describe("réserve et dépense des symboles", () => {
         expect(spendSymbols("attack", 1, rolledDice, reserve)).toBe(false);
         expect(rolledDice[0].status).toBe("available");
         expect(reserve.attack).toBe(0);
+    });
+
+    it("convertit deux symboles réservés en un symbole choisi", () => {
+        const reserve = { invocation: 1, attack: 1, movement: 0 };
+
+        expect(convertReservedSymbols(reserve, ["invocation", "attack"], "movement")).toBe(true);
+        expect(reserve).toEqual({ invocation: 0, attack: 0, movement: 1 });
+    });
+
+    it("convertit deux symboles identiques et préserve la réserve si la sélection est invalide", () => {
+        const reserve = { invocation: 1, attack: 0, movement: 0 };
+
+        expect(convertReservedSymbols(reserve, ["invocation", "invocation"], "attack")).toBe(false);
+        expect(reserve).toEqual({ invocation: 1, attack: 0, movement: 0 });
+
+        reserve.invocation++;
+        expect(convertReservedSymbols(reserve, ["invocation", "invocation"], "invocation")).toBe(
+            true,
+        );
+        expect(reserve).toEqual({ invocation: 1, attack: 0, movement: 0 });
     });
 
     it("stocke automatiquement tous les dés disponibles à la fin du tour", () => {

@@ -1,7 +1,12 @@
 import Phaser from "phaser";
 import { isGameSnapshot } from "./GameSceneProtocol";
 import { GAME_CONFIG } from "../config";
-import { addSymbolsToReserve, createEmptyDiceReserve, spendSymbols } from "../game/diceResources";
+import {
+    addSymbolsToReserve,
+    convertReservedSymbols,
+    createEmptyDiceReserve,
+    spendSymbols,
+} from "../game/diceResources";
 import {
     getDefaultGameConfiguration,
     parseGameConfiguration,
@@ -279,6 +284,63 @@ export abstract class GameSceneState extends Phaser.Scene {
 
         addSymbolsToReserve(this.diceReserves[this.currentPlayer], 100);
         this.render();
+    }
+
+    protected selectReserveSymbol(symbol: DiceSymbol): void {
+        if (
+            this.winner !== null ||
+            this.pendingCells ||
+            this.selectedMonster ||
+            this.invocationMenuOpen
+        ) {
+            return;
+        }
+
+        const selectedSymbols =
+            this.actionMode.type === "convertSymbols" ? this.actionMode.selectedSymbols : [];
+        if (this.actionMode.type !== "idle" && this.actionMode.type !== "convertSymbols") return;
+        if (selectedSymbols.length >= 2) return;
+        if (
+            this.actionMode.type === "idle" &&
+            Object.values(this.diceReserves[this.currentPlayer]).reduce(
+                (total, count) => total + count,
+                0,
+            ) < 2
+        ) {
+            return;
+        }
+
+        const alreadySelected = selectedSymbols.filter(
+            (selectedSymbol) => selectedSymbol === symbol,
+        ).length;
+        if (this.diceReserves[this.currentPlayer][symbol] <= alreadySelected) return;
+
+        this.actionMode = {
+            type: "convertSymbols",
+            selectedSymbols: [...selectedSymbols, symbol],
+        };
+        this.render();
+    }
+
+    protected chooseReserveConversionTarget(targetSymbol: DiceSymbol): void {
+        if (
+            this.actionMode.type !== "convertSymbols" ||
+            this.actionMode.selectedSymbols.length !== 2 ||
+            this.winner !== null
+        ) {
+            return;
+        }
+
+        if (
+            convertReservedSymbols(
+                this.diceReserves[this.currentPlayer],
+                this.actionMode.selectedSymbols,
+                targetSymbol,
+            )
+        ) {
+            this.actionMode = { type: "idle" };
+            this.render();
+        }
     }
 
     protected createSnapshot(): GameSnapshot {

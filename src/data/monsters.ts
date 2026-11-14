@@ -149,4 +149,36 @@ export const MONSTERS: Monster[] = [
         movementRange: 2,
         movementCost: 1,
     },
+
+    {
+        id: "priest",
+        name: "Prêtre",
+        symbol: "P",
+        color: 0x54b8e8,
+        cost: 6,
+        hp: 5,
+        attacks: [
+            {
+                name: "Soin",
+                damage: 0,
+                cost: 2,
+                pattern: { type: "line", range: 4, allDirections: true },
+                targetsAlliesOnly: true,
+                healAmount: 3,
+                usesPerTurn: 1,
+            },
+            {
+                name: "Récupération de sorts",
+                damage: 0,
+                cost: 3,
+                pattern: { type: "radius", range: 3 },
+                targetsAlliesOnly: true,
+                cooldownReduction: 1,
+                usesPerTurn: 1,
+            },
+        ],
+        movementRange: 2,
+        attackActionsPerTurn: 2,
+        //flying: true,
+    },
 ];

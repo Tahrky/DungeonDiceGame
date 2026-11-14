@@ -178,7 +178,11 @@ export class GameScene extends GameSceneComputer {
     }
 
     private cancelCurrentAction(): void {
-        if (this.actionMode.type === "attack" || this.actionMode.type === "movement") {
+        if (
+            this.actionMode.type === "attack" ||
+            this.actionMode.type === "movement" ||
+            this.actionMode.type === "convertSymbols"
+        ) {
             this.hudActions.cancelBoardAction();
         } else if (this.selectedMonster || this.pendingCells) {
             this.hudActions.cancelInvocation();
@@ -259,6 +263,14 @@ export class GameScene extends GameSceneComputer {
             },
             storeDie: (dieIndex) =>
                 this.runLocalCommand({ type: "storeDie", dieIndex }, () => this.storeDie(dieIndex)),
+            selectReserveSymbol: (symbol) =>
+                this.runLocalCommand({ type: "selectReserveSymbol", symbol }, () =>
+                    this.selectReserveSymbol(symbol),
+                ),
+            chooseReserveConversionTarget: (targetSymbol) =>
+                this.runLocalCommand({ type: "convertReserveSymbols", targetSymbol }, () =>
+                    this.chooseReserveConversionTarget(targetSymbol),
+                ),
             startAttack: () =>
                 this.runLocalCommand({ type: "startAttack" }, () => this.startAttack()),
             selectAttack: (attackIndex) =>
@@ -316,6 +328,12 @@ export class GameScene extends GameSceneComputer {
                 break;
             case "storeDie":
                 this.storeDie(value.dieIndex);
+                break;
+            case "selectReserveSymbol":
+                this.selectReserveSymbol(value.symbol);
+                break;
+            case "convertReserveSymbols":
+                this.chooseReserveConversionTarget(value.targetSymbol);
                 break;
             case "startAttack":
                 this.startAttack();

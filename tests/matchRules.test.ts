@@ -23,6 +23,7 @@ function createMonsters(player: PlayerId, count: number, currentHp: number): Pla
         currentHp,
         cells: [{ x: index, y: player }],
         attacksUsedThisTurn: 0,
+        attackUsesThisTurn: [],
         movementsUsedThisTurn: 0,
         attackCooldowns: [],
     }));

@@ -3,7 +3,7 @@ import Phaser from "phaser";
 import { DICE } from "../data/dice";
 import { PLACEMENT_PATTERNS } from "../data/placementPatterns";
 import { getAvailableSymbolCount, spendSymbols, storeRolledDie } from "../game/diceResources";
-import { getInitialAttackCooldowns } from "../game/monsterActions";
+import { getInitialAttackCooldowns, getInitialAttackUses } from "../game/monsterActions";
 import { canPlaceCells, getPatternCells } from "../game/placement";
 import { isBoardCell } from "../game/boards";
 import type { BoardCellHeight, BoardHeightChange, Position } from "../types/GameTypes";
@@ -11,7 +11,7 @@ import { getInvokedMonsterCount } from "../game/matchRules";
 
 export abstract class GameSceneInvocation extends GameSceneState {
     protected rollDice(computerInitiated = false): void {
-        if (this.hasRolled || this.winner !== null) return;
+        if (this.hasRolled || this.winner !== null || this.actionMode.type !== "idle") return;
         if (
             this.computerOpponent &&
             this.currentPlayer === 2 &&
@@ -218,6 +218,7 @@ export abstract class GameSceneInvocation extends GameSceneState {
                 currentHp: this.selectedMonster.hp,
                 cells: this.pendingCells,
                 attacksUsedThisTurn: 0,
+                attackUsesThisTurn: getInitialAttackUses(this.selectedMonster),
                 movementsUsedThisTurn: 0,
                 attackCooldowns: getInitialAttackCooldowns(this.selectedMonster),
             });

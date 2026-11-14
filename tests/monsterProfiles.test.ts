@@ -66,4 +66,28 @@ describe("profils de monstres", () => {
         });
         expect(thief?.attacks[0]).toMatchObject({ damage: 2, cost: 1 });
     });
+
+    it("configure le Prêtre pour soigner et réduire les recharges des alliés", () => {
+        const priest = MONSTERS.find((monster) => monster.id === "priest");
+
+        expect(priest?.attackActionsPerTurn).toBe(2);
+        expect(priest?.attacks).toMatchObject([
+            {
+                name: "Soin",
+                damage: 0,
+                healAmount: 3,
+                targetsAlliesOnly: true,
+                usesPerTurn: 1,
+                pattern: { type: "line", range: 4, allDirections: true },
+            },
+            {
+                name: "Récupération de sorts",
+                damage: 0,
+                cooldownReduction: 1,
+                targetsAlliesOnly: true,
+                usesPerTurn: 1,
+                pattern: { type: "radius", range: 3 },
+            },
+        ]);
+    });
 });

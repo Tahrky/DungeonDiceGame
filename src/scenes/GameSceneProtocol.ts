@@ -10,12 +10,16 @@ export function isRemoteGameCommand(value: unknown): value is RemoteGameCommand 
         case "togglePatternSelector":
         case "toggleInvocationMenu":
         case "cancelInvocation":
+        case "cancelBoardAction":
         case "startAttack":
         case "startMovement":
-        case "cancelBoardAction":
         case "finishTurn":
         case "debugAddSymbols":
             return true;
+        case "selectReserveSymbol":
+            return "symbol" in value && isDiceSymbol(value.symbol);
+        case "convertReserveSymbols":
+            return "targetSymbol" in value && isDiceSymbol(value.targetSymbol);
         case "changeCellHeight":
             return (
                 "delta" in value &&
@@ -46,6 +50,10 @@ export function isRemoteGameCommand(value: unknown): value is RemoteGameCommand 
         default:
             return false;
     }
+}
+
+function isDiceSymbol(value: unknown): value is "invocation" | "attack" | "movement" {
+    return value === "invocation" || value === "attack" || value === "movement";
 }
 
 export function isGameSnapshot(value: unknown): value is GameSnapshot {

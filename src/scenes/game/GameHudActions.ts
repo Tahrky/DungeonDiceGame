@@ -201,25 +201,87 @@ export abstract class GameHudActionsPanel extends GameHudHistory {
             this.container.add(face);
         });
 
-        this.addText("RÉSERVES", diceStartX, 682, "#ffffff", 16);
+        this.addText(
+            "RÉSERVES · Clique 2 symboles pour en obtenir 1",
+            diceStartX,
+            682,
+            "#ffffff",
+            14,
+        );
         for (const player of [1, 2] as PlayerId[]) {
             const reserve = state.diceReserves[player];
-            const reserveText = DICE_SYMBOLS.map(
-                (symbol) => `${DICE_SYMBOL_PRESENTATION[symbol].emoji} ${reserve[symbol]}`,
-            ).join("   ");
             const color = player === state.currentPlayer ? "#f1cf65" : "#aab5c2";
-            this.addText(
-                `J${player}  ${reserveText}`,
-                diceStartX,
-                704 + (player - 1) * 25,
-                color,
-                16,
-            );
+            const y = 704 + (player - 1) * 25;
+            this.addText(`J${player}`, diceStartX, y + 3, color, 14);
+            for (const [index, symbol] of DICE_SYMBOLS.entries()) {
+                const selectedCount =
+                    state.actionMode.type === "convertSymbols"
+                        ? state.actionMode.selectedSymbols.filter(
+                              (selectedSymbol) => selectedSymbol === symbol,
+                          ).length
+                        : 0;
+                const hasConversionContext =
+                    state.actionMode.type === "convertSymbols" ||
+                    (state.actionMode.type === "idle" &&
+                        !state.pendingCells &&
+                        !state.selectedMonster &&
+                        !state.invocationMenuOpen);
+                const canSelect =
+                    player === state.currentPlayer &&
+                    state.winner === null &&
+                    (!state.onlineGame || state.isLocalTurn) &&
+                    hasConversionContext &&
+                    (state.actionMode.type === "convertSymbols"
+                        ? state.actionMode.selectedSymbols.length < 2 &&
+                          reserve[symbol] > selectedCount
+                        : Object.values(reserve).reduce((total, count) => total + count, 0) >= 2 &&
+                          reserve[symbol] > 0);
+                this.addButton(
+                    `${DICE_SYMBOL_PRESENTATION[symbol].emoji} ${reserve[symbol]}${
+                        selectedCount > 0 ? ` (${selectedCount})` : ""
+                    }`,
+                    diceStartX + 40 + index * 78,
+                    y,
+                    () => actions.selectReserveSymbol(symbol),
+                    { enabled: canSelect, uniformSize: true, width: 74, height: 24 },
+                );
+            }
         }
+        this.renderReserveConversion(state, actions);
+    }
+
+    protected renderReserveConversion(state: GameViewState, actions: GameHudActions): void {
+        if (state.actionMode.type !== "convertSymbols") return;
+
+        const rightX = getHudRightX(this.scene);
+        const hasTwoSymbols = state.actionMode.selectedSymbols.length === 2;
+        const instruction = this.addRightInstruction(
+            hasTwoSymbols
+                ? "Choisis le symbole obtenu (2 → 1)"
+                : "Choisis un deuxième symbole dans ta réserve",
+            ACTION_PANEL_Y,
+        );
+        let controlsY = ACTION_PANEL_Y + instruction.height + 8;
+        if (hasTwoSymbols) {
+            for (const symbol of DICE_SYMBOLS) {
+                this.addButton(
+                    `${DICE_SYMBOL_PRESENTATION[symbol].emoji} ${DICE_SYMBOL_PRESENTATION[symbol].label}`,
+                    rightX,
+                    controlsY,
+                    () => actions.chooseReserveConversionTarget(symbol),
+                    { rightAligned: true },
+                );
+                controlsY += 38;
+            }
+        }
+        this.addButton("ANNULER", rightX, controlsY, actions.cancelBoardAction, {
+            rightAligned: true,
+        });
     }
 
     protected renderActionStatus(state: GameViewState, actions: GameHudActions): void {
         const rightX = getHudRightX(this.scene);
+        if (state.actionMode.type === "convertSymbols") return;
         if (state.actionMode.type === "attack") {
             const actionMode = state.actionMode;
             const attacker = state.placedMonsters.find(
@@ -247,22 +309,37 @@ export abstract class GameHudActionsPanel extends GameHudHistory {
                 const cooldown = attacker.attackCooldowns[attackIndex] ?? 0;
                 const attackLimit = getAttackActionsPerTurn(attacker.monster);
                 const attacksRemaining = Math.max(0, attackLimit - attacker.attacksUsedThisTurn);
+                const useLimitReached =
+                    attack.usesPerTurn !== undefined &&
+                    (attacker.attackUsesThisTurn[attackIndex] ?? 0) >= attack.usesPerTurn;
+                const effect =
+                    attack.healAmount !== undefined
+                        ? `soin ${attack.healAmount} PV`
+                        : attack.cooldownReduction !== undefined
+                          ? `recharge -${attack.cooldownReduction} tour`
+                          : `${attack.damage} dég.`;
                 const attackStatus =
-                    attacksRemaining === 0
+                    useLimitReached
+                        ? " · utilisée ce tour"
+                        : attacksRemaining === 0
                         ? " · attaques épuisées"
                         : attacker.attacksUsedThisTurn > 0
                           ? ` · encore ${attacksRemaining} attaque${attacksRemaining > 1 ? "s" : ""}`
                           : "";
                 const y = ACTION_PANEL_Y + attackIndex * 40;
                 this.addButton(
-                    `${attack.name} — ${attack.damage} dég. — ${attack.cost} ⚔️${
+                    `${attack.name} — ${effect} — ${attack.cost} ⚔️${
                         cooldown > 0 ? ` · recharge ${cooldown} tour${cooldown === 1 ? "" : "s"}` : ""
                     }${attackStatus}`,
                     rightX,
                     y,
                     () => actions.selectAttack(attackIndex),
                     {
-                        enabled: affordable && cooldown === 0 && attacksRemaining > 0,
+                        enabled:
+                            affordable &&
+                            cooldown === 0 &&
+                            attacksRemaining > 0 &&
+                            !useLimitReached,
                         rightAligned: true,
                     },
                 );
@@ -274,6 +351,8 @@ export abstract class GameHudActionsPanel extends GameHudHistory {
             const instruction = this.addRightInstruction(
                 selectedAttack?.pattern.type === "directionalArea"
                     ? `Clique autour du Pirate (frappe ${selectedAttack.pattern.width}×${selectedAttack.pattern.depth})`
+                    : selectedAttack?.targetsAlliesOnly
+                      ? "Clique un allié à portée"
                     : selectedAttack
                       ? `Clique une case de ${this.getAttackPatternLabel(selectedAttack.pattern)}`
                       : "Choisis une attaque",

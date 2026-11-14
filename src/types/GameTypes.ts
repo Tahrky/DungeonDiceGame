@@ -20,6 +20,8 @@ export type RemoteGameCommand =
     | { type: "toggleInvocationMenu" }
     | { type: "cancelInvocation" }
     | { type: "storeDie"; dieIndex: number }
+    | { type: "selectReserveSymbol"; symbol: DiceSymbol }
+    | { type: "convertReserveSymbols"; targetSymbol: DiceSymbol }
     | { type: "startAttack" }
     | { type: "selectAttack"; attackIndex: number }
     | { type: "startMovement" }
@@ -68,7 +70,8 @@ export interface RolledDie {
 export type BoardActionMode =
     | { type: "idle" }
     | { type: "attack"; attackerId: string | null; attackIndex: number | null }
-    | { type: "movement"; monsterId: string | null };
+    | { type: "movement"; monsterId: string | null }
+    | { type: "convertSymbols"; selectedSymbols: DiceSymbol[] };
 
 export interface Position {
     x: number;
@@ -99,7 +102,11 @@ export interface MonsterAttack {
     pattern: AttackPattern;
     cooldownTurns?: number;
     initialCooldownTurns?: number;
+    usesPerTurn?: number;
     hitsAllies?: boolean;
+    targetsAlliesOnly?: boolean;
+    healAmount?: number;
+    cooldownReduction?: number;
     movesToZone?: boolean;
 }
 
@@ -129,6 +136,7 @@ export interface PlacedMonster {
     currentHp: number;
     cells: Position[];
     attacksUsedThisTurn: number;
+    attackUsesThisTurn: number[];
     movementsUsedThisTurn: number;
     attackCooldowns: number[];
 }
@@ -142,4 +150,5 @@ export type GameActionLogEntry =
           attackerName: string;
           targetName: string;
           damage: number;
+          effect?: string;
       };

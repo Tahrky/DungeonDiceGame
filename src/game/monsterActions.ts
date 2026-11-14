@@ -1,4 +1,11 @@
-import type { AttackPattern, Facing, Monster, MonsterAttack, Position } from "../types/GameTypes";
+import type {
+    AttackPattern,
+    Facing,
+    Monster,
+    MonsterAttack,
+    PlayerId,
+    Position,
+} from "../types/GameTypes";
 
 const FACING_VECTORS: Record<Facing, Position> = {
     north: { x: 0, y: -1 },
@@ -92,6 +99,10 @@ export function getInitialAttackCooldowns(monster: Pick<Monster, "attacks">): nu
     );
 }
 
+export function getInitialAttackUses(monster: Pick<Monster, "attacks">): number[] {
+    return monster.attacks.map(() => 0);
+}
+
 export function getMovementCost(monster: Pick<Monster, "movementCost">): number {
     return monster.movementCost ?? 1;
 }
@@ -110,6 +121,13 @@ export function getAttackActionsPerTurn(
 
 export function canUseActionThisTurn(actionsUsed: number, actionLimit: number): boolean {
     return actionsUsed < actionLimit;
+}
+
+export function canUseMonsterAttackThisTurn(
+    attack: Pick<MonsterAttack, "usesPerTurn">,
+    usesThisTurn: number,
+): boolean {
+    return attack.usesPerTurn === undefined || usesThisTurn < attack.usesPerTurn;
 }
 
 export function advanceAttackCooldowns(cooldowns: readonly number[]): number[] {
@@ -309,6 +327,15 @@ export function canAttackMonster(
         attacker.flying === true ||
         (attack.pattern.type !== "adjacent" && attack.pattern.type !== "directionalArea")
     );
+}
+
+export function canTargetMonsterOwner(
+    attack: Pick<MonsterAttack, "hitsAllies" | "targetsAlliesOnly">,
+    targetOwner: PlayerId,
+    currentPlayer: PlayerId,
+): boolean {
+    if (attack.targetsAlliesOnly) return targetOwner === currentPlayer;
+    return attack.hitsAllies === true || targetOwner !== currentPlayer;
 }
 
 export function isWithinRadius(center: Position, target: Position, radius: number): boolean {

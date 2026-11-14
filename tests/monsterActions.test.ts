@@ -4,13 +4,16 @@ import {
     advanceAttackCooldowns,
     canUseActionThisTurn,
     canAttackMonster,
+    canTargetMonsterOwner,
     canMoveMonsterTo,
+    canUseMonsterAttackThisTurn,
     getAttackZones,
     getAttackActionsPerTurn,
     getAttackZoneOptions,
     getFacingFromMovement,
     getGridDistance,
     getInitialAttackCooldowns,
+    getInitialAttackUses,
     getMovementActionsPerTurn,
     getMovementCost,
     getMonsterMovementPath,
@@ -25,6 +28,14 @@ import {
 import type { Position } from "../src/types/GameTypes";
 
 describe("portée des actions de monstre", () => {
+    it("respecte les camps autorisés pour les cibles d'attaque", () => {
+        expect(canTargetMonsterOwner({ targetsAlliesOnly: true }, 1, 1)).toBe(true);
+        expect(canTargetMonsterOwner({ targetsAlliesOnly: true }, 2, 1)).toBe(false);
+        expect(canTargetMonsterOwner({}, 1, 1)).toBe(false);
+        expect(canTargetMonsterOwner({ hitsAllies: true }, 1, 1)).toBe(true);
+        expect(canTargetMonsterOwner({ hitsAllies: true }, 2, 1)).toBe(true);
+    });
+
     it("applique les limites d'actions et de recharge par tour", () => {
         const thief = MONSTERS.find((monster) => monster.id === "thief");
         const blackKnight = MONSTERS.find((monster) => monster.id === "black-knight");
@@ -45,6 +56,10 @@ describe("portée des actions de monstre", () => {
         expect(canUseActionThisTurn(1, getMovementActionsPerTurn(thief ?? {}))).toBe(true);
         expect(advanceAttackCooldowns([3, 1, 0])).toEqual([2, 0, 0]);
         expect(getInitialAttackCooldowns(archer ?? { attacks: [] })).toEqual([0, 1]);
+        expect(getInitialAttackUses(archer ?? { attacks: [] })).toEqual([0, 0]);
+        expect(canUseMonsterAttackThisTurn({ usesPerTurn: 1 }, 0)).toBe(true);
+        expect(canUseMonsterAttackThisTurn({ usesPerTurn: 1 }, 1)).toBe(false);
+        expect(canUseMonsterAttackThisTurn({}, 5)).toBe(true);
         expect(archer?.attacks[1]).toMatchObject({
             damage: 3,
             cost: 1,

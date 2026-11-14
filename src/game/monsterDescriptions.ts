@@ -41,8 +41,21 @@ export function describeMonsterAttack(attack: MonsterAttack): string {
         attack.cooldownTurns !== undefined
             ? `, recharge : ${attack.cooldownTurns} tour${attack.cooldownTurns === 1 ? "" : "s"} du joueur${initialCooldown}`
             : "";
+    const usesPerTurn =
+        attack.usesPerTurn !== undefined
+            ? `, ${attack.usesPerTurn} utilisation${attack.usesPerTurn === 1 ? "" : "s"} par tour`
+            : "";
     const friendlyFire = attack.hitsAllies ? ", touche aussi les alliés" : "";
-    return `${attack.name} : ${attack.damage} dégâts, ${attack.cost} ⚔️ (${getAttackPatternDescription(attack.pattern)}${special}${friendlyFire})${cooldown}`;
+    const targetRestriction = attack.targetsAlliesOnly ? ", cible uniquement les alliés" : "";
+    const effect =
+        attack.healAmount !== undefined
+            ? `soigne ${attack.healAmount} PV`
+            : attack.cooldownReduction !== undefined
+              ? `réduit les recharges de ${attack.cooldownReduction} tour${attack.cooldownReduction === 1 ? "" : "s"}`
+              : `${attack.damage} dégâts`;
+    return `${attack.name} : ${effect}, ${attack.cost} ⚔️ (${getAttackPatternDescription(
+        attack.pattern,
+    )}${special}${friendlyFire}${targetRestriction}${usesPerTurn})${cooldown}`;
 }
 
 export function describeMonsterMovement(monster: Monster): string {

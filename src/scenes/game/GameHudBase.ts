@@ -3,7 +3,7 @@ import { GAME_CONFIG } from "../../config";
 import { PLACEMENT_PATTERNS } from "../../data/placementPatterns";
 import { getInvokedMonsterCount } from "../../game/matchRules";
 import type { GameViewState } from "./GameViewState";
-import type { Monster, PlayerId } from "../../types/GameTypes";
+import type { DiceSymbol, Monster, PlayerId } from "../../types/GameTypes";
 
 export interface GameHudActions {
     rollDice: () => void;
@@ -16,6 +16,8 @@ export interface GameHudActions {
     cancelInvocation: () => void;
     hoverInvocationMonster: (monster: Monster | null, pointer: Phaser.Input.Pointer) => void;
     storeDie: (dieIndex: number) => void;
+    selectReserveSymbol: (symbol: DiceSymbol) => void;
+    chooseReserveConversionTarget: (symbol: DiceSymbol) => void;
     startAttack: () => void;
     selectAttack: (attackIndex: number) => void;
     startMovement: () => void;
@@ -218,7 +220,7 @@ export abstract class GameHudBase {
                 {
                     rightAligned: true,
                     uniformSize: true,
-                    enabled: !waitingForOpponent,
+                    enabled: !waitingForOpponent && state.actionMode.type === "idle",
                     width: waitingForOpponent ? 220 : undefined,
                 },
             );

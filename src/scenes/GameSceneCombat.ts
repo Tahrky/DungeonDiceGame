@@ -1,7 +1,7 @@
 import { GameSceneInvocation } from "./GameSceneInvocation";
 import { isBoardCell } from "../game/boards";
 import { getAvailableSymbolCount } from "../game/diceResources";
-import { canAttackMonster, canUseActionThisTurn, getAttackActionsPerTurn, getAttackZoneOptions, getFacingFromMovement, getGridDistance, getMovementActionsPerTurn, getMovementCost, hasLineOfSight, isBehind } from "../game/monsterActions";
+import { canAttackMonster, canTargetMonsterOwner, canUseActionThisTurn, canUseMonsterAttackThisTurn, getAttackActionsPerTurn, getAttackZoneOptions, getFacingFromMovement, getGridDistance, getMovementActionsPerTurn, getMovementCost, hasLineOfSight, isBehind } from "../game/monsterActions";
 import type { DiceSymbol, Monster, PlayerId, PlacedMonster, Position } from "../types/GameTypes";
 import { getMonsterEliminationWinner } from "../game/matchRules";
 
@@ -136,7 +136,7 @@ export abstract class GameSceneCombat extends GameSceneInvocation {
         const attackIndex = this.getSelectedAttackIndex();
         const selectedAttack =
             attackIndex === null ? undefined : attacker.monster.attacks[attackIndex];
-        return !selectedAttack?.hitsAllies;
+        return !selectedAttack?.hitsAllies && !selectedAttack?.targetsAlliesOnly;
     }
 
     protected getSelectedAttackIndex(): number | null {
@@ -151,6 +151,16 @@ export abstract class GameSceneCombat extends GameSceneInvocation {
     ): void {
         if (!this.canAttackTarget(attacker.id, attackIndex, targetPosition)) return;
         const attack = attacker.monster.attacks[attackIndex];
+        const allyTarget =
+            attack.targetsAlliesOnly && clickedMonster?.owner === this.currentPlayer
+                ? clickedMonster
+                : undefined;
+        if (
+            attack.targetsAlliesOnly &&
+            (!allyTarget || (attack.healAmount === undefined && attack.cooldownReduction === undefined))
+        ) {
+            return;
+        }
         const zone = this.getAttackZoneForTarget(attacker, attack, targetPosition);
         if (!zone || !this.spendCurrentSymbol("attack", attack.cost)) return;
         const attackFacing = getFacingFromMovement(
@@ -160,6 +170,8 @@ export abstract class GameSceneCombat extends GameSceneInvocation {
         );
         attacker.facing = attackFacing;
         attacker.attacksUsedThisTurn++;
+        attacker.attackUsesThisTurn[attackIndex] =
+            (attacker.attackUsesThisTurn[attackIndex] ?? 0) + 1;
         if (attack.cooldownTurns !== undefined) {
             attacker.attackCooldowns[attackIndex] = attack.cooldownTurns;
         }
@@ -169,6 +181,11 @@ export abstract class GameSceneCombat extends GameSceneInvocation {
             (attacker.monster.bonusDamageFromBehind ?? 0) > 0 &&
             isBehind(clickedMonster.position, attacker.position, clickedMonster.facing);
         this.monsterSpriteView.playAttack(attacker.id, attackIndex, isBackstab, attackFacing);
+
+        if (attack.targetsAlliesOnly) {
+            if (allyTarget) this.executeAllyTargetedAttack(attacker, attack, allyTarget);
+            return;
+        }
 
         if (
             attack.hitsAllies ||
@@ -187,6 +204,36 @@ export abstract class GameSceneCombat extends GameSceneInvocation {
             clickedMonster,
             isBackstab,
         );
+    }
+
+    protected executeAllyTargetedAttack(
+        attacker: PlacedMonster,
+        attack: Monster["attacks"][number],
+        target: PlacedMonster,
+    ): void {
+        let effect: string;
+        if (attack.healAmount !== undefined) {
+            const healed = Math.min(
+                attack.healAmount,
+                Math.max(0, target.monster.hp - target.currentHp),
+            );
+            target.currentHp += healed;
+            effect = `+${healed} PV`;
+        } else if (attack.cooldownReduction !== undefined) {
+            const cooldownReduction = attack.cooldownReduction;
+            const cooldowns = target.attackCooldowns.map((cooldown) =>
+                Math.max(0, cooldown - cooldownReduction),
+            );
+            const reducedCooldowns = target.attackCooldowns.filter(
+                (cooldown, index) => cooldown > cooldowns[index],
+            ).length;
+            target.attackCooldowns = cooldowns;
+            effect = `${reducedCooldowns} recharge${reducedCooldowns > 1 ? "s" : ""} réduite${reducedCooldowns > 1 ? "s" : ""} de ${cooldownReduction} tour${cooldownReduction === 1 ? "" : "s"}`;
+        } else {
+            return;
+        }
+        this.recordAttack(attacker, `${target.monster.name} (J${target.owner})`, 0, effect);
+        this.finishAttack();
     }
 
     protected executeAreaAttack(
@@ -268,13 +315,19 @@ export abstract class GameSceneCombat extends GameSceneInvocation {
         this.finishAttack();
     }
 
-    protected recordAttack(attacker: PlacedMonster, targetName: string, damage: number): void {
+    protected recordAttack(
+        attacker: PlacedMonster,
+        targetName: string,
+        damage: number,
+        effect?: string,
+    ): void {
         this.recordAction({
             type: "attack",
             player: this.currentPlayer,
             attackerName: attacker.monster.name,
             targetName,
             damage,
+            ...(effect === undefined ? {} : { effect }),
         });
     }
 
@@ -414,6 +467,10 @@ export abstract class GameSceneCombat extends GameSceneInvocation {
                 getAttackActionsPerTurn(attacker.monster),
             ) &&
             (attacker.attackCooldowns[attackIndex] ?? 0) === 0 &&
+            canUseMonsterAttackThisTurn(
+                attack,
+                attacker.attackUsesThisTurn[attackIndex] ?? 0,
+            ) &&
             this.canAffordAttack(attack)
         );
     }
@@ -427,10 +484,22 @@ export abstract class GameSceneCombat extends GameSceneInvocation {
         return zone.some((cell) => {
             if (!isBoardCell(this.board, cell)) return false;
             if (!this.isAttackCellInRange(attacker.position, attack, cell)) return false;
-            if (this.isOpponentStartingPosition(cell)) return true;
+            if (this.isOpponentStartingPosition(cell)) return !attack.targetsAlliesOnly;
             const target = this.getLivingMonsterAt(cell);
             if (!target || target.id === attacker.id) return false;
-            if (!attack.hitsAllies && target.owner === this.currentPlayer) return false;
+            if (!canTargetMonsterOwner(attack, target.owner, this.currentPlayer)) return false;
+            if (
+                attack.healAmount !== undefined &&
+                target.currentHp >= target.monster.hp
+            ) {
+                return false;
+            }
+            if (
+                attack.cooldownReduction !== undefined &&
+                !target.attackCooldowns.some((cooldown) => cooldown > 0)
+            ) {
+                return false;
+            }
             return canAttackMonster(attacker.monster, attack, target.monster);
         });
     }

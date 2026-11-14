@@ -120,7 +120,21 @@ function parseAttack(value: unknown): MonsterAttack | null {
         (value.cooldownTurns !== undefined && !isIntegerInRange(value.cooldownTurns, 0, 50)) ||
         (value.initialCooldownTurns !== undefined &&
             !isIntegerInRange(value.initialCooldownTurns, 0, 50)) ||
+        (value.usesPerTurn !== undefined && !isIntegerInRange(value.usesPerTurn, 1, 10)) ||
         (value.hitsAllies !== undefined && typeof value.hitsAllies !== "boolean") ||
+        (value.targetsAlliesOnly !== undefined &&
+            typeof value.targetsAlliesOnly !== "boolean") ||
+        (value.healAmount !== undefined && !isIntegerInRange(value.healAmount, 1, 50)) ||
+        (value.cooldownReduction !== undefined &&
+            !isIntegerInRange(value.cooldownReduction, 1, 50)) ||
+        ((value.healAmount !== undefined || value.cooldownReduction !== undefined) &&
+            value.damage !== 0) ||
+        (value.healAmount !== undefined && value.cooldownReduction !== undefined) ||
+        ((value.healAmount !== undefined || value.cooldownReduction !== undefined) &&
+            value.targetsAlliesOnly !== true) ||
+        (value.targetsAlliesOnly === true &&
+            value.healAmount === undefined &&
+            value.cooldownReduction === undefined) ||
         (value.movesToZone !== undefined && typeof value.movesToZone !== "boolean")
     ) {
         return null;
@@ -129,7 +143,13 @@ function parseAttack(value: unknown): MonsterAttack | null {
     const cooldownTurns = typeof value.cooldownTurns === "number" ? value.cooldownTurns : undefined;
     const initialCooldownTurns =
         typeof value.initialCooldownTurns === "number" ? value.initialCooldownTurns : undefined;
+    const usesPerTurn = typeof value.usesPerTurn === "number" ? value.usesPerTurn : undefined;
     const hitsAllies = typeof value.hitsAllies === "boolean" ? value.hitsAllies : undefined;
+    const targetsAlliesOnly =
+        typeof value.targetsAlliesOnly === "boolean" ? value.targetsAlliesOnly : undefined;
+    const healAmount = typeof value.healAmount === "number" ? value.healAmount : undefined;
+    const cooldownReduction =
+        typeof value.cooldownReduction === "number" ? value.cooldownReduction : undefined;
     const movesToZone = typeof value.movesToZone === "boolean" ? value.movesToZone : undefined;
     return {
         name: value.name.trim(),
@@ -138,7 +158,11 @@ function parseAttack(value: unknown): MonsterAttack | null {
         pattern,
         ...(cooldownTurns === undefined ? {} : { cooldownTurns }),
         ...(initialCooldownTurns === undefined ? {} : { initialCooldownTurns }),
+        ...(usesPerTurn === undefined ? {} : { usesPerTurn }),
         ...(hitsAllies === undefined ? {} : { hitsAllies }),
+        ...(targetsAlliesOnly === undefined ? {} : { targetsAlliesOnly }),
+        ...(healAmount === undefined ? {} : { healAmount }),
+        ...(cooldownReduction === undefined ? {} : { cooldownReduction }),
         ...(movesToZone === undefined ? {} : { movesToZone }),
     };
 }
