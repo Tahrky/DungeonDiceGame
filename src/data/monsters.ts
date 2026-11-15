@@ -103,6 +103,7 @@ export const MONSTERS: Monster[] = [
         ],
         movementRange: 2,
         movementCost: 0,
+        flying: true,
         canPassHostiles: true,
     },
 

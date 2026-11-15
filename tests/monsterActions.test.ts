@@ -492,6 +492,33 @@ describe("portée des actions de monstre", () => {
         expect(canMoveMonsterTo(movement(canPassHostileMonsters(thief), destination))).toBe(false);
     });
 
+    it("permet au Spectre volant de survoler le hors-circuit sans s'y poser", () => {
+        const spectre = MONSTERS.find((monster) => monster.id === "spectre");
+        const source = { x: 1, y: 1 };
+        const offCircuit = { x: 2, y: 1 };
+        const destination = { x: 3, y: 1 };
+        const movement = (
+            target: Position,
+            canPassUndeployedCells: boolean,
+        ): Parameters<typeof canMoveMonsterTo>[0] => ({
+            source,
+            destination: target,
+            deployedCells: [destination],
+            occupiedCells: [],
+            blockedCells: [],
+            range: 2,
+            canPassUndeployedCells,
+            boardWidth: 5,
+            boardHeight: 5,
+        });
+
+        if (!spectre) throw new Error("Profil du Spectre indisponible.");
+        expect(spectre.flying).toBe(true);
+        expect(canMoveMonsterTo(movement(destination, spectre.flying === true))).toBe(true);
+        expect(canMoveMonsterTo(movement(offCircuit, spectre.flying === true))).toBe(false);
+        expect(canMoveMonsterTo(movement(destination, false))).toBe(false);
+    });
+
     it("refuse les déplacements trop longs, hors dés ou vers une case bloquée", () => {
         const deployed: Position[] = [
             { x: 2, y: 2 },

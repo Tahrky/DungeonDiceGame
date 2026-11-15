@@ -23,6 +23,7 @@ export interface MovementOptions {
     range?: number;
     readonly hostileCells?: readonly Position[];
     readonly canPassHostiles?: boolean;
+    readonly canPassUndeployedCells?: boolean;
     boardWidth?: number;
     boardHeight?: number;
 }
@@ -38,6 +39,7 @@ interface TraversalContext {
     deployedCells: readonly Position[];
     hostileKeys: ReadonlySet<string>;
     canPassHostiles: boolean;
+    canPassUndeployedCells: boolean;
     boardWidth: number;
     boardHeight: number;
 }
@@ -388,6 +390,7 @@ export function getMonsterMovementPath(options: MovementOptions): Position[] {
         range = 2,
         hostileCells = [],
         canPassHostiles = false,
+        canPassUndeployedCells = false,
         boardWidth = Number.POSITIVE_INFINITY,
         boardHeight = Number.POSITIVE_INFINITY,
     } = options;
@@ -405,6 +408,7 @@ export function getMonsterMovementPath(options: MovementOptions): Position[] {
         deployedCells,
         hostileKeys,
         canPassHostiles,
+        canPassUndeployedCells,
         boardWidth,
         boardHeight,
     };
@@ -477,7 +481,8 @@ function isTraversableCell(
         position.y < context.boardHeight &&
         !context.visited.has(positionKey) &&
         !context.blockedKeys.has(positionKey) &&
-        context.deployedCells.some((cell) => isSamePosition(cell, position)) &&
+        (context.canPassUndeployedCells ||
+            context.deployedCells.some((cell) => isSamePosition(cell, position))) &&
         (context.canPassHostiles || !context.hostileKeys.has(positionKey))
     );
 }

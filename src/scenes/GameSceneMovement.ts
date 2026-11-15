@@ -122,6 +122,7 @@ export abstract class GameSceneMovement extends GameSceneCombat {
             range: monster.monster.movementRange,
             hostileCells,
             canPassHostiles: canPassHostileMonsters(monster.monster),
+            canPassUndeployedCells: monster.monster.flying === true,
             boardWidth: this.board.width,
             boardHeight: this.board.height,
         };
