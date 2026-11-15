@@ -56,7 +56,7 @@ export class GameHudPatterns extends GameHudActionsPanel {
                 )
                 .setOrigin(0);
 
-            background.setStrokeStyle(1, selected ? 0xf1cf65 : 0x667b8e);
+            background.setStrokeStyle(2, selected ? 0xf1cf65 : 0x667b8e);
             if (!state.pendingCells && state.actionMode.type === "idle") {
                 background.setInteractive({ useHandCursor: true });
                 background.on(
@@ -79,14 +79,19 @@ export class GameHudPatterns extends GameHudActionsPanel {
             const minY = Math.min(...pattern.map((cell) => cell.y));
             preview.fillStyle(0xf1cf65, 1);
             for (const cell of pattern) {
-                preview.fillRect(x + 8 + (cell.x - minX) * 8, y + 9 + (cell.y - minY) * 8, 6, 6);
+                preview.fillRect(
+                    x + 10 + (cell.x - minX) * 10,
+                    y + 8 + (cell.y - minY) * 10,
+                    8,
+                    8,
+                );
             }
             this.container.add(preview);
 
             const label = this.scene.add
                 .text(x + PATTERN_CARD_WIDTH - 18, y + PATTERN_CARD_HEIGHT / 2, `${index + 1}`, {
                     fontFamily: "Arial",
-                    fontSize: "15px",
+                    fontSize: "17px",
                     color: selected ? "#f1cf65" : "#ffffff",
                     fontStyle: "bold",
                 })
@@ -127,7 +132,7 @@ export class GameHudPatterns extends GameHudActionsPanel {
 
     protected addIconButton(options: IconButtonOptions): void {
         const { icon, tooltip, x, y, enabled, active, callback } = options;
-        const width = 58;
+        const width = 60;
         const height = PATTERN_CARD_HEIGHT;
         let fillColor = 0x252e39;
         if (active) {
@@ -159,7 +164,7 @@ export class GameHudPatterns extends GameHudActionsPanel {
             const pointerPosition = camera.getWorldPoint(pointer.x, pointer.y);
             tooltipText = this.scene.add.text(pointerPosition.x + 8, pointerPosition.y - 22, tooltip, {
                 fontFamily: "Arial",
-                fontSize: "12px",
+                fontSize: "14px",
                 color: "#ffffff",
                 backgroundColor: "#151b25",
                 padding: { x: 6, y: 4 },

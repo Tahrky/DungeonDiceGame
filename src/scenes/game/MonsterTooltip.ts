@@ -133,7 +133,7 @@ export class MonsterTooltip {
             const backstab = monster.bonusDamageFromBehind
                 ? `\nBonus de dos : +${monster.bonusDamageFromBehind} dégâts`
                 : "";
-            const contentWidth = Math.min(400, GAME_CONFIG.screenWidth - 128);
+            const contentWidth = Math.min(440, GAME_CONFIG.screenWidth - 128);
             const contentX = 104;
             const title = this.scene.add.text(
                 contentX,
@@ -141,14 +141,14 @@ export class MonsterTooltip {
                 `${monster.name}${monster.flying ? " (volant)" : ""}`,
                 {
                     fontFamily: "Arial",
-                    fontSize: "15px",
+                    fontSize: "16px",
                     color: "#ffffff",
                     lineSpacing: 3,
                 },
             );
             const playerLabel = this.scene.add.text(title.x + title.width + 6, 6, `J${owner}`, {
                 fontFamily: "Arial",
-                fontSize: "15px",
+                fontSize: "16px",
                 color: owner === 1 ? "#ff8d78" : "#70bdff",
             });
             const invocationCost = this.scene.add.text(
@@ -157,7 +157,7 @@ export class MonsterTooltip {
                 `${monster.cost} ${DICE_SYMBOL_PRESENTATION.invocation.emoji}`,
                 {
                     fontFamily: "Arial",
-                    fontSize: "15px",
+                    fontSize: "16px",
                     color: "#ffffff",
                 },
             );
@@ -168,21 +168,21 @@ export class MonsterTooltip {
             const hpLabel = this.scene.add
                 .text(contentX, hpY, "PV : ", {
                     fontFamily: "Arial",
-                    fontSize: "15px",
+                    fontSize: "16px",
                     color: "#ffffff",
                 })
                 .setPadding(0, 2, 4, 0);
             const currentHp = this.scene.add
                 .text(contentX + hpLabel.width, hpY, `${hp}`, {
                     fontFamily: "Arial",
-                    fontSize: "13px",
+                    fontSize: "14px",
                     color: hp < monster.hp ? "#ff5555" : "#ffffff",
                 })
                 .setPadding(0, 2, 4, 0);
             const hpTotal = this.scene.add
                 .text(currentHp.x + currentHp.width, hpY, ` / ${monster.hp}`, {
                     fontFamily: "Arial",
-                    fontSize: "13px",
+                    fontSize: "14px",
                     color: "#ffffff",
                 })
                 .setPadding(0, 2, 4, 0);
@@ -194,7 +194,7 @@ export class MonsterTooltip {
                 `${attacks}\n${describeMonsterMovement(monster)}${backstab}`,
                 {
                     fontFamily: "Arial",
-                    fontSize: "14px",
+                    fontSize: "15px",
                     color: "#ffffff",
                     lineSpacing: 4,
                     wordWrap: { width: contentWidth },

@@ -1,5 +1,4 @@
 import Phaser from "phaser";
-import { GAME_CONFIG } from "../../config";
 import { PLACEMENT_PATTERNS } from "../../data/placementPatterns";
 import { getInvokedMonsterCount } from "../../game/matchRules";
 import type { GameViewState } from "./GameViewState";
@@ -33,6 +32,7 @@ export interface ButtonOptions {
     muted?: boolean;
     uniformSize?: boolean;
     centerVertically?: boolean;
+    fontSize?: number;
     width?: number;
     height?: number;
 }
@@ -49,15 +49,15 @@ export interface IconButtonOptions {
 
 export const PATTERN_COLUMNS = 4;
 
-export const PATTERN_CARD_WIDTH = 120;
+export const PATTERN_CARD_WIDTH = 122;
 
-export const PATTERN_CARD_HEIGHT = 40;
+export const PATTERN_CARD_HEIGHT = 44;
 
-export const PATTERN_COLUMN_GAP = 126;
+export const PATTERN_COLUMN_GAP = 128;
 
-export const PATTERN_ROW_GAP = 44;
+export const PATTERN_ROW_GAP = 48;
 
-export const HUD_BOTTOM = 752;
+export const HUD_BOTTOM = 742;
 
 export const PATTERN_GRID_WIDTH =
     PATTERN_COLUMNS * PATTERN_CARD_WIDTH +
@@ -85,25 +85,27 @@ export const PATTERN_START_Y = HUD_BOTTOM - PATTERN_GRID_HEIGHT;
 
 export const COLLAPSED_PATTERN_Y = HUD_BOTTOM - PATTERN_CARD_HEIGHT;
 
-export const HUD_BUTTON_WIDTH = 170;
+export const HUD_BUTTON_WIDTH = 190;
 
-export const HUD_BUTTON_HEIGHT = 32;
+export const HUD_BUTTON_HEIGHT = 40;
 
 export const INVOCATION_PANEL_WIDTH = HUD_BUTTON_WIDTH;
 
-export const INVOCATION_ROW_HEIGHT = 30;
+export const INVOCATION_ROW_HEIGHT = 40;
 
-export const INVOCATION_ROW_GAP = 34;
+export const INVOCATION_ROW_GAP = 44;
 
-export const ACTION_PANEL_Y = 54;
+export const ACTION_PANEL_Y = 58;
 
-export const ACTION_LOG_Y = 142;
+export const ACTION_LOG_Y = 136;
 
-export const ACTION_LOG_WIDTH = 228;
+export const ACTION_LOG_WIDTH = 300;
 
-export const ACTION_LOG_HEIGHT = 438;
+export const ACTION_LOG_HEIGHT = 460;
 
-export const ACTION_LOG_ROW_HEIGHT = 62;
+export const ACTION_LOG_ROW_HEIGHT = 67;
+
+export const ACTION_LOG_TOGGLE_WIDTH = 40;
 
 export const ACTION_LOG_TRACK_OFFSET_X = ACTION_LOG_WIDTH - 10;
 
@@ -116,9 +118,8 @@ export const ACTION_LOG_THUMB_MIN_HEIGHT = 24;
 export const ACTION_LOG_VISIBLE_COUNT = 6;
 
 const HUD_STATUS_X = 12;
-const MENU_BUTTON_WIDTH = 99;
-const MENU_BUTTON_HEIGHT = 30;
-const MENU_BUTTON_GAP = 10;
+const MENU_BUTTON_WIDTH = 120;
+const MENU_BUTTON_HEIGHT = 36;
 const RIGHT_INSTRUCTION_WIDTH = 280;
 
 export abstract class GameHudBase {
@@ -142,13 +143,16 @@ export abstract class GameHudBase {
         this.lastActions = actions;
         actions.hoverInvocationMonster(null, this.scene.input.activePointer);
         this.container.removeAll(true);
+        const camera = this.scene.cameras.main;
         this.addButton(
             "MENU",
-            getHudLeftX(this.scene),
-            ACTION_LOG_Y - MENU_BUTTON_HEIGHT - MENU_BUTTON_GAP,
+            camera.getWorldPoint(this.scene.scale.width / 2, 0).x - MENU_BUTTON_WIDTH / 2,
+            12,
             actions.leaveGame,
             {
                 uniformSize: true,
+                centerVertically: true,
+                fontSize: 18,
                 width: MENU_BUTTON_WIDTH,
                 height: MENU_BUTTON_HEIGHT,
             },
@@ -159,48 +163,32 @@ export abstract class GameHudBase {
             state.computerOpponent && state.currentPlayer === 2
                 ? "ORDINATEUR"
                 : `JOUEUR ${state.currentPlayer}`;
-        const camera = this.scene.cameras.main;
         const statusTextScale = 1 / camera.zoom;
         const compactStatus = camera.zoom < 0.75;
         const playerLabelPosition = camera.getWorldPoint(HUD_STATUS_X, compactStatus ? 12 : 16);
-        const statusPosition = camera.getWorldPoint(HUD_STATUS_X, compactStatus ? 32 : 46);
-        const turnPosition = camera.getWorldPoint(HUD_STATUS_X, 64);
+        const turnPosition = camera.getWorldPoint(HUD_STATUS_X, compactStatus ? 34 : 42);
+        this.addText(
+            playerLabel,
+            playerLabelPosition.x,
+            playerLabelPosition.y,
+            playerColor,
+            (compactStatus ? 16 : 22) * statusTextScale,
+        );
         if (compactStatus) {
-            this.addText(
-                `${playerLabel} · TOUR ${state.turnNumber}`,
-                playerLabelPosition.x,
-                playerLabelPosition.y,
-                playerColor,
-                14 * statusTextScale,
-            );
-            this.addText(
-                state.hasRolled ? "Dés lancés" : "En attente du lancer de dés",
-                statusPosition.x,
-                statusPosition.y,
-                "#ffffff",
-                12 * statusTextScale,
-            );
-        } else {
-            this.addText(
-                playerLabel,
-                playerLabelPosition.x,
-                playerLabelPosition.y,
-                playerColor,
-                22 * statusTextScale,
-            );
-            this.addText(
-                state.hasRolled ? "Dés lancés" : "En attente du lancer de dés",
-                statusPosition.x,
-                statusPosition.y,
-                "#ffffff",
-                15 * statusTextScale,
-            );
             this.addText(
                 `TOUR ${state.turnNumber}`,
                 turnPosition.x,
                 turnPosition.y,
                 "#aab5c2",
-                12 * statusTextScale,
+                20 * statusTextScale,
+            );
+        } else {
+            this.addText(
+                `TOUR ${state.turnNumber}`,
+                turnPosition.x,
+                turnPosition.y,
+                "#aab5c2",
+                22 * statusTextScale,
             );
         }
         this.renderPlayerHealth(state);
@@ -235,28 +223,16 @@ export abstract class GameHudBase {
 
     protected renderPlayerHealth(state: GameViewState): void {
         ([1, 2] as const).forEach((player) => {
-            const start = state.startingPositions[player];
-            const startScreenX =
-                state.boardOrigin.x +
-                ((start.x - start.y) * GAME_CONFIG.tileWidth) / 2;
-            const startScreenY =
-                state.boardOrigin.y +
-                ((start.x + start.y) * GAME_CONFIG.tileHeight) / 2;
-            const width = 200;
-            const height = 100;
-            const x = player === 1 ? startScreenX - width - 17 : startScreenX + 28;
-            const y = player === 1 ? startScreenY - height - 17 : startScreenY + 20;
+            const width = 260;
+            const height = 122;
+            const x = player === 1 ? 240 : 850;
+            const y = 4;
             const color = player === 1 ? "#ff8d78" : "#70bdff";
             const background = this.scene.add
                 .rectangle(x, y, width, height, 0x202a36, 1)
                 .setOrigin(0)
                 .setStrokeStyle(2, player === 1 ? 0xff8d78 : 0x70bdff, 0.75);
             this.container.add(background);
-
-            const bottomBorder = this.scene.add.graphics();
-            bottomBorder.lineStyle(2, player === 1 ? 0xff8d78 : 0x70bdff, 0.75);
-            bottomBorder.lineBetween(x, y + height, x + width, y + height);
-            this.container.add(bottomBorder);
 
             const currentHealth = Phaser.Math.Clamp(
                 state.playerHealth[player],
@@ -271,27 +247,27 @@ export abstract class GameHudBase {
             const defeatedOpponentMonsters = state.placedMonsters.filter(
                 (monster) => monster.owner !== player && monster.currentHp <= 0,
             ).length;
-            this.addText(`JOUEUR ${player}`, x + 12, y + 9, color, 16);
+            this.addText(`JOUEUR ${player}`, x + 12, y + 8, color, 20);
             this.addText(
                 `PV : ${currentHealth}/${state.playerMaxHealth}`,
                 x + 12,
-                y + 31,
+                y + 34,
                 color,
-                20,
+                26,
             );
             this.addText(
                 `À invoquer : ${remainingToInvoke}/${state.maxMonstersPerPlayer}`,
                 x + 12,
-                y + 61,
+                y + 67,
                 "#cbd2da",
-                13,
+                17,
             );
             this.addText(
                 `Monstres tués : ${defeatedOpponentMonsters}`,
                 x + 12,
-                y + 79,
+                y + 90,
                 "#cbd2da",
-                13,
+                17,
             );
         });
     }
@@ -336,7 +312,7 @@ export abstract class GameHudBase {
         const text = this.scene.add
             .text(getHudRightX(this.scene), y, label, {
                 fontFamily: "Arial",
-                fontSize: "14px",
+                fontSize: "16px",
                 color: "#f1cf65",
                 fontStyle: "bold",
                 align: "right",
@@ -360,6 +336,7 @@ export abstract class GameHudBase {
             muted = false,
             uniformSize = false,
             centerVertically = false,
+            fontSize = 16,
             width = HUD_BUTTON_WIDTH,
             height = HUD_BUTTON_HEIGHT,
         } = options;
@@ -375,7 +352,7 @@ export abstract class GameHudBase {
         }
         const button = this.scene.add.text(x, y, label, {
             fontFamily: "Arial",
-            fontSize: "15px",
+            fontSize: `${fontSize}px`,
             color,
             backgroundColor,
             align: uniformSize ? "center" : "left",

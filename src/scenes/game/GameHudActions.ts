@@ -41,6 +41,8 @@ export abstract class GameHudActionsPanel extends GameHudHistory {
                 rightAligned: true,
                 muted: !canInvokeMonster,
                 uniformSize: true,
+                centerVertically: true,
+                fontSize: 18,
             },
         );
 
@@ -50,9 +52,9 @@ export abstract class GameHudActionsPanel extends GameHudHistory {
                     ? "Dé posé : choisis une case"
                     : `MONSTRE — COÛT (${getInvokedMonsterCount(state.placedMonsters, state.currentPlayer)}/${state.maxMonstersPerPlayer})`,
                 invocationPanelX + INVOCATION_PANEL_WIDTH / 2,
-                50,
+                58,
                 "#ffffff",
-                15,
+                17,
             );
             invocationHeader.setOrigin(0.5, 0);
 
@@ -69,7 +71,7 @@ export abstract class GameHudActionsPanel extends GameHudHistory {
                             state.rolledDice,
                             state.diceReserves[state.currentPlayer],
                         ) >= monster.cost;
-                    const y = 68 + index * INVOCATION_ROW_GAP;
+                    const y = 82 + index * INVOCATION_ROW_GAP;
                     const selected = state.selectedMonster?.id === monster.id;
                     let backgroundColor = 0x252e39;
                     let borderColor = 0x3c4652;
@@ -122,14 +124,14 @@ export abstract class GameHudActionsPanel extends GameHudHistory {
                         invocationPanelX + 5,
                         y + 8,
                         monsterNameColor,
-                        14,
+                        16,
                     );
                     const cost = this.addText(
                         `${monster.cost} 🐍`,
                         invocationPanelX + INVOCATION_PANEL_WIDTH - 6,
                         y + 8,
                         affordable ? "#f1cf65" : "#75808d",
-                        14,
+                        16,
                     );
                     cost.setOrigin(1, 0);
                     button.setDepth(background.depth + 1);
@@ -137,7 +139,7 @@ export abstract class GameHudActionsPanel extends GameHudHistory {
                 });
 
             if (state.selectedMonster) {
-                const controlsY = 68 + state.availableMonsters.length * INVOCATION_ROW_GAP + 4;
+                const controlsY = 82 + state.availableMonsters.length * INVOCATION_ROW_GAP + 4;
                 const instruction = this.addRightInstruction(
                     state.pendingCells
                         ? `Monstre : ${state.selectedMonster.name} — sélectionne une case du dé`
@@ -159,7 +161,7 @@ export abstract class GameHudActionsPanel extends GameHudHistory {
 
     protected renderDiceAndReserves(state: GameViewState, actions: GameHudActions): void {
         const diceStartX = getHudLeftX(this.scene);
-        this.addText("DÉS DU TOUR", diceStartX, 600, "#ffffff", 14);
+        this.addText("DÉS DU TOUR", diceStartX, 600, "#ffffff", 16);
 
         state.rolledDice.forEach((die, index) => {
             const x = diceStartX + index * 58;
@@ -169,7 +171,7 @@ export abstract class GameHudActionsPanel extends GameHudHistory {
                 !state.pendingCells &&
                 state.actionMode.type === "idle";
             const background = this.scene.add
-                .rectangle(x, 624, 50, 50, die.status === "stored" ? 0x51482d : 0x2a3644, 1)
+                .rectangle(x, 622, 54, 54, die.status === "stored" ? 0x51482d : 0x2a3644, 1)
                 .setOrigin(0)
                 .setStrokeStyle(2, die.status === "spent" ? 0x66707b : 0xf1cf65);
             if (isAvailable) {
@@ -191,9 +193,9 @@ export abstract class GameHudActionsPanel extends GameHudHistory {
 
             const { emoji } = DICE_SYMBOL_PRESENTATION[die.symbol];
             const face = this.scene.add
-                .text(x + 25, 649, emoji, {
+                .text(x + 27, 649, emoji, {
                     fontFamily: "Arial",
-                    fontSize: "27px",
+                    fontSize: "31px",
                     color: "#ffffff",
                 })
                 .setOrigin(0.5);
@@ -204,15 +206,15 @@ export abstract class GameHudActionsPanel extends GameHudHistory {
         this.addText(
             "RÉSERVES · 2 → 1",
             diceStartX,
-            682,
+            678,
             "#ffffff",
-            14,
+            16,
         );
         for (const player of [1, 2] as PlayerId[]) {
             const reserve = state.diceReserves[player];
             const color = player === state.currentPlayer ? "#f1cf65" : "#aab5c2";
-            const y = 704 + (player - 1) * 25;
-            this.addText(`J${player}`, diceStartX, y + 3, color, 14);
+            const y = 700 + (player - 1) * 28;
+            this.addText(`J${player}`, diceStartX, y + 2, color, 16);
             for (const [index, symbol] of DICE_SYMBOLS.entries()) {
                 const selectedCount =
                     state.actionMode.type === "convertSymbols"
@@ -240,10 +242,17 @@ export abstract class GameHudActionsPanel extends GameHudHistory {
                     `${DICE_SYMBOL_PRESENTATION[symbol].emoji} ${reserve[symbol]}${
                         selectedCount > 0 ? ` (${selectedCount})` : ""
                     }`,
-                    diceStartX + 40 + index * 78,
+                    diceStartX + 40 + index * 86,
                     y,
                     () => actions.selectReserveSymbol(symbol),
-                    { enabled: canSelect, uniformSize: true, width: 74, height: 24 },
+                    {
+                        enabled: canSelect,
+                        uniformSize: true,
+                        centerVertically: true,
+                        fontSize: 18,
+                        width: 82,
+                        height: 28,
+                    },
                 );
             }
         }
@@ -259,8 +268,8 @@ export abstract class GameHudActionsPanel extends GameHudHistory {
 
         const selectedSymbols = state.actionMode.selectedSymbols;
         const hasTwoSymbols = selectedSymbols.length === 2;
-        const reserveTopY = 704;
-        const controlsX = diceStartX + 40 + DICE_SYMBOLS.length * 78 + 8;
+        const reserveTopY = 700;
+        const controlsX = diceStartX + 40 + DICE_SYMBOLS.length * 86 + 8;
         this.addText(
             hasTwoSymbols ? "CHOISIS LE RÉSULTAT" : "CHOISIS UN 2E SYMBOLE",
             controlsX,
@@ -450,9 +459,14 @@ export abstract class GameHudActionsPanel extends GameHudHistory {
             this.addButton(
                 `ATTAQUER ⚔️ (${attackCount})`,
                 rightX,
-                ACTION_PANEL_Y + visibleActions * 42,
+                ACTION_PANEL_Y + visibleActions * 48,
                 actions.startAttack,
-                { rightAligned: true, uniformSize: true },
+                {
+                    rightAligned: true,
+                    uniformSize: true,
+                    centerVertically: true,
+                    fontSize: 18,
+                },
             );
             visibleActions++;
         }
@@ -460,18 +474,28 @@ export abstract class GameHudActionsPanel extends GameHudHistory {
             this.addButton(
                 movementCount > 0 ? `DÉPLACER ➡️ (${movementCount})` : "DÉPLACER ➡️ (gratuit)",
                 rightX,
-                ACTION_PANEL_Y + visibleActions * 42,
+                ACTION_PANEL_Y + visibleActions * 48,
                 actions.startMovement,
-                { rightAligned: true, uniformSize: true },
+                {
+                    rightAligned: true,
+                    uniformSize: true,
+                    centerVertically: true,
+                    fontSize: 18,
+                },
             );
             visibleActions++;
         }
         this.addButton(
             "FIN DU TOUR",
             rightX,
-            ACTION_PANEL_Y + visibleActions * 42,
+            ACTION_PANEL_Y + visibleActions * 48,
             actions.finishTurn,
-            { rightAligned: true, uniformSize: true },
+            {
+                rightAligned: true,
+                uniformSize: true,
+                centerVertically: true,
+                fontSize: 18,
+            },
         );
     }
 

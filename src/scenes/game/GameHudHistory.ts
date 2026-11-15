@@ -9,6 +9,7 @@ import {
     ACTION_LOG_TRACK_HEIGHT,
     ACTION_LOG_THUMB_MIN_HEIGHT,
     ACTION_LOG_VISIBLE_COUNT,
+    ACTION_LOG_TOGGLE_WIDTH,
     getHudLeftX,
 } from "./GameHudBase";
 import Phaser from "phaser";
@@ -16,8 +17,16 @@ import type { GameViewState } from "./GameViewState";
 import type { GameHudActions } from "./GameHudBase";
 
 export abstract class GameHudHistory extends GameHudBase {
+    private actionHistoryExpanded = true;
+
     protected renderActionHistory(state: GameViewState): void {
-        const actionLogX = getHudLeftX(this.scene);
+        const toggleX = getHudLeftX(this.scene);
+        if (!this.actionHistoryExpanded) {
+            this.renderCollapsedHistoryToggle(toggleX);
+            return;
+        }
+
+        const actionLogX = toggleX;
         const panel = this.scene.add
             .rectangle(
                 actionLogX,
@@ -28,18 +37,44 @@ export abstract class GameHudHistory extends GameHudBase {
                 0.9,
             )
             .setOrigin(0)
-            .setStrokeStyle(1, 0x465367);
+            .setStrokeStyle(2, 0x465367);
         this.container.add(panel);
 
-        this.addText("HISTORIQUE", actionLogX + 12, ACTION_LOG_Y + 10, "#f0c974", 15);
+        const heading = this.addText(
+            "HISTORIQUE",
+            actionLogX + 12,
+            ACTION_LOG_Y + 10,
+            "#f0c974",
+            20,
+        );
+        heading.setInteractive({ useHandCursor: true });
+        heading.on("pointerover", () => heading.setStyle({ color: "#fff0c8" }));
+        heading.on("pointerout", () => heading.setStyle({ color: "#f0c974" }));
+        heading.on(
+            "pointerdown",
+            (
+                _pointer: Phaser.Input.Pointer,
+                _localX: number,
+                _localY: number,
+                event: Phaser.Types.Input.EventData,
+            ) => {
+                event.stopPropagation();
+                this.setActionHistoryExpanded(false);
+            },
+        );
         if (state.actionHistory.length === 0) {
-            this.addText(
-                "Les actions jouées apparaîtront ici.",
+            const emptyMessage = this.scene.add.text(
                 actionLogX + 12,
                 ACTION_LOG_Y + 42,
-                "#aab5c2",
-                12,
+                "Les actions jouées apparaîtront ici.",
+                {
+                    fontFamily: "Arial",
+                    fontSize: "16px",
+                    color: "#aab5c2",
+                    wordWrap: { width: ACTION_LOG_WIDTH - 24 },
+                },
             );
+            this.container.add(emptyMessage);
             return;
         }
 
@@ -65,7 +100,7 @@ export abstract class GameHudHistory extends GameHudBase {
                     1,
                 )
                 .setOrigin(0)
-                .setStrokeStyle(1, color, 0.45);
+                .setStrokeStyle(2, color, 0.7);
             this.container.add(background);
 
             let actionLabel: string;
@@ -85,7 +120,7 @@ export abstract class GameHudHistory extends GameHudBase {
                 actionLogX + 16,
                 y + 5,
                 entry.player === 1 ? "#ff9d8b" : "#83c6ff",
-                11,
+                17,
             );
 
             let description: string;
@@ -100,9 +135,9 @@ export abstract class GameHudHistory extends GameHudBase {
                     description = `${entry.attackerName} → ${entry.targetName} · ${entry.effect ?? `${entry.damage} dégât${entry.damage > 1 ? "s" : ""}`}`;
                     break;
             }
-            const details = this.scene.add.text(actionLogX + 16, y + 23, description, {
+            const details = this.scene.add.text(actionLogX + 16, y + 25, description, {
                 fontFamily: "Arial",
-                fontSize: "11px",
+                fontSize: "17px",
                 color: "#e6edf5",
                 wordWrap: { width: ACTION_LOG_WIDTH - 32 },
                 maxLines: 2,
@@ -116,8 +151,56 @@ export abstract class GameHudHistory extends GameHudBase {
                 actionLogX + 12,
                 ACTION_LOG_Y + ACTION_LOG_HEIGHT - 20,
                 "#aab5c2",
-                10,
+                13,
             );
+        }
+    }
+
+    private renderCollapsedHistoryToggle(x: number): void {
+        const height = 160;
+        const y = ACTION_LOG_Y + (ACTION_LOG_HEIGHT - height) / 2;
+        const background = this.scene.add
+            .rectangle(x, y, ACTION_LOG_TOGGLE_WIDTH, height, 0xa45e39, 1)
+            .setOrigin(0)
+            .setStrokeStyle(1, 0xc47b4e)
+            .setInteractive({ useHandCursor: true });
+        const label = this.scene.add
+            .text(
+                x + ACTION_LOG_TOGGLE_WIDTH / 2,
+                y + height / 2,
+                "HISTORIQUE",
+                {
+                    fontFamily: "Arial",
+                    fontSize: "15px",
+                    color: "#ffffff",
+                    fontStyle: "bold",
+                },
+            )
+            .setOrigin(0.5)
+            .setRotation(-Math.PI / 2);
+        this.container.add([background, label]);
+        background.on("pointerover", () => background.setFillStyle(0xc47b4e, 1));
+        background.on("pointerout", () => background.setFillStyle(0xa45e39, 1));
+        background.on(
+            "pointerdown",
+            (
+                _pointer: Phaser.Input.Pointer,
+                _localX: number,
+                _localY: number,
+                event: Phaser.Types.Input.EventData,
+            ) => {
+                event.stopPropagation();
+                this.setActionHistoryExpanded(true);
+            },
+        );
+    }
+
+    private setActionHistoryExpanded(expanded: boolean): void {
+        if (this.actionHistoryExpanded === expanded) return;
+        this.actionHistoryExpanded = expanded;
+        this.draggingActionHistory = false;
+        if (this.lastState && this.lastActions) {
+            this.render(this.lastState, this.lastActions);
         }
     }
 
@@ -189,7 +272,7 @@ export abstract class GameHudHistory extends GameHudBase {
     }
 
     protected scrollActionHistoryAt(pointer: Phaser.Input.Pointer): void {
-        if (!this.lastState || !this.lastActions) return;
+        if (!this.actionHistoryExpanded || !this.lastState || !this.lastActions) return;
 
         const maxOffset = Math.max(
             0,
@@ -218,6 +301,7 @@ export abstract class GameHudHistory extends GameHudBase {
         const worldPosition = this.scene.cameras.main.getWorldPoint(pointer.x, pointer.y);
         const actionLogX = getHudLeftX(this.scene);
         if (
+            !this.actionHistoryExpanded ||
             !this.lastState ||
             !this.lastActions ||
             worldPosition.x < actionLogX ||

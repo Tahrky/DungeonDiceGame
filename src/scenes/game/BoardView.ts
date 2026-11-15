@@ -148,7 +148,7 @@ export class BoardView {
         const color = context.state.winner === null ? style.color : toGrayscale(style.color);
         const borderColor = context.state.winner === null ? 0x35443a : toGrayscale(0x35443a);
         this.graphics.fillStyle(color, style.fillAlpha);
-        this.graphics.lineStyle(1, borderColor, 0.8);
+        this.graphics.lineStyle(1.5, borderColor, 0.9);
 
         const points = this.getDiamondPoints(center);
         this.graphics.fillPoints(points, true);
@@ -191,7 +191,7 @@ export class BoardView {
             const rightFace = [topPoints[1], topPoints[2], basePoints[2], basePoints[1]];
 
             this.graphics.fillStyle(adjustColor(color, faceTone), 1);
-            this.graphics.lineStyle(1, 0x30363a, 1);
+            this.graphics.lineStyle(1.25, 0x30363a, 1);
             this.graphics.fillPoints(leftFace, true);
             this.graphics.strokePoints(leftFace, true);
             this.graphics.fillStyle(adjustColor(color, faceTone * 0.78), 1);
@@ -203,7 +203,7 @@ export class BoardView {
             const topColor = adjustColor(surfaceColor, 1.22);
             const borderColor = context.state.winner === null ? 0x30363a : toGrayscale(0x30363a);
             this.graphics.fillStyle(topColor, style.fillAlpha);
-            this.graphics.lineStyle(1.5, borderColor, 1);
+            this.graphics.lineStyle(1.75, borderColor, 1);
             this.graphics.fillPoints(topPoints, true);
             this.graphics.strokePoints(topPoints, true);
         }
@@ -444,13 +444,13 @@ export class BoardView {
             const fillColor = player === 1 ? 0xff6655 : 0x55aaff;
             const outlineColor = player === 1 ? 0x000000 : 0xffffff;
             this.graphics.fillStyle(state.winner === null ? fillColor : toGrayscale(fillColor), 1);
-            this.graphics.fillCircle(center.x, center.y, 9);
+            this.graphics.fillCircle(center.x, center.y, 10);
             this.graphics.lineStyle(
-                3,
+                2.5,
                 state.winner === null ? outlineColor : toGrayscale(outlineColor),
                 1,
             );
-            this.graphics.strokeCircle(center.x, center.y, 9);
+            this.graphics.strokeCircle(center.x, center.y, 10);
         }
     }
 
@@ -464,12 +464,12 @@ export class BoardView {
                 state.winner === null ? placed.monster.color : toGrayscale(placed.monster.color),
                 1,
             );
-            this.graphics.fillCircle(center.x, center.y - 3, 6);
+            this.graphics.fillCircle(center.x, center.y - 3, 8);
             const ownerOutlineColor = placed.owner === 1 ? 0x000000 : 0xffffff;
             const outlineColor =
                 state.winner === null ? ownerOutlineColor : toGrayscale(ownerOutlineColor);
-            this.graphics.lineStyle(1.5, outlineColor, 1);
-            this.graphics.strokeCircle(center.x, center.y - 3, 6);
+            this.graphics.lineStyle(2, outlineColor, 1);
+            this.graphics.strokeCircle(center.x, center.y - 3, 8);
             const facingOffset = {
                 north: { x: 0, y: -1 },
                 east: { x: 1, y: 0 },
@@ -486,9 +486,9 @@ export class BoardView {
                 facingPoint.x,
                 facingPoint.y,
             );
-            const markerX = center.x + ((facingPoint.x - center.x) / directionLength) * 9;
-            const markerY = center.y + ((facingPoint.y - center.y) / directionLength) * 9;
-            this.graphics.lineStyle(2, outlineColor, 1);
+            const markerX = center.x + ((facingPoint.x - center.x) / directionLength) * 11;
+            const markerY = center.y + ((facingPoint.y - center.y) / directionLength) * 11;
+            this.graphics.lineStyle(2.5, outlineColor, 1);
             this.graphics.lineBetween(center.x, center.y - 3, markerX, markerY - 3);
         }
     }
