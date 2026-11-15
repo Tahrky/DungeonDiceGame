@@ -117,7 +117,6 @@ export const ACTION_LOG_THUMB_MIN_HEIGHT = 24;
 
 export const ACTION_LOG_VISIBLE_COUNT = 6;
 
-const HUD_STATUS_X = 12;
 const MENU_BUTTON_WIDTH = 120;
 const MENU_BUTTON_HEIGHT = 36;
 const RIGHT_INSTRUCTION_WIDTH = 280;
@@ -144,10 +143,34 @@ export abstract class GameHudBase {
         actions.hoverInvocationMonster(null, this.scene.input.activePointer);
         this.container.removeAll(true);
         const camera = this.scene.cameras.main;
+        const playerColor = state.currentPlayer === 1 ? "#ff8d78" : "#70bdff";
+        const playerLabel =
+            state.computerOpponent && state.currentPlayer === 2
+                ? "ORDINATEUR"
+                : `JOUEUR ${state.currentPlayer}`;
+        const statusTextScale = 1 / camera.zoom;
+        const compactStatus = camera.zoom < 0.75;
+        const playerLabelPosition = camera.getWorldPoint(70, 8);
+        const turnPosition = camera.getWorldPoint(55, 34);
+        this.addText(
+            playerLabel,
+            playerLabelPosition.x,
+            playerLabelPosition.y,
+            playerColor,
+            (compactStatus ? 16 : 22) * statusTextScale,
+        ).setOrigin(0.5, 0);
+        this.addText(
+            `TOUR ${state.turnNumber}`,
+            turnPosition.x,
+            turnPosition.y,
+            "#aab5c2",
+            (compactStatus ? 16 : 22) * statusTextScale,
+        ).setOrigin(0.5, 0);
+        const menuPosition = camera.getWorldPoint(200, 10);
         this.addButton(
             "MENU",
-            camera.getWorldPoint(this.scene.scale.width / 2, 0).x - MENU_BUTTON_WIDTH / 2,
-            12,
+            menuPosition.x - MENU_BUTTON_WIDTH / 2,
+            menuPosition.y,
             actions.leaveGame,
             {
                 uniformSize: true,
@@ -157,40 +180,6 @@ export abstract class GameHudBase {
                 height: MENU_BUTTON_HEIGHT,
             },
         );
-
-        const playerColor = state.currentPlayer === 1 ? "#ff8d78" : "#70bdff";
-        const playerLabel =
-            state.computerOpponent && state.currentPlayer === 2
-                ? "ORDINATEUR"
-                : `JOUEUR ${state.currentPlayer}`;
-        const statusTextScale = 1 / camera.zoom;
-        const compactStatus = camera.zoom < 0.75;
-        const playerLabelPosition = camera.getWorldPoint(HUD_STATUS_X, compactStatus ? 12 : 16);
-        const turnPosition = camera.getWorldPoint(HUD_STATUS_X, compactStatus ? 34 : 42);
-        this.addText(
-            playerLabel,
-            playerLabelPosition.x,
-            playerLabelPosition.y,
-            playerColor,
-            (compactStatus ? 16 : 22) * statusTextScale,
-        );
-        if (compactStatus) {
-            this.addText(
-                `TOUR ${state.turnNumber}`,
-                turnPosition.x,
-                turnPosition.y,
-                "#aab5c2",
-                20 * statusTextScale,
-            );
-        } else {
-            this.addText(
-                `TOUR ${state.turnNumber}`,
-                turnPosition.x,
-                turnPosition.y,
-                "#aab5c2",
-                22 * statusTextScale,
-            );
-        }
         this.renderPlayerHealth(state);
         this.renderActionHistory(state);
 
@@ -199,20 +188,19 @@ export abstract class GameHudBase {
             return;
         }
 
-        if (!state.hasRolled) {
-            const waitingForOpponent = state.onlineGame && !state.isLocalTurn;
-            this.addButton(
-                waitingForOpponent ? "TOUR DE L’ADVERSAIRE" : "LANCER LES DES",
-                getHudRightX(this.scene),
-                12,
-                actions.rollDice,
-                {
-                    rightAligned: true,
-                    uniformSize: true,
-                    enabled: !waitingForOpponent && state.actionMode.type === "idle",
-                    width: waitingForOpponent ? 220 : undefined,
-                },
-            );
+        if (state.onlineGame && !state.isLocalTurn) {
+            this.addButton("TOUR DE L’ADVERSAIRE", getHudRightX(this.scene), 12, actions.rollDice, {
+                rightAligned: true,
+                uniformSize: true,
+                enabled: false,
+                width: 220,
+            });
+        } else if (!state.hasRolled) {
+            this.addButton("LANCER LES DES", getHudRightX(this.scene), 12, actions.rollDice, {
+                rightAligned: true,
+                uniformSize: true,
+                enabled: state.actionMode.type === "idle",
+            });
         } else {
             this.renderMonsterSelection(state, actions);
         }
@@ -222,11 +210,17 @@ export abstract class GameHudBase {
     }
 
     protected renderPlayerHealth(state: GameViewState): void {
+        const camera = this.scene.cameras.main;
+        const center = camera.getWorldPoint(this.scene.scale.width / 2, 0);
         ([1, 2] as const).forEach((player) => {
             const width = 260;
             const height = 122;
-            const x = player === 1 ? 240 : 850;
-            const y = 4;
+            const gap = 20;
+            const x =
+                player === 1
+                    ? center.x - width - gap / 2
+                    : center.x + gap / 2;
+            const y = center.y + 4;
             const color = player === 1 ? "#ff8d78" : "#70bdff";
             const background = this.scene.add
                 .rectangle(x, y, width, height, 0x202a36, 1)
@@ -263,7 +257,7 @@ export abstract class GameHudBase {
                 17,
             );
             this.addText(
-                `Monstres tués : ${defeatedOpponentMonsters}`,
+                `Monstres tués : ${defeatedOpponentMonsters}/${state.monstersKilledForVictory}`,
                 x + 12,
                 y + 90,
                 "#cbd2da",

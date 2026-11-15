@@ -123,6 +123,13 @@ export function canUseActionThisTurn(actionsUsed: number, actionLimit: number): 
     return actionsUsed < actionLimit;
 }
 
+export function canAttackBaseThisTurn(
+    summonedOnTurn: number | undefined,
+    currentTurn: number,
+): boolean {
+    return summonedOnTurn !== currentTurn;
+}
+
 export function canUseMonsterAttackThisTurn(
     attack: Pick<MonsterAttack, "usesPerTurn">,
     usesThisTurn: number,

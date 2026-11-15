@@ -16,6 +16,7 @@ export interface GameViewState {
     playerHealth: Record<PlayerId, number>;
     playerMaxHealth: number;
     maxMonstersPerPlayer: number;
+    monstersKilledForVictory: number;
     availableMonsters: Monster[];
     computerOpponent: boolean;
     onlineGame: boolean;

@@ -4,6 +4,7 @@ import { UnsavedChangesDialog, useBeforeUnloadWarning } from "./UnsavedChangesDi
 import {
     GAME_CONFIGURATION_STORAGE_KEY,
     MAX_DICE_COUNT,
+    MIN_DICE_COUNT,
     parseGameConfiguration,
     serializeGameConfiguration,
     type GameConfiguration,
@@ -39,7 +40,11 @@ export function GameSettings({
     }
 
     function updateNumber(
-        key: "diceCount" | "initialPlayerHealth" | "maxMonstersPerPlayer",
+        key:
+            | "diceCount"
+            | "initialPlayerHealth"
+            | "maxMonstersPerPlayer"
+            | "monstersKilledForVictory",
         value: string,
         min: number,
         max: number,
@@ -134,10 +139,10 @@ export function GameSettings({
 
                 <div className="settings-grid">
                     <label className="settings-field">
-                        Nombre de dés (1 à {MAX_DICE_COUNT})
+                        Nombre de dés ({MIN_DICE_COUNT} à {MAX_DICE_COUNT})
                         <input
                             type="number"
-                            min="1"
+                            min={MIN_DICE_COUNT}
                             max={MAX_DICE_COUNT}
                             step="1"
                             value={configuration.diceCount}
@@ -145,7 +150,7 @@ export function GameSettings({
                                 updateNumber(
                                     "diceCount",
                                     event.currentTarget.value,
-                                    1,
+                                    MIN_DICE_COUNT,
                                     MAX_DICE_COUNT,
                                 )
                             }
@@ -180,6 +185,24 @@ export function GameSettings({
                             onChange={(event) =>
                                 updateNumber(
                                     "maxMonstersPerPlayer",
+                                    event.currentTarget.value,
+                                    1,
+                                    20,
+                                )
+                            }
+                        />
+                    </label>
+                    <label className="settings-field">
+                        Monstres tués pour gagner (1 à 20)
+                        <input
+                            type="number"
+                            min="1"
+                            max="20"
+                            step="1"
+                            value={configuration.monstersKilledForVictory}
+                            onChange={(event) =>
+                                updateNumber(
+                                    "monstersKilledForVictory",
                                     event.currentTarget.value,
                                     1,
                                     20,

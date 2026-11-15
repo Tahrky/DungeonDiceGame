@@ -17,7 +17,7 @@ import {
     getAttackActionsPerTurn,
     getMovementActionsPerTurn,
 } from "../game/monsterActions";
-import { getDefaultDeck, parseDeck, type GameSetup } from "../game/decks";
+import { getDefaultDeck, getPlayerDecks, parseDeck, type GameSetup } from "../game/decks";
 import { BoardView } from "./game/BoardView";
 import { GameHud } from "./game/GameHud";
 import { MonsterTooltip } from "./game/MonsterTooltip";
@@ -167,13 +167,14 @@ export abstract class GameSceneState extends Phaser.Scene {
             1: configuration.initialPlayerHealth,
             2: configuration.initialPlayerHealth,
         };
-        this.playerDecks = {
-            1: parseDeck(data?.playerDeck) ?? getDefaultDeck(),
-            2: parseDeck(data?.opponentDeck) ?? getDefaultDeck(),
-        };
         this.mode = data?.mode ?? "computer";
         this.computerOpponent = data?.mode === "computer";
         this.localPlayer = data?.localPlayer ?? 1;
+        this.playerDecks = getPlayerDecks(
+            parseDeck(data?.playerDeck) ?? getDefaultDeck(),
+            parseDeck(data?.opponentDeck) ?? getDefaultDeck(),
+            this.localPlayer,
+        );
         this.isHost = data?.isHost ?? true;
         this.computerTurnInProgress = false;
         this.assetsReady = false;
@@ -219,6 +220,7 @@ export abstract class GameSceneState extends Phaser.Scene {
             playerHealth: this.playerHealth,
             playerMaxHealth: this.gameConfiguration.initialPlayerHealth,
             maxMonstersPerPlayer: this.gameConfiguration.maxMonstersPerPlayer,
+            monstersKilledForVictory: this.gameConfiguration.monstersKilledForVictory,
             availableMonsters: this.getDeckMonsters(this.currentPlayer),
             computerOpponent: this.computerOpponent,
             onlineGame: this.mode === "online",

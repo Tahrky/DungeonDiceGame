@@ -126,8 +126,7 @@ export function App() {
                 mode: Phaser.Scale.RESIZE,
             },
             render: {
-                antialias: false,
-                pixelArt: true,
+                antialias: true,
             },
         });
         gameRef.current = instance;

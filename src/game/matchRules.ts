@@ -1,6 +1,7 @@
 import type { PlacedMonster, PlayerId } from "../types/GameTypes";
 
 export const MAX_MONSTERS_PER_PLAYER = 8;
+export const DEFAULT_MONSTERS_KILLED_FOR_VICTORY = 8;
 
 export function getInvokedMonsterCount(
     monsters: readonly PlacedMonster[],
@@ -11,22 +12,14 @@ export function getInvokedMonsterCount(
 
 export function getMonsterEliminationWinner(
     monsters: readonly PlacedMonster[],
-    maxMonstersPerPlayer = MAX_MONSTERS_PER_PLAYER,
+    monstersKilledForVictory = DEFAULT_MONSTERS_KILLED_FOR_VICTORY,
 ): PlayerId | null {
     for (const player of [1, 2] as const) {
         const opponent: PlayerId = player === 1 ? 2 : 1;
-        const hasInvokedAllMonsters =
-            getInvokedMonsterCount(monsters, player) >= maxMonstersPerPlayer;
-        const hasLivingMonster = monsters.some(
-            (monster) => monster.owner === player && monster.currentHp > 0,
-        );
-        const opponentHasLivingMonster = monsters.some(
-            (monster) => monster.owner === opponent && monster.currentHp > 0,
-        );
-
-        if (hasInvokedAllMonsters && !hasLivingMonster && opponentHasLivingMonster) {
-            return opponent;
-        }
+        const defeatedMonsters = monsters.filter(
+            (monster) => monster.owner === opponent && monster.currentHp <= 0,
+        ).length;
+        if (defeatedMonsters >= monstersKilledForVictory) return player;
     }
 
     return null;

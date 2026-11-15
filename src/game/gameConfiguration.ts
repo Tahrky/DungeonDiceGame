@@ -1,6 +1,9 @@
 import { MONSTERS } from "../data/monsters";
 import { DICE } from "../data/dice";
-import { MAX_MONSTERS_PER_PLAYER } from "./matchRules";
+import {
+    DEFAULT_MONSTERS_KILLED_FOR_VICTORY,
+    MAX_MONSTERS_PER_PLAYER,
+} from "./matchRules";
 import type {
     AttackPattern,
     Monster,
@@ -9,8 +12,10 @@ import type {
 } from "../types/GameTypes";
 
 export const GAME_CONFIGURATION_STORAGE_KEY = "dungeon-dice.configuration";
-export const GAME_CONFIGURATION_VERSION = 2;
+export const GAME_CONFIGURATION_VERSION = 3;
+export const MIN_DICE_COUNT = 2;
 export const MAX_DICE_COUNT = DICE.length;
+export const DEFAULT_DICE_COUNT = 5;
 
 export interface GameConfiguration {
     version: typeof GAME_CONFIGURATION_VERSION;
@@ -19,6 +24,7 @@ export interface GameConfiguration {
     testBoard: boolean;
     initialPlayerHealth: number;
     maxMonstersPerPlayer: number;
+    monstersKilledForVictory: number;
     monsters: Monster[];
 }
 
@@ -57,11 +63,12 @@ function cloneMonster(monster: Monster): Monster {
 export function getDefaultGameConfiguration(): GameConfiguration {
     return {
         version: GAME_CONFIGURATION_VERSION,
-        diceCount: MAX_DICE_COUNT,
+        diceCount: DEFAULT_DICE_COUNT,
         randomBoard: false,
         testBoard: false,
         initialPlayerHealth: 3,
         maxMonstersPerPlayer: MAX_MONSTERS_PER_PLAYER,
+        monstersKilledForVictory: DEFAULT_MONSTERS_KILLED_FOR_VICTORY,
         monsters: MONSTERS.map(cloneMonster),
     };
 }
@@ -190,39 +197,54 @@ function parseAttack(value: unknown): MonsterAttack | null {
 }
 
 function migrateGameConfiguration(value: unknown): unknown {
-    if (!isRecord(value) || value.version !== 1 || !Array.isArray(value.monsters)) {
+    if (
+        !isRecord(value) ||
+        (value.version !== 1 && value.version !== 2) ||
+        !Array.isArray(value.monsters)
+    ) {
         return value;
     }
 
-    const defaultHealPattern = MONSTERS.find((monster) => monster.id === "priest")?.attacks[0]
-        .pattern;
-    const monsters = value.monsters.map((monster) => {
-        if (!isRecord(monster) || monster.id !== "priest" || !Array.isArray(monster.attacks)) {
-            return monster;
-        }
+    let monsters = value.monsters;
+    if (value.version === 1) {
+        const defaultHealPattern = MONSTERS.find((monster) => monster.id === "priest")?.attacks[0]
+            .pattern;
+        monsters = value.monsters.map((monster) => {
+            if (!isRecord(monster) || monster.id !== "priest" || !Array.isArray(monster.attacks)) {
+                return monster;
+            }
 
-        const [healAttack, ...otherAttacks] = monster.attacks;
-        if (
-            !isRecord(healAttack) ||
-            healAttack.name !== "Soin" ||
-            !isRecord(healAttack.pattern) ||
-            healAttack.pattern.type !== "line" ||
-            healAttack.pattern.range !== 4 ||
-            healAttack.pattern.allDirections !== true ||
-            healAttack.pattern.minRange !== undefined ||
-            healAttack.pattern.length !== undefined ||
-            !defaultHealPattern
-        ) {
-            return monster;
-        }
+            const [healAttack, ...otherAttacks] = monster.attacks;
+            if (
+                !isRecord(healAttack) ||
+                healAttack.name !== "Soin" ||
+                !isRecord(healAttack.pattern) ||
+                healAttack.pattern.type !== "line" ||
+                healAttack.pattern.range !== 4 ||
+                healAttack.pattern.allDirections !== true ||
+                healAttack.pattern.minRange !== undefined ||
+                healAttack.pattern.length !== undefined ||
+                !defaultHealPattern
+            ) {
+                return monster;
+            }
 
-        return {
-            ...monster,
-            attacks: [{ ...healAttack, pattern: { ...defaultHealPattern } }, ...otherAttacks],
-        };
-    });
+            return {
+                ...monster,
+                attacks: [{ ...healAttack, pattern: { ...defaultHealPattern } }, ...otherAttacks],
+            };
+        });
+    }
 
-    return { ...value, version: GAME_CONFIGURATION_VERSION, monsters };
+    return {
+        ...value,
+        version: GAME_CONFIGURATION_VERSION,
+        monstersKilledForVictory:
+            value.monstersKilledForVictory === undefined
+                ? DEFAULT_MONSTERS_KILLED_FOR_VICTORY
+                : value.monstersKilledForVictory,
+        monsters,
+    };
 }
 
 export function parseMonsterConfiguration(value: unknown, expectedId?: string): Monster | null {
@@ -298,11 +320,12 @@ export function parseGameConfiguration(value: unknown): GameConfiguration | null
     if (
         !isRecord(migratedValue) ||
         migratedValue.version !== GAME_CONFIGURATION_VERSION ||
-        !isIntegerInRange(migratedValue.diceCount, 1, MAX_DICE_COUNT) ||
+        !isIntegerInRange(migratedValue.diceCount, MIN_DICE_COUNT, MAX_DICE_COUNT) ||
         typeof migratedValue.randomBoard !== "boolean" ||
         (migratedValue.testBoard !== undefined && typeof migratedValue.testBoard !== "boolean") ||
         !isIntegerInRange(migratedValue.initialPlayerHealth, 1, 20) ||
         !isIntegerInRange(migratedValue.maxMonstersPerPlayer, 1, 20) ||
+        !isIntegerInRange(migratedValue.monstersKilledForVictory, 1, 20) ||
         !Array.isArray(migratedValue.monsters) ||
         migratedValue.monsters.length !== MONSTERS.length
     ) {
@@ -327,6 +350,7 @@ export function parseGameConfiguration(value: unknown): GameConfiguration | null
         testBoard: migratedValue.testBoard === true,
         initialPlayerHealth: migratedValue.initialPlayerHealth,
         maxMonstersPerPlayer: migratedValue.maxMonstersPerPlayer,
+        monstersKilledForVictory: migratedValue.monstersKilledForVictory,
         monsters,
     };
 }

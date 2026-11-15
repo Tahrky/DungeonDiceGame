@@ -1,6 +1,7 @@
 import { MONSTERS } from "../data/monsters";
 import type { BoardDefinition, BoardSelection } from "./boards";
 import type { GameConfiguration } from "./gameConfiguration";
+import type { PlayerId } from "../types/GameTypes";
 
 export const DECK_SIZE = 5;
 export const DECK_STORAGE_KEY = "dungeon-dice.deck";
@@ -21,6 +22,16 @@ export function getDefaultDeck(): string[] {
         .sort((first, second) => first.cost - second.cost)
         .slice(0, DECK_SIZE)
         .map((monster) => monster.id);
+}
+
+export function getPlayerDecks(
+    playerDeck: string[],
+    opponentDeck: string[],
+    localPlayer: PlayerId,
+): Record<PlayerId, string[]> {
+    return localPlayer === 1
+        ? { 1: playerDeck, 2: opponentDeck }
+        : { 1: opponentDeck, 2: playerDeck };
 }
 
 export function parseDeck(value: unknown): string[] | null {

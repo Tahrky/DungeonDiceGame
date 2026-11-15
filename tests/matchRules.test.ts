@@ -29,35 +29,32 @@ function createMonsters(player: PlayerId, count: number, currentHp: number): Pla
     }));
 }
 
-describe("limite d'invocations et victoire par élimination", () => {
+describe("limite d'invocations et victoire au nombre de monstres éliminés", () => {
     it("compte les monstres invoqués même après leur mort", () => {
         expect(getInvokedMonsterCount(createMonsters(1, 8, 0), 1)).toBe(8);
     });
 
-    it("déclare la victoire uniquement après la mort des huit monstres et si l'adversaire en a encore", () => {
+    it("déclare la victoire après huit monstres tués", () => {
         expect(
             getMonsterEliminationWinner([...createMonsters(1, 7, 0), ...createMonsters(2, 1, 1)]),
         ).toBe(null);
         expect(
             getMonsterEliminationWinner([...createMonsters(1, 8, 0), ...createMonsters(2, 1, 1)]),
         ).toBe(2);
-        expect(
-            getMonsterEliminationWinner([...createMonsters(1, 8, 0), ...createMonsters(2, 1, 0)]),
-        ).toBe(null);
     });
 
-    it("utilise la limite d'invocations configurée pour la victoire par élimination", () => {
+    it("utilise un seuil de monstres tués indépendant de la limite d'invocations", () => {
         expect(
             getMonsterEliminationWinner([
-                ...createMonsters(1, 1, 0),
-                ...createMonsters(2, 1, 1),
-            ], 2),
+                ...createMonsters(1, 1, 1),
+                ...createMonsters(2, 2, 0),
+            ], 3),
         ).toBe(null);
         expect(
             getMonsterEliminationWinner([
-                ...createMonsters(1, 2, 0),
-                ...createMonsters(2, 1, 1),
-            ], 2),
-        ).toBe(2);
+                ...createMonsters(1, 1, 1),
+                ...createMonsters(2, 3, 0),
+            ], 3),
+        ).toBe(1);
     });
 });

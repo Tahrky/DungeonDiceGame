@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
     advanceAttackCooldowns,
     canUseActionThisTurn,
+    canAttackBaseThisTurn,
     canAttackMonster,
     canTargetMonsterOwner,
     canMoveMonsterTo,
@@ -34,6 +35,12 @@ describe("portée des actions de monstre", () => {
         expect(canTargetMonsterOwner({}, 1, 1)).toBe(false);
         expect(canTargetMonsterOwner({ hitsAllies: true }, 1, 1)).toBe(true);
         expect(canTargetMonsterOwner({ hitsAllies: true }, 2, 1)).toBe(true);
+    });
+
+    it("interdit à un monstre invoqué ce tour d'attaquer la base", () => {
+        expect(canAttackBaseThisTurn(3, 3)).toBe(false);
+        expect(canAttackBaseThisTurn(2, 3)).toBe(true);
+        expect(canAttackBaseThisTurn(undefined, 3)).toBe(true);
     });
 
     it("applique les limites d'actions et de recharge par tour", () => {

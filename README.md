@@ -28,6 +28,14 @@ Le prototype utilise Ably Realtime pour les salles, la présence des joueurs et 
 
 Chaque joueur utilise le deck sauvegardé sur son appareil, ou le deck par défaut.
 
+## Règles personnalisées
+
+Dans **Options → Configurer les règles**, le nombre de dés est réglable de 2 à 8. La limite
+d’invocations et le nombre de monstres adverses à tuer pour gagner sont réglables séparément; leur
+valeur par défaut est 8. Les règles et les profils de monstres peuvent être exportés dans un fichier
+JSON séparé, puis réimportés depuis cet écran. La configuration enregistrée est aussi partagée par
+l’hôte au démarrage d’une partie en ligne.
+
 ## Sprites animés
 
 Les spritesheets peuvent être organisées en grille (comme le golem) ou sur une seule ligne (comme le chevalier). Chaque frame doit avoir les dimensions indiquées par `frameWidth` et `frameHeight` dans `src/data/monsterSprites.ts` (180 × 180 actuellement). Le jeu détecte automatiquement le nombre de frames dans chaque image à partir de la texture chargée; il n’est pas nécessaire de le renseigner dans la configuration. Le nombre de frames peut donc varier selon l’action.

@@ -3,6 +3,7 @@ import { isBoardCell } from "../game/boards";
 import { getAvailableSymbolCount } from "../game/diceResources";
 import {
     canAttackMonster,
+    canAttackBaseThisTurn,
     canTargetMonsterOwner,
     canUseActionThisTurn,
     canUseMonsterAttackThisTurn,
@@ -290,7 +291,10 @@ export abstract class GameSceneCombat extends GameSceneInvocation {
                 hitSomething = true;
             }
         }
-        if (this.isOpponentStartInAttackZone(zone, attackOrigin, attack)) {
+        if (
+            this.canAttackBase(attacker) &&
+            this.isOpponentStartInAttackZone(zone, attackOrigin, attack)
+        ) {
             this.damageOpponentPlayer();
             const opponent: PlayerId = this.currentPlayer === 1 ? 2 : 1;
             this.recordAttack(attacker, `J${opponent} (départ)`, 1);
@@ -348,7 +352,7 @@ export abstract class GameSceneCombat extends GameSceneInvocation {
     protected finishAttack(): void {
         this.winner ??= getMonsterEliminationWinner(
             this.placedMonsters,
-            this.gameConfiguration.maxMonstersPerPlayer,
+            this.gameConfiguration.monstersKilledForVictory,
         );
         const remainingAttacks = getAvailableSymbolCount(
             "attack",
@@ -407,6 +411,9 @@ export abstract class GameSceneCombat extends GameSceneInvocation {
         if (!attacker || !attack || !this.canUseMonsterAttack(attacker, attackIndex)) {
             return false;
         }
+        if (this.isOpponentStartingPosition(targetPosition) && !this.canAttackBase(attacker)) {
+            return false;
+        }
 
         const zone = this.getAttackZoneForTarget(attacker, attack, targetPosition);
         if (!zone) return false;
@@ -424,6 +431,7 @@ export abstract class GameSceneCombat extends GameSceneInvocation {
             attack.pattern,
         ).filter(
             (option) =>
+                (this.canAttackBase(attacker) || !this.isOpponentStartingPosition(option.target)) &&
                 this.isAttackZoneUsable(attacker, attack, option.cells) &&
                 this.canSeeAttackTarget(attacker, attack, option.target),
         );
@@ -437,7 +445,11 @@ export abstract class GameSceneCombat extends GameSceneInvocation {
 
         return getAttackZoneOptions(attacker.position, attacker.facing, attack.pattern)
             .map((option) => option.target)
-            .filter((cell) => isBoardCell(this.board, cell));
+            .filter(
+                (cell) =>
+                    isBoardCell(this.board, cell) &&
+                    (this.canAttackBase(attacker) || !this.isOpponentStartingPosition(cell)),
+            );
     }
 
     protected getAttackPreviewCells(
@@ -450,7 +462,11 @@ export abstract class GameSceneCombat extends GameSceneInvocation {
         const attack = attacker?.monster.attacks[attackIndex];
         if (!attacker || !attack) return [];
         const zone = this.getAttackZoneForTarget(attacker, attack, targetPosition)?.cells ?? [];
-        return zone.filter((cell) => this.isAttackCellInRange(attacker.position, attack, cell));
+        return zone.filter(
+            (cell) =>
+                this.isAttackCellInRange(attacker.position, attack, cell) &&
+                (this.canAttackBase(attacker) || !this.isOpponentStartingPosition(cell)),
+        );
     }
 
     protected canAffordAttack(attack: Monster["attacks"][number]): boolean {
@@ -488,7 +504,9 @@ export abstract class GameSceneCombat extends GameSceneInvocation {
         return zone.some((cell) => {
             if (!isBoardCell(this.board, cell)) return false;
             if (!this.isAttackCellInRange(attacker.position, attack, cell)) return false;
-            if (this.isOpponentStartingPosition(cell)) return !attack.targetsAlliesOnly;
+            if (this.isOpponentStartingPosition(cell)) {
+                return !attack.targetsAlliesOnly && this.canAttackBase(attacker);
+            }
             const target = this.getLivingMonsterAt(cell);
             if (!target || target.id === attacker.id) return false;
             if (!canTargetMonsterOwner(attack, target.owner, this.currentPlayer)) return false;
@@ -503,6 +521,10 @@ export abstract class GameSceneCombat extends GameSceneInvocation {
             }
             return canAttackMonster(attacker.monster, attack, target.monster);
         });
+    }
+
+    protected canAttackBase(attacker: PlacedMonster): boolean {
+        return canAttackBaseThisTurn(attacker.summonedOnTurn, this.turnNumber);
     }
 
     protected isAttackCellInRange(

@@ -2,7 +2,12 @@ import { GameSceneState } from "./GameSceneState";
 import Phaser from "phaser";
 import { DICE } from "../data/dice";
 import { PLACEMENT_PATTERNS } from "../data/placementPatterns";
-import { getAvailableSymbolCount, spendSymbols, storeRolledDie } from "../game/diceResources";
+import {
+    getAvailableSymbolCount,
+    spendSymbols,
+    storeRemainingDice,
+    storeRolledDie,
+} from "../game/diceResources";
 import { getInitialAttackCooldowns, getInitialAttackUses } from "../game/monsterActions";
 import { canPlaceCells, getPatternCells } from "../game/placement";
 import { isBoardCell } from "../game/boards";
@@ -26,6 +31,7 @@ export abstract class GameSceneInvocation extends GameSceneState {
             symbol: die.faces[Phaser.Math.Between(0, die.faces.length - 1)],
             status: "available",
         }));
+        storeRemainingDice(this.rolledDice, this.diceReserves[this.currentPlayer]);
         this.hasRolled = true;
         this.selectedMonster = null;
         this.pendingCells = null;
@@ -217,6 +223,7 @@ export abstract class GameSceneInvocation extends GameSceneState {
                 facing: this.currentPlayer === 1 ? "east" : "west",
                 currentHp: this.selectedMonster.hp,
                 cells: this.pendingCells,
+                summonedOnTurn: this.turnNumber,
                 attacksUsedThisTurn: 0,
                 attackUsesThisTurn: getInitialAttackUses(this.selectedMonster),
                 movementsUsedThisTurn: 0,
@@ -232,6 +239,15 @@ export abstract class GameSceneInvocation extends GameSceneState {
             this.pendingCells = null;
             this.lockedPreviewCell = null;
             this.hasLeftLockedPreviewBoard = false;
+            if (
+                getAvailableSymbolCount(
+                    "invocation",
+                    this.rolledDice,
+                    this.diceReserves[this.currentPlayer],
+                ) === 0
+            ) {
+                this.invocationMenuOpen = false;
+            }
             this.render();
             return;
         }

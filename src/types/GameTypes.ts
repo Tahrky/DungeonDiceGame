@@ -139,6 +139,7 @@ export interface PlacedMonster {
     facing: Facing;
     currentHp: number;
     cells: Position[];
+    summonedOnTurn?: number;
     attacksUsedThisTurn: number;
     attackUsesThisTurn: number[];
     movementsUsedThisTurn: number;

@@ -14,8 +14,8 @@ import {
 import type { RolledDie } from "../src/types/GameTypes";
 
 describe("dés", () => {
-    it("configure cinq dés identiques avec la distribution de faces demandée", () => {
-        expect(DICE).toHaveLength(5);
+    it("configure huit dés identiques avec la distribution de faces demandée", () => {
+        expect(DICE).toHaveLength(8);
         expect(new Set(DICE.map((die) => die.faces.join(","))).size).toBe(1);
         expect(DICE[0].faces).toHaveLength(6);
         expect(DICE[0].faces.filter((face) => face === "invocation")).toHaveLength(3);
@@ -126,5 +126,18 @@ describe("réserve et dépense des symboles", () => {
 
         expect(rolledDice.map((die) => die.status)).toEqual(["stored", "spent", "stored"]);
         expect(reserve).toEqual({ invocation: 1, attack: 0, movement: 1 });
+    });
+
+    it("ajoute immédiatement les dés lancés à la réserve sans écraser les réserves existantes", () => {
+        const rolledDice: RolledDie[] = [
+            { definitionId: "standard-1", symbol: "invocation", status: "available" },
+            { definitionId: "standard-2", symbol: "attack", status: "available" },
+        ];
+        const reserve = { invocation: 2, attack: 0, movement: 1 };
+
+        storeRemainingDice(rolledDice, reserve);
+
+        expect(rolledDice.map((die) => die.status)).toEqual(["stored", "stored"]);
+        expect(reserve).toEqual({ invocation: 3, attack: 1, movement: 1 });
     });
 });

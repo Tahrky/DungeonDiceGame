@@ -56,6 +56,7 @@ export abstract class GameSceneComputer extends GameSceneMovement {
                     facing: "west",
                     currentHp: monster.hp,
                     cells: placement.cells,
+                    summonedOnTurn: this.turnNumber,
                     attacksUsedThisTurn: 0,
                     attackUsesThisTurn: getInitialAttackUses(monster),
                     movementsUsedThisTurn: 0,
