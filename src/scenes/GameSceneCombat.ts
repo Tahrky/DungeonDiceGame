@@ -1,7 +1,20 @@
 import { GameSceneInvocation } from "./GameSceneInvocation";
 import { isBoardCell } from "../game/boards";
 import { getAvailableSymbolCount } from "../game/diceResources";
-import { canAttackMonster, canTargetMonsterOwner, canUseActionThisTurn, canUseMonsterAttackThisTurn, getAttackActionsPerTurn, getAttackZoneOptions, getFacingFromMovement, getGridDistance, getMovementActionsPerTurn, getMovementCost, hasLineOfSight, isBehind } from "../game/monsterActions";
+import {
+    canAttackMonster,
+    canTargetMonsterOwner,
+    canUseActionThisTurn,
+    canUseMonsterAttackThisTurn,
+    getAttackActionsPerTurn,
+    getAttackZoneOptions,
+    getFacingFromMovement,
+    getGridDistance,
+    getMovementActionsPerTurn,
+    getMovementCost,
+    hasLineOfSight,
+    isBehind,
+} from "../game/monsterActions";
 import type { DiceSymbol, Monster, PlayerId, PlacedMonster, Position } from "../types/GameTypes";
 import { getMonsterEliminationWinner } from "../game/matchRules";
 
@@ -157,7 +170,8 @@ export abstract class GameSceneCombat extends GameSceneInvocation {
                 : undefined;
         if (
             attack.targetsAlliesOnly &&
-            (!allyTarget || (attack.healAmount === undefined && attack.cooldownReduction === undefined))
+            (!allyTarget ||
+                (attack.healAmount === undefined && attack.cooldownReduction === undefined))
         ) {
             return;
         }
@@ -180,7 +194,7 @@ export abstract class GameSceneCombat extends GameSceneInvocation {
             clickedMonster.owner !== this.currentPlayer &&
             (attacker.monster.bonusDamageFromBehind ?? 0) > 0 &&
             isBehind(clickedMonster.position, attacker.position, clickedMonster.facing);
-        this.monsterSpriteView.playAttack(attacker.id, attackIndex, isBackstab, attackFacing);
+        this.monsterSpriteView.playAttack(attacker.id, attack.animation, isBackstab, attackFacing);
 
         if (attack.targetsAlliesOnly) {
             if (allyTarget) this.executeAllyTargetedAttack(attacker, attack, allyTarget);
@@ -390,11 +404,7 @@ export abstract class GameSceneCombat extends GameSceneInvocation {
     ): boolean {
         const attacker = this.getLivingMonster(attackerId);
         const attack = attacker?.monster.attacks[attackIndex];
-        if (
-            !attacker ||
-            !attack ||
-            !this.canUseMonsterAttack(attacker, attackIndex)
-        ) {
+        if (!attacker || !attack || !this.canUseMonsterAttack(attacker, attackIndex)) {
             return false;
         }
 
@@ -427,10 +437,7 @@ export abstract class GameSceneCombat extends GameSceneInvocation {
 
         return getAttackZoneOptions(attacker.position, attacker.facing, attack.pattern)
             .map((option) => option.target)
-            .filter(
-                (cell) =>
-                    isBoardCell(this.board, cell),
-            );
+            .filter((cell) => isBoardCell(this.board, cell));
     }
 
     protected getAttackPreviewCells(
@@ -467,10 +474,7 @@ export abstract class GameSceneCombat extends GameSceneInvocation {
                 getAttackActionsPerTurn(attacker.monster),
             ) &&
             (attacker.attackCooldowns[attackIndex] ?? 0) === 0 &&
-            canUseMonsterAttackThisTurn(
-                attack,
-                attacker.attackUsesThisTurn[attackIndex] ?? 0,
-            ) &&
+            canUseMonsterAttackThisTurn(attack, attacker.attackUsesThisTurn[attackIndex] ?? 0) &&
             this.canAffordAttack(attack)
         );
     }
@@ -488,10 +492,7 @@ export abstract class GameSceneCombat extends GameSceneInvocation {
             const target = this.getLivingMonsterAt(cell);
             if (!target || target.id === attacker.id) return false;
             if (!canTargetMonsterOwner(attack, target.owner, this.currentPlayer)) return false;
-            if (
-                attack.healAmount !== undefined &&
-                target.currentHp >= target.monster.hp
-            ) {
+            if (attack.healAmount !== undefined && target.currentHp >= target.monster.hp) {
                 return false;
             }
             if (

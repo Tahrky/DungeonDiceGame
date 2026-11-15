@@ -1,7 +1,12 @@
 import { MONSTERS } from "../data/monsters";
 import { DICE } from "../data/dice";
 import { MAX_MONSTERS_PER_PLAYER } from "./matchRules";
-import type { AttackPattern, Monster, MonsterAttack } from "../types/GameTypes";
+import type {
+    AttackPattern,
+    Monster,
+    MonsterAttack,
+    MonsterAttackAnimation,
+} from "../types/GameTypes";
 
 export const GAME_CONFIGURATION_STORAGE_KEY = "dungeon-dice.configuration";
 export const GAME_CONFIGURATION_VERSION = 1;
@@ -23,6 +28,20 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isIntegerInRange(value: unknown, min: number, max: number): value is number {
     return typeof value === "number" && Number.isInteger(value) && value >= min && value <= max;
+}
+
+function parseMonsterAttackAnimation(value: unknown): MonsterAttackAnimation | undefined {
+    switch (value) {
+        case "attack":
+        case "backstab":
+        case "alternativeAttack1":
+            return value;
+        case "attackAoe":
+        case "strongAttack":
+            return "alternativeAttack1";
+        default:
+            return undefined;
+    }
 }
 
 function cloneMonster(monster: Monster): Monster {
@@ -114,6 +133,9 @@ function parseAttack(value: unknown): MonsterAttack | null {
     ) {
         return null;
     }
+    const animation =
+        value.animation === undefined ? undefined : parseMonsterAttackAnimation(value.animation);
+    if (value.animation !== undefined && animation === undefined) return null;
     const pattern = parseAttackPattern(value.pattern);
     if (
         !pattern ||
@@ -122,8 +144,7 @@ function parseAttack(value: unknown): MonsterAttack | null {
             !isIntegerInRange(value.initialCooldownTurns, 0, 50)) ||
         (value.usesPerTurn !== undefined && !isIntegerInRange(value.usesPerTurn, 1, 10)) ||
         (value.hitsAllies !== undefined && typeof value.hitsAllies !== "boolean") ||
-        (value.targetsAlliesOnly !== undefined &&
-            typeof value.targetsAlliesOnly !== "boolean") ||
+        (value.targetsAlliesOnly !== undefined && typeof value.targetsAlliesOnly !== "boolean") ||
         (value.healAmount !== undefined && !isIntegerInRange(value.healAmount, 1, 50)) ||
         (value.cooldownReduction !== undefined &&
             !isIntegerInRange(value.cooldownReduction, 1, 50)) ||
@@ -156,6 +177,7 @@ function parseAttack(value: unknown): MonsterAttack | null {
         damage: value.damage,
         cost: value.cost,
         pattern,
+        ...(animation === undefined ? {} : { animation }),
         ...(cooldownTurns === undefined ? {} : { cooldownTurns }),
         ...(initialCooldownTurns === undefined ? {} : { initialCooldownTurns }),
         ...(usesPerTurn === undefined ? {} : { usesPerTurn }),
@@ -189,7 +211,12 @@ export function parseMonsterConfiguration(value: unknown, expectedId?: string): 
         return null;
     }
 
-    const parsedAttacks = value.attacks.map(parseAttack);
+    const defaultAttacks = MONSTERS.find((monster) => monster.id === value.id)?.attacks ?? [];
+    const parsedAttacks = value.attacks.map((attackValue, index) => {
+        const attack = parseAttack(attackValue);
+        const animation = attack?.animation ?? defaultAttacks[index]?.animation;
+        return attack && animation ? { ...attack, animation } : attack;
+    });
     if (
         parsedAttacks.some((attack) => attack === null) ||
         (value.attackActionsPerTurn !== undefined &&

@@ -32,7 +32,20 @@ import {
 } from "../game/boards";
 import type { GameHudActions } from "./game/GameHud";
 import type { GameViewState } from "./game/GameViewState";
-import type { BoardActionMode, BoardObstacle, DiceReserve, DiceSymbol, GameActionLogEntry, Monster, PlayerId, PlacedMonster, Position, RolledDie, GameSnapshot, RemoteGameCommand } from "../types/GameTypes";
+import type {
+    BoardActionMode,
+    BoardObstacle,
+    DiceReserve,
+    DiceSymbol,
+    GameActionLogEntry,
+    Monster,
+    PlayerId,
+    PlacedMonster,
+    Position,
+    RolledDie,
+    GameSnapshot,
+    RemoteGameCommand,
+} from "../types/GameTypes";
 
 export abstract class GameSceneState extends Phaser.Scene {
     protected boardGraphics!: Phaser.GameObjects.Graphics;
@@ -71,6 +84,10 @@ export abstract class GameSceneState extends Phaser.Scene {
     protected isHost = true;
 
     protected computerTurnInProgress = false;
+
+    protected hasGameSetup = false;
+
+    protected assetsReady = false;
 
     protected winner: PlayerId | null = null;
 
@@ -125,11 +142,8 @@ export abstract class GameSceneState extends Phaser.Scene {
         super("GameScene");
     }
 
-    preload(): void {
-        MonsterSpriteView.preload(this);
-    }
-
     init(data?: Partial<GameSetup>): void {
+        this.hasGameSetup = data?.mode !== undefined;
         const configuration = data?.configuration
             ? parseGameConfiguration(data.configuration)
             : getDefaultGameConfiguration();
@@ -162,6 +176,7 @@ export abstract class GameSceneState extends Phaser.Scene {
         this.localPlayer = data?.localPlayer ?? 1;
         this.isHost = data?.isHost ?? true;
         this.computerTurnInProgress = false;
+        this.assetsReady = false;
         this.winner = null;
         this.hasRolled = false;
         this.rolledDice = [];
@@ -267,6 +282,7 @@ export abstract class GameSceneState extends Phaser.Scene {
     }
 
     protected runLocalCommand(command: RemoteGameCommand, action: () => void): void {
+        if (!this.assetsReady) return;
         if (this.mode !== "online") {
             action();
             return;
@@ -382,11 +398,7 @@ export abstract class GameSceneState extends Phaser.Scene {
         for (const monster of value.placedMonsters) {
             const previousMonster = previousMonsters.get(monster.id);
             if (previousMonster && monster.currentHp < previousMonster.currentHp) {
-                this.monsterSpriteView.takeDamage(
-                    monster.id,
-                    monster.currentHp,
-                    monster.position,
-                );
+                this.monsterSpriteView.takeDamage(monster.id, monster.currentHp, monster.position);
             }
         }
 

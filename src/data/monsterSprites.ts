@@ -1,14 +1,6 @@
-import type { Facing, PlayerId } from "../types/GameTypes";
+import type { Facing, MonsterAttackAnimation } from "../types/GameTypes";
 
-export type MonsterSpriteAction =
-    | "idle"
-    | "move"
-    | "attack"
-    | "attackAoe"
-    | "strongAttack"
-    | "backstab"
-    | "hit"
-    | "death";
+export type MonsterSpriteAction = "idle" | "move" | MonsterAttackAnimation | "hit" | "death";
 
 export type MonsterSpriteFacing =
     "east" | "southEast" | "south" | "southWest" | "west" | "northWest" | "north" | "northEast";
@@ -28,7 +20,6 @@ export type MonsterSpriteAnimation =
     | {
           readonly frameRate: number;
           readonly spriteSheet: string;
-          readonly playerSpriteSheets?: Readonly<Record<PlayerId, string>>;
           readonly framesPerRow: number;
           readonly rows: Readonly<Record<MonsterSpriteFacing, number>>;
           readonly frameRange?: readonly [number, number];
@@ -53,21 +44,18 @@ const BLACK_KNIGHT_ASSET_ROOT = "/sprites/blackKnight";
 const FROST_MAGE_ASSET_ROOT = "/sprites/frostMage";
 const GHOST_ASSET_ROOT = "/sprites/ghost";
 const PIRATE_ASSET_ROOT = "/sprites/pirate";
+const PRIEST_ASSET_ROOT = "/sprites/priest";
 const THIEF_ASSET_ROOT = "/sprites/thief";
 
-function teamAtlas(
+function monsterAtlas(
     assetRoot: string,
     file: string,
 ): Pick<
     Extract<MonsterSpriteAnimation, { spriteSheet: string }>,
-    "spriteSheet" | "playerSpriteSheets" | "framesPerRow" | "rows"
+    "spriteSheet" | "framesPerRow" | "rows"
 > {
     return {
-        spriteSheet: file === "Idle" ? `${assetRoot}/${file}.png` : `${assetRoot}/red/${file}.png`,
-        playerSpriteSheets: {
-            1: `${assetRoot}/red/${file}.png`,
-            2: `${assetRoot}/blue/${file}.png`,
-        },
+        spriteSheet: `${assetRoot}/${file}.png`,
         framesPerRow: 15,
         rows: {
             east: 0,
@@ -101,23 +89,27 @@ export const MONSTER_SPRITES: Readonly<Record<string, MonsterSpriteDefinition>> 
         animations: {
             idle: {
                 frameRate: 8,
-                ...teamAtlas(ARCHER_ASSET_ROOT, "Idle"),
+                ...monsterAtlas(ARCHER_ASSET_ROOT, "Idle"),
             },
             attack: {
                 frameRate: 8,
-                ...teamAtlas(ARCHER_ASSET_ROOT, "Attack"),
+                ...monsterAtlas(ARCHER_ASSET_ROOT, "Attack"),
+            },
+            alternativeAttack1: {
+                frameRate: 8,
+                ...monsterAtlas(ARCHER_ASSET_ROOT, "AttackPuissante"),
             },
             death: {
                 frameRate: 8,
-                ...teamAtlas(ARCHER_ASSET_ROOT, "Die"),
+                ...monsterAtlas(ARCHER_ASSET_ROOT, "Die"),
             },
             move: {
                 frameRate: 8,
-                ...teamAtlas(ARCHER_ASSET_ROOT, "Walk"),
+                ...monsterAtlas(ARCHER_ASSET_ROOT, "Walk"),
             },
             hit: {
                 frameRate: 8,
-                ...teamAtlas(ARCHER_ASSET_ROOT, "TakeDamage"),
+                ...monsterAtlas(ARCHER_ASSET_ROOT, "TakeDamage"),
             },
         },
     },
@@ -140,23 +132,23 @@ export const MONSTER_SPRITES: Readonly<Record<string, MonsterSpriteDefinition>> 
         animations: {
             idle: {
                 frameRate: 8,
-                ...teamAtlas(GHOST_ASSET_ROOT, "Idle"),
+                ...monsterAtlas(GHOST_ASSET_ROOT, "Idle"),
             },
             attack: {
                 frameRate: 8,
-                ...teamAtlas(GHOST_ASSET_ROOT, "Attack"),
+                ...monsterAtlas(GHOST_ASSET_ROOT, "Attack"),
             },
             death: {
                 frameRate: 8,
-                ...teamAtlas(GHOST_ASSET_ROOT, "Die"),
+                ...monsterAtlas(GHOST_ASSET_ROOT, "Die"),
             },
             move: {
                 frameRate: 8,
-                ...teamAtlas(GHOST_ASSET_ROOT, "Walk"),
+                ...monsterAtlas(GHOST_ASSET_ROOT, "Walk"),
             },
             hit: {
                 frameRate: 8,
-                ...teamAtlas(GHOST_ASSET_ROOT, "TakeDamage"),
+                ...monsterAtlas(GHOST_ASSET_ROOT, "TakeDamage"),
             },
         },
     },
@@ -179,27 +171,27 @@ export const MONSTER_SPRITES: Readonly<Record<string, MonsterSpriteDefinition>> 
         animations: {
             idle: {
                 frameRate: 8,
-                ...teamAtlas(BLACK_KNIGHT_ASSET_ROOT, "Idle"),
+                ...monsterAtlas(BLACK_KNIGHT_ASSET_ROOT, "Idle"),
             },
             attack: {
-                frameRate: 8,
-                ...teamAtlas(BLACK_KNIGHT_ASSET_ROOT, "Attack"),
+                frameRate: 10,
+                ...monsterAtlas(BLACK_KNIGHT_ASSET_ROOT, "Attack"),
             },
-            strongAttack: {
+            alternativeAttack1: {
                 frameRate: 15,
-                ...teamAtlas(BLACK_KNIGHT_ASSET_ROOT, "AttackPuissante"),
+                ...monsterAtlas(BLACK_KNIGHT_ASSET_ROOT, "AttackPuissante"),
             },
             death: {
                 frameRate: 8,
-                ...teamAtlas(BLACK_KNIGHT_ASSET_ROOT, "Die"),
+                ...monsterAtlas(BLACK_KNIGHT_ASSET_ROOT, "Die"),
             },
             move: {
                 frameRate: 4,
-                ...teamAtlas(BLACK_KNIGHT_ASSET_ROOT, "Walk"),
+                ...monsterAtlas(BLACK_KNIGHT_ASSET_ROOT, "Walk"),
             },
             hit: {
                 frameRate: 8,
-                ...teamAtlas(BLACK_KNIGHT_ASSET_ROOT, "TakeDamage"),
+                ...monsterAtlas(BLACK_KNIGHT_ASSET_ROOT, "TakeDamage"),
             },
         },
     },
@@ -222,27 +214,27 @@ export const MONSTER_SPRITES: Readonly<Record<string, MonsterSpriteDefinition>> 
         animations: {
             idle: {
                 frameRate: 8,
-                ...teamAtlas(FROST_MAGE_ASSET_ROOT, "Idle"),
+                ...monsterAtlas(FROST_MAGE_ASSET_ROOT, "Idle"),
             },
             attack: {
                 frameRate: 8,
-                ...teamAtlas(FROST_MAGE_ASSET_ROOT, "Attack"),
+                ...monsterAtlas(FROST_MAGE_ASSET_ROOT, "Attack"),
             },
-            attackAoe: {
+            alternativeAttack1: {
                 frameRate: 15,
-                ...teamAtlas(FROST_MAGE_ASSET_ROOT, "AttackAoe"),
+                ...monsterAtlas(FROST_MAGE_ASSET_ROOT, "AttackAoe"),
             },
             death: {
                 frameRate: 8,
-                ...teamAtlas(FROST_MAGE_ASSET_ROOT, "Die"),
+                ...monsterAtlas(FROST_MAGE_ASSET_ROOT, "Die"),
             },
             move: {
                 frameRate: 8,
-                ...teamAtlas(FROST_MAGE_ASSET_ROOT, "Walk"),
+                ...monsterAtlas(FROST_MAGE_ASSET_ROOT, "Walk"),
             },
             hit: {
                 frameRate: 8,
-                ...teamAtlas(FROST_MAGE_ASSET_ROOT, "TakeDamage"),
+                ...monsterAtlas(FROST_MAGE_ASSET_ROOT, "TakeDamage"),
             },
         },
     },
@@ -265,23 +257,23 @@ export const MONSTER_SPRITES: Readonly<Record<string, MonsterSpriteDefinition>> 
         animations: {
             idle: {
                 frameRate: 8,
-                ...teamAtlas(PIRATE_ASSET_ROOT, "Idle"),
+                ...monsterAtlas(PIRATE_ASSET_ROOT, "Idle"),
             },
             attack: {
                 frameRate: 8,
-                ...teamAtlas(PIRATE_ASSET_ROOT, "Attack"),
+                ...monsterAtlas(PIRATE_ASSET_ROOT, "Attack"),
             },
             death: {
                 frameRate: 8,
-                ...teamAtlas(PIRATE_ASSET_ROOT, "Die"),
+                ...monsterAtlas(PIRATE_ASSET_ROOT, "Die"),
             },
             move: {
                 frameRate: 8,
-                ...teamAtlas(PIRATE_ASSET_ROOT, "Walk"),
+                ...monsterAtlas(PIRATE_ASSET_ROOT, "Walk"),
             },
             hit: {
                 frameRate: 8,
-                ...teamAtlas(PIRATE_ASSET_ROOT, "TakeDamage"),
+                ...monsterAtlas(PIRATE_ASSET_ROOT, "TakeDamage"),
             },
         },
     },
@@ -304,27 +296,70 @@ export const MONSTER_SPRITES: Readonly<Record<string, MonsterSpriteDefinition>> 
         animations: {
             idle: {
                 frameRate: 8,
-                ...teamAtlas(THIEF_ASSET_ROOT, "Idle"),
+                ...monsterAtlas(THIEF_ASSET_ROOT, "Idle"),
             },
             attack: {
                 frameRate: 8,
-                ...teamAtlas(THIEF_ASSET_ROOT, "Attack"),
+                ...monsterAtlas(THIEF_ASSET_ROOT, "Attack"),
             },
             backstab: {
                 frameRate: 8,
-                ...teamAtlas(THIEF_ASSET_ROOT, "AttackBackstab"),
+                ...monsterAtlas(THIEF_ASSET_ROOT, "AttackBackstab"),
             },
             death: {
                 frameRate: 8,
-                ...teamAtlas(THIEF_ASSET_ROOT, "Die"),
+                ...monsterAtlas(THIEF_ASSET_ROOT, "Die"),
             },
             move: {
                 frameRate: 12,
-                ...teamAtlas(THIEF_ASSET_ROOT, "Walk"),
+                ...monsterAtlas(THIEF_ASSET_ROOT, "Walk"),
             },
             hit: {
                 frameRate: 8,
-                ...teamAtlas(THIEF_ASSET_ROOT, "TakeDamage"),
+                ...monsterAtlas(THIEF_ASSET_ROOT, "TakeDamage"),
+            },
+        },
+    },
+
+    priest: {
+        frameWidth: 128,
+        frameHeight: 128,
+        scale: 0.9,
+        previewScale: 1.8,
+        previewOffsetX: -2,
+        previewOffsetY: -12,
+        originX: 0.5,
+        originY: 0.67,
+        facingOffsetY: {
+            north: 8,
+            east: 4,
+            south: 4,
+            west: 8,
+        },
+        animations: {
+            idle: {
+                frameRate: 8,
+                ...monsterAtlas(PRIEST_ASSET_ROOT, "Idle"),
+            },
+            attack: {
+                frameRate: 8,
+                ...monsterAtlas(PRIEST_ASSET_ROOT, "Soin"),
+            },
+            alternativeAttack1: {
+                frameRate: 15,
+                ...monsterAtlas(PRIEST_ASSET_ROOT, "Benediction"),
+            },
+            death: {
+                frameRate: 8,
+                ...monsterAtlas(PRIEST_ASSET_ROOT, "Die"),
+            },
+            move: {
+                frameRate: 8,
+                ...monsterAtlas(PRIEST_ASSET_ROOT, "Walk"),
+            },
+            hit: {
+                frameRate: 8,
+                ...monsterAtlas(PRIEST_ASSET_ROOT, "TakeDamage"),
             },
         },
     },

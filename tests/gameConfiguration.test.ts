@@ -59,6 +59,49 @@ describe("configuration des règles de partie", () => {
         ).toBeNull();
     });
 
+    it("préserve la catégorie d'animation et refuse les animations inconnues", () => {
+        const archer = getDefaultGameConfiguration().monsters.find(
+            (monster) => monster.id === "archer",
+        );
+        expect(archer).toBeDefined();
+        expect(parseMonsterConfiguration(archer, "archer")?.attacks[1].animation).toBe(
+            "alternativeAttack1",
+        );
+        for (const legacyAnimation of ["attackAoe", "strongAttack"]) {
+            expect(
+                parseMonsterConfiguration({
+                    ...archer,
+                    attacks: [{ ...archer!.attacks[0], animation: legacyAnimation }],
+                })?.attacks[0].animation,
+            ).toBe("alternativeAttack1");
+        }
+        expect(
+            parseMonsterConfiguration({
+                ...archer,
+                attacks: [{ ...archer!.attacks[0], animation: "unknown" }],
+            }),
+        ).toBeNull();
+    });
+
+    it("récupère les animations par défaut des anciennes configurations", () => {
+        const blackKnight = getDefaultGameConfiguration().monsters.find(
+            (monster) => monster.id === "black-knight",
+        );
+        expect(blackKnight).toBeDefined();
+        const legacyProfile = {
+            ...blackKnight,
+            attacks: blackKnight!.attacks.map((attack) => {
+                const legacyAttack = { ...attack };
+                delete legacyAttack.animation;
+                return legacyAttack;
+            }),
+        };
+
+        expect(parseMonsterConfiguration(legacyProfile, "black-knight")?.attacks[1].animation).toBe(
+            "alternativeAttack1",
+        );
+    });
+
     it("préserve les effets de soutien et exige une cible alliée", () => {
         const priest = getDefaultGameConfiguration().monsters.find(
             (monster) => monster.id === "priest",
@@ -69,19 +112,13 @@ describe("configuration des règles de partie", () => {
         expect(
             parseMonsterConfiguration({
                 ...priest,
-                attacks: [
-                    { ...priest!.attacks[0], targetsAlliesOnly: false },
-                    priest!.attacks[1],
-                ],
+                attacks: [{ ...priest!.attacks[0], targetsAlliesOnly: false }, priest!.attacks[1]],
             }),
         ).toBeNull();
         expect(
             parseMonsterConfiguration({
                 ...priest,
-                attacks: [
-                    { ...priest!.attacks[0], usesPerTurn: 0 },
-                    priest!.attacks[1],
-                ],
+                attacks: [{ ...priest!.attacks[0], usesPerTurn: 0 }, priest!.attacks[1]],
             }),
         ).toBeNull();
     });

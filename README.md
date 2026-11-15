@@ -1,5 +1,8 @@
 # Dungeon Dice
 
+Consultez la [documentation technique](docs/TECHNICAL.md) pour l’architecture, les règles de
+données, le développement et les détails du multijoueur.
+
 ## Partie locale à deux joueurs
 
 Depuis le menu, choisissez **Jouer à deux en local**. Les deux joueurs jouent à tour de rôle sur

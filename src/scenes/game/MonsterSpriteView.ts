@@ -12,6 +12,7 @@ import { getFacingFromMovement } from "../../game/monsterActions";
 import type {
     Monster,
     Facing,
+    MonsterAttackAnimation,
     PlacedMonster,
     PlayerId,
     Position,
@@ -21,6 +22,7 @@ interface MonsterSpriteState {
     readonly sprite: Phaser.GameObjects.Sprite;
     readonly monster: Monster;
     readonly owner: PlayerId;
+    grayscaleEffect: Phaser.FX.ColorMatrix | null;
     position: Position;
     facing: Facing;
     action: MonsterSpriteAction;
@@ -34,17 +36,12 @@ function textureKey(
     monsterId: string,
     action: MonsterSpriteAction,
     facing: Facing | MonsterSpriteFacing,
-    owner?: PlayerId,
 ): string {
-    return `monster-${monsterId}-${action}-${facing}${owner ? `-player-${owner}` : ""}`;
+    return `monster-${monsterId}-${action}-${facing}`;
 }
 
-function spriteSheetTextureKey(
-    monsterId: string,
-    action: MonsterSpriteAction,
-    owner?: PlayerId,
-): string {
-    return `monster-${monsterId}-${action}-sheet${owner ? `-player-${owner}` : ""}`;
+function spriteSheetTextureKey(monsterId: string, action: MonsterSpriteAction): string {
+    return `monster-${monsterId}-${action}-sheet`;
 }
 
 function frameTextureKey(
@@ -52,15 +49,11 @@ function frameTextureKey(
     action: MonsterSpriteAction,
     facing: Facing | MonsterSpriteFacing,
     animation?: MonsterSpriteAnimation,
-    owner?: PlayerId,
 ): string {
-    return animation && "spriteSheet" in animation
-        ? spriteSheetTextureKey(
-              monsterId,
-              action,
-              owner && animation.playerSpriteSheets?.[owner] ? owner : undefined,
-          )
-        : textureKey(monsterId, action, facing, owner);
+    if (!animation || !("spriteSheet" in animation)) {
+        return textureKey(monsterId, action, facing);
+    }
+    return spriteSheetTextureKey(monsterId, action);
 }
 
 export class MonsterSpriteView {
@@ -68,35 +61,39 @@ export class MonsterSpriteView {
     private readonly container: Phaser.GameObjects.Container;
     private readonly toScreen: (position: Position) => Position;
     private readonly sprites = new Map<string, MonsterSpriteState>();
+    private ready = false;
 
-    static preload(scene: Phaser.Scene): void {
-        for (const [monsterId, definition] of Object.entries(MONSTER_SPRITES)) {
-            for (const [action, animation] of Object.entries(definition.animations) as [
-                MonsterSpriteAction,
-                MonsterSpriteAnimation,
-            ][]) {
+    static preload(
+        scene: Phaser.Scene,
+        monsterIds: readonly string[],
+        actions: readonly MonsterSpriteAction[],
+    ): number {
+        let queuedFiles = 0;
+        const queueSpriteSheet = (
+            key: string,
+            file: string,
+            frameWidth: number,
+            frameHeight: number,
+        ): void => {
+            if (scene.textures.exists(key)) return;
+            scene.load.spritesheet(key, file, { frameWidth, frameHeight });
+            queuedFiles++;
+        };
+
+        for (const monsterId of new Set(monsterIds)) {
+            const definition = MONSTER_SPRITES[monsterId];
+            if (!definition) continue;
+
+            for (const action of actions) {
+                const animation = definition.animations[action];
+                if (!animation) continue;
                 if ("spriteSheet" in animation) {
-                    scene.load.spritesheet(
+                    queueSpriteSheet(
                         spriteSheetTextureKey(monsterId, action),
                         animation.spriteSheet,
-                        {
-                            frameWidth: definition.frameWidth,
-                            frameHeight: definition.frameHeight,
-                        },
+                        definition.frameWidth,
+                        definition.frameHeight,
                     );
-                    for (const [owner, file] of Object.entries(
-                        animation.playerSpriteSheets ?? {},
-                    ) as [string, string][]) {
-                        const playerId = Number(owner) as PlayerId;
-                        scene.load.spritesheet(
-                            spriteSheetTextureKey(monsterId, action, playerId),
-                            file,
-                            {
-                                frameWidth: definition.frameWidth,
-                                frameHeight: definition.frameHeight,
-                            },
-                        );
-                    }
                     continue;
                 }
 
@@ -104,23 +101,96 @@ export class MonsterSpriteView {
                     Facing,
                     string,
                 ][]) {
-                    scene.load.spritesheet(textureKey(monsterId, action, facing), file, {
-                        frameWidth: definition.frameWidth,
-                        frameHeight: definition.frameHeight,
-                    });
+                    queueSpriteSheet(
+                        textureKey(monsterId, action, facing),
+                        file,
+                        definition.frameWidth,
+                        definition.frameHeight,
+                    );
                 }
             }
         }
+        return queuedFiles;
     }
 
     constructor(scene: Phaser.Scene, toScreen: (position: Position) => Position) {
         this.scene = scene;
         this.toScreen = toScreen;
         this.container = scene.add.container(0, 0).setDepth(1);
-        this.createAnimations();
+    }
+
+    setReady(): void {
+        this.ready = true;
+    }
+
+    createAnimations(monsterIds: readonly string[], actions: readonly MonsterSpriteAction[]): void {
+        for (const monsterId of new Set(monsterIds)) {
+            const definition = MONSTER_SPRITES[monsterId];
+            if (!definition) continue;
+
+            for (const action of actions) {
+                const animation = definition.animations[action];
+                if (!animation) continue;
+                const facings =
+                    "files" in animation
+                        ? (Object.keys(animation.files) as (Facing | MonsterSpriteFacing)[])
+                        : (Object.keys(animation.rows) as MonsterSpriteFacing[]);
+                for (const facing of facings) {
+                    const key = textureKey(monsterId, action, facing);
+                    if (this.scene.anims.exists(key)) continue;
+                    const framesTextureKey =
+                        "spriteSheet" in animation
+                            ? frameTextureKey(monsterId, action, facing, animation)
+                            : key;
+                    if (!this.scene.textures.exists(framesTextureKey)) continue;
+                    const totalFrames = this.scene.textures.get(framesTextureKey).frameTotal - 1;
+                    const start =
+                        "spriteSheet" in animation
+                            ? animation.rows[facing as MonsterSpriteFacing] *
+                                  animation.framesPerRow +
+                              (animation.frameRange?.[0] ?? 0)
+                            : 0;
+                    const end =
+                        "spriteSheet" in animation
+                            ? start +
+                              (animation.frameRange
+                                  ? animation.frameRange[1] - animation.frameRange[0]
+                                  : animation.framesPerRow - 1)
+                            : totalFrames - 1;
+                    if (totalFrames <= end) {
+                        throw new Error(`Sprite sheet "${key}" does not contain animation frames.`);
+                    }
+
+                    this.scene.anims.create({
+                        key,
+                        frames: this.scene.anims.generateFrameNumbers(framesTextureKey, {
+                            start,
+                            end,
+                        }),
+                        frameRate: animation.frameRate,
+                        repeat:
+                            action === "attack" ||
+                            action === "alternativeAttack1" ||
+                            action === "backstab" ||
+                            action === "hit" ||
+                            action === "death"
+                                ? 0
+                                : -1,
+                    });
+                }
+            }
+        }
+    }
+
+    refreshCurrentAnimations(): void {
+        for (const state of this.sprites.values()) {
+            if (state.action !== "idle") this.play(state, state.action, true);
+        }
     }
 
     render(monsters: readonly PlacedMonster[], grayscaleMonsterIds: ReadonlySet<string>): void {
+        if (!this.ready) return;
+
         const spriteMonsters = monsters.filter(
             (monster) =>
                 MONSTER_SPRITES[monster.monster.id] &&
@@ -177,13 +247,16 @@ export class MonsterSpriteView {
                 ("rows" in animation ? GRID_FACING_TO_SPRITE_FACING[facing] : facing);
 
             const key = textureKey(monster.id, "idle", previewFacing);
-            const sprite = this.scene.add
-                .sprite(x, y, frameTextureKey(monster.id, "idle", previewFacing, animation))
-                .setOrigin(0.5)
-                .setScale(definition.previewScale ?? 0.75);
-            container.add(sprite);
-            sprite.play(key);
-            return sprite;
+            const previewTexture = frameTextureKey(monster.id, "idle", previewFacing, animation);
+            if (this.scene.textures.exists(previewTexture) && this.scene.anims.exists(key)) {
+                const sprite = this.scene.add
+                    .sprite(x, y, previewTexture)
+                    .setOrigin(0.5)
+                    .setScale(definition.previewScale ?? 0.75);
+                container.add(sprite);
+                sprite.play(key);
+                return sprite;
+            }
         }
 
         const preview = this.scene.add.container(x, y);
@@ -238,7 +311,11 @@ export class MonsterSpriteView {
 
             state.facing = getFacingFromMovement(state.position, destination, state.facing);
             this.play(state, "move");
-            const spritePosition = this.getSpritePosition(destination, state.monster.id, state.facing);
+            const spritePosition = this.getSpritePosition(
+                destination,
+                state.monster.id,
+                state.facing,
+            );
             this.scene.tweens.add({
                 targets: state.sprite,
                 x: spritePosition.x,
@@ -255,7 +332,12 @@ export class MonsterSpriteView {
         moveToStep(0);
     }
 
-    playAttack(id: string, attackIndex = 0, backstab = false, facing?: Facing): void {
+    playAttack(
+        id: string,
+        animation: MonsterAttackAnimation = "attack",
+        backstab = false,
+        facing?: Facing,
+    ): void {
         const state = this.sprites.get(id);
         if (!state || state.isDead) return;
         if (facing && state.facing !== facing) {
@@ -271,10 +353,8 @@ export class MonsterSpriteView {
         const action =
             backstab && animations?.backstab
                 ? "backstab"
-                : attackIndex > 0 && animations?.strongAttack
-                  ? "strongAttack"
-                  : attackIndex > 0 && animations?.attackAoe
-                    ? "attackAoe"
+                : animation !== "backstab" && animations?.[animation]
+                  ? animation
                   : "attack";
         if (!animations?.[action]) return;
 
@@ -314,26 +394,36 @@ export class MonsterSpriteView {
 
     private createSprite(monster: PlacedMonster): MonsterSpriteState {
         const definition = MONSTER_SPRITES[monster.monster.id];
-        const position = this.getSpritePosition(monster.position, monster.monster.id, monster.facing);
+        const position = this.getSpritePosition(
+            monster.position,
+            monster.monster.id,
+            monster.facing,
+        );
         const idleAnimation = definition.animations.idle;
+        const idleTexture = frameTextureKey(
+            monster.monster.id,
+            "idle",
+            monster.facing,
+            idleAnimation,
+        );
+        const hasIdleTexture = this.scene.textures.exists(idleTexture);
         const sprite = this.scene.add
             .sprite(
                 position.x,
                 position.y,
-                frameTextureKey(
-                    monster.monster.id,
-                    "idle",
-                    monster.facing,
-                    idleAnimation,
-                    monster.owner,
-                ),
+                hasIdleTexture ? idleTexture : this.getFallbackTexture(monster.monster),
             )
-            .setOrigin(definition.originX, definition.originY)
-            .setScale(definition.scale);
+            .setOrigin(
+                hasIdleTexture ? definition.originX : 0.5,
+                hasIdleTexture ? definition.originY : 0.5,
+            )
+            .setScale(hasIdleTexture ? definition.scale : 1);
+        sprite.postFX.addGlow(monster.owner === 1 ? 0xff6470 : 0x70bdff, 3, 0, false, 0.1, 2);
         const state: MonsterSpriteState = {
             sprite,
             monster: monster.monster,
             owner: monster.owner,
+            grayscaleEffect: null,
             position: { ...monster.position },
             facing: monster.facing,
             action: "idle",
@@ -357,85 +447,15 @@ export class MonsterSpriteView {
     private updateGrayscale(state: MonsterSpriteState): void {
         if (state.isMoving || state.action !== "idle") return;
         if (state.shouldBeGrayscale && !state.isGrayscale) {
-            state.sprite.postFX.addColorMatrix().grayscale();
+            if (!state.grayscaleEffect) {
+                state.grayscaleEffect = state.sprite.preFX.addColorMatrix();
+                state.grayscaleEffect.grayscale();
+            }
+            state.grayscaleEffect.active = true;
             state.isGrayscale = true;
         } else if (!state.shouldBeGrayscale && state.isGrayscale) {
-            state.sprite.clearFX();
+            if (state.grayscaleEffect) state.grayscaleEffect.active = false;
             state.isGrayscale = false;
-        }
-    }
-
-    private createAnimations(): void {
-        for (const [monsterId, definition] of Object.entries(MONSTER_SPRITES)) {
-            for (const [action, animation] of Object.entries(definition.animations) as [
-                MonsterSpriteAction,
-                MonsterSpriteAnimation,
-            ][]) {
-                const facings = "files" in animation
-                    ? (Object.keys(animation.files) as (Facing | MonsterSpriteFacing)[])
-                    : (Object.keys(animation.rows) as MonsterSpriteFacing[]);
-                for (const facing of facings) {
-                    const sheet = "spriteSheet" in animation;
-                    const owners = sheet
-                        ? [
-                              undefined,
-                              ...(Object.keys(animation.playerSpriteSheets ?? {}).map(
-                                  Number,
-                              ) as PlayerId[]),
-                          ]
-                        : [undefined];
-                    for (const owner of owners) {
-                        const key = textureKey(monsterId, action, facing, owner);
-                        if (this.scene.anims.exists(key)) continue;
-                        const framesTextureKey = sheet
-                            ? spriteSheetTextureKey(
-                                  monsterId,
-                                  action,
-                                  owner && animation.playerSpriteSheets?.[owner]
-                                      ? owner
-                                      : undefined,
-                              )
-                            : key;
-                        const totalFrames =
-                            this.scene.textures.get(framesTextureKey).frameTotal - 1;
-                        const start =
-                            sheet && "rows" in animation
-                                ? animation.rows[facing as MonsterSpriteFacing] *
-                                      animation.framesPerRow +
-                                  (animation.frameRange?.[0] ?? 0)
-                                : 0;
-                        const end = sheet
-                            ? start +
-                              (animation.frameRange
-                                  ? animation.frameRange[1] - animation.frameRange[0]
-                                  : animation.framesPerRow - 1)
-                            : totalFrames - 1;
-                        if (totalFrames <= end) {
-                            throw new Error(
-                                `Sprite sheet "${key}" does not contain animation frames.`,
-                            );
-                        }
-
-                        this.scene.anims.create({
-                            key,
-                            frames: this.scene.anims.generateFrameNumbers(framesTextureKey, {
-                                start,
-                                end,
-                            }),
-                            frameRate: animation.frameRate,
-                            repeat:
-                                action === "attack" ||
-                                action === "attackAoe" ||
-                                action === "strongAttack" ||
-                                action === "backstab" ||
-                                action === "hit" ||
-                                action === "death"
-                                    ? 0
-                                    : -1,
-                        });
-                    }
-                }
-            }
         }
     }
 
@@ -452,12 +472,19 @@ export class MonsterSpriteView {
                     : "south"
                 : GRID_FACING_TO_SPRITE_FACING[state.facing];
         const key = textureKey(state.monster.id, spriteAction, facing);
-        const ownerSpecificKey = textureKey(state.monster.id, spriteAction, facing, state.owner);
-        const animationKey =
-            "spriteSheet" in animation && animation.playerSpriteSheets?.[state.owner]
-                ? ownerSpecificKey
-                : key;
-        if (restart || state.sprite.anims.currentAnim?.key !== animationKey)
-            state.sprite.play(animationKey);
+        if (!this.scene.anims.exists(key)) return;
+        if (restart || state.sprite.anims.currentAnim?.key !== key) state.sprite.play(key);
+    }
+
+    private getFallbackTexture(monster: Monster): string {
+        const key = `monster-fallback-${monster.id}`;
+        if (this.scene.textures.exists(key)) return key;
+
+        const graphics = this.scene.add.graphics();
+        graphics.fillStyle(monster.color);
+        graphics.fillCircle(16, 16, 15);
+        graphics.generateTexture(key, 32, 32);
+        graphics.destroy();
+        return key;
     }
 }

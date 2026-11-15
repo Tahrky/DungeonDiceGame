@@ -1,6 +1,10 @@
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import { MONSTERS } from "../src/data/monsters";
+import { MONSTER_SPRITES } from "../src/data/monsterSprites";
 
 describe("profils de monstres", () => {
     it("configure le Mage de Givre pour frapper une ligne de trois cases dans les quatre directions", () => {
@@ -38,6 +42,14 @@ describe("profils de monstres", () => {
             cooldownTurns: 2,
             initialCooldownTurns: 1,
             pattern: { type: "radius", range: 5 },
+            animation: "alternativeAttack1",
+        });
+    });
+
+    it("associe la seconde attaque de l'Archer à son animation puissante", () => {
+        expect(MONSTER_SPRITES.archer.animations).toMatchObject({
+            attack: { spriteSheet: "/sprites/archer/Attack.png" },
+            alternativeAttack1: { spriteSheet: "/sprites/archer/AttackPuissante.png" },
         });
     });
 
@@ -89,5 +101,31 @@ describe("profils de monstres", () => {
                 pattern: { type: "radius", range: 3 },
             },
         ]);
+    });
+
+    it("associe les feuilles de sprites du Prêtre à ses animations", () => {
+        expect(MONSTER_SPRITES.priest.animations).toMatchObject({
+            idle: { spriteSheet: "/sprites/priest/Idle.png" },
+            attack: { spriteSheet: "/sprites/priest/Soin.png" },
+            alternativeAttack1: { spriteSheet: "/sprites/priest/Benediction.png" },
+            death: { spriteSheet: "/sprites/priest/Die.png" },
+            hit: { spriteSheet: "/sprites/priest/TakeDamage.png" },
+            move: { spriteSheet: "/sprites/priest/Walk.png" },
+        });
+    });
+
+    it("référence uniquement des feuilles de sprites présentes", () => {
+        for (const definition of Object.values(MONSTER_SPRITES)) {
+            for (const animation of Object.values(definition.animations)) {
+                if (!animation) continue;
+                const spriteFiles =
+                    "spriteSheet" in animation
+                        ? [animation.spriteSheet]
+                        : Object.values(animation.files);
+                for (const file of spriteFiles) {
+                    expect(existsSync(resolve("public", file.replace(/^\/+/, "")))).toBe(true);
+                }
+            }
+        }
     });
 });

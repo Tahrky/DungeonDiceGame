@@ -6,15 +6,37 @@ import { BoardView } from "./game/BoardView";
 import { GameHud } from "./game/GameHud";
 import { MonsterTooltip } from "./game/MonsterTooltip";
 import { MonsterSpriteView } from "./game/MonsterSpriteView";
+import type { MonsterSpriteAction } from "../data/monsterSprites";
 import type { GameHudActions } from "./game/GameHud";
 import type { BoardHeightChange } from "../types/GameTypes";
 
+const IDLE_ACTIONS: readonly MonsterSpriteAction[] = ["idle"];
+const OTHER_ACTIONS: readonly MonsterSpriteAction[] = [
+    "move",
+    "attack",
+    "alternativeAttack1",
+    "backstab",
+    "hit",
+    "death",
+];
+
 export class GameScene extends GameSceneComputer {
+    private loadingOverlay: Phaser.GameObjects.Container | null = null;
+
+    private loadingMessage: Phaser.GameObjects.Text | null = null;
+
+    private activeSpriteLoadCleanup: (() => void) | null = null;
+
     create(): void {
+        if (!this.hasGameSetup) return;
+
         this.cameras.main.setBackgroundColor("#202a36");
         this.scale.on(Phaser.Scale.Events.RESIZE, this.resizeCamera, this);
         this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
             this.scale.off(Phaser.Scale.Events.RESIZE, this.resizeCamera, this);
+            this.activeSpriteLoadCleanup?.();
+            if (this.load.isLoading()) this.load.reset();
+            this.hideLoadingOverlay();
         });
         this.boardGraphics = this.add.graphics();
         this.uiContainer = this.add.container(0, 0).setDepth(2);
@@ -45,6 +67,9 @@ export class GameScene extends GameSceneComputer {
 
         this.setCamera(this.scale.gameSize);
         this.render();
+        this.showLoadingOverlay();
+        const monsterIds = [...new Set([...this.playerDecks[1], ...this.playerDecks[2]])];
+        this.time.delayedCall(0, () => this.loadInitialSprites(monsterIds));
         this.bindInput();
         this.game.events.on("remote-game-command", this.handleRemoteCommand, this);
         this.game.events.on("remote-game-state", this.applyRemoteSnapshot, this);
@@ -68,10 +93,7 @@ export class GameScene extends GameSceneComputer {
         );
         const camera = this.cameras.main;
         camera.setZoom(zoom);
-        camera.centerOn(
-            GAME_CONFIG.screenWidth / 2,
-            GAME_CONFIG.screenHeight / 2,
-        );
+        camera.centerOn(GAME_CONFIG.screenWidth / 2, GAME_CONFIG.screenHeight / 2);
         camera.preRender();
         return true;
     }
@@ -110,7 +132,7 @@ export class GameScene extends GameSceneComputer {
     }
 
     private handleKeyDown(event: KeyboardEvent): void {
-        if (event.repeat) return;
+        if (event.repeat || !this.assetsReady) return;
 
         switch (event.code) {
             case "Escape":
@@ -147,9 +169,7 @@ export class GameScene extends GameSceneComputer {
                 break;
             case "KeyP":
                 if (this.gameConfiguration.testBoard) {
-                    this.runLocalCommand({ type: "debugAddSymbols" }, () =>
-                        this.addDebugSymbols(),
-                    );
+                    this.runLocalCommand({ type: "debugAddSymbols" }, () => this.addDebugSymbols());
                 }
                 break;
             case "KeyL":
@@ -168,12 +188,124 @@ export class GameScene extends GameSceneComputer {
         }
     }
 
+    private showLoadingOverlay(): void {
+        const { screenWidth, screenHeight } = GAME_CONFIG;
+        const blocker = this.add
+            .rectangle(0, 0, screenWidth, screenHeight, 0x080d14, 0.62)
+            .setOrigin(0)
+            .setInteractive();
+        const panel = this.add
+            .rectangle(screenWidth / 2, screenHeight / 2, 430, 112, 0x263340, 1)
+            .setStrokeStyle(1, 0xf0c974);
+        const title = this.add
+            .text(screenWidth / 2, screenHeight / 2 - 20, "Préparation de la partie", {
+                color: "#f0c974",
+                fontFamily: "Arial",
+                fontSize: "22px",
+                fontStyle: "bold",
+            })
+            .setOrigin(0.5);
+        this.loadingMessage = this.add
+            .text(
+                screenWidth / 2,
+                screenHeight / 2 + 20,
+                "Chargement des sprites essentiels… 0 %",
+                {
+                    color: "#ffffff",
+                    fontFamily: "Arial",
+                    fontSize: "15px",
+                },
+            )
+            .setOrigin(0.5);
+        this.loadingOverlay = this.add
+            .container(0, 0, [blocker, panel, title, this.loadingMessage])
+            .setDepth(100);
+    }
+
+    private loadInitialSprites(monsterIds: readonly string[]): void {
+        this.loadSpriteAssets(monsterIds, IDLE_ACTIONS, true, (failedFiles) => {
+            this.monsterSpriteView.createAnimations(monsterIds, IDLE_ACTIONS);
+            this.monsterSpriteView.setReady();
+            this.assetsReady = true;
+            this.render();
+
+            if (failedFiles.length > 0) {
+                console.error("Échec du chargement de sprites :", failedFiles);
+                this.loadingMessage?.setText(
+                    `${failedFiles.length} ressource(s) indisponible(s) ; la partie reste jouable.`,
+                );
+                this.time.delayedCall(2400, () => this.hideLoadingOverlay());
+            } else {
+                this.hideLoadingOverlay();
+            }
+
+            this.time.delayedCall(0, () => this.loadRemainingSprites(monsterIds));
+        });
+    }
+
+    private loadRemainingSprites(monsterIds: readonly string[]): void {
+        this.loadSpriteAssets(monsterIds, OTHER_ACTIONS, false, (failedFiles) => {
+            this.monsterSpriteView.createAnimations(monsterIds, OTHER_ACTIONS);
+            this.monsterSpriteView.refreshCurrentAnimations();
+            if (failedFiles.length > 0) {
+                console.error("Échec du chargement des animations :", failedFiles);
+            }
+        });
+    }
+
+    private loadSpriteAssets(
+        monsterIds: readonly string[],
+        actions: readonly MonsterSpriteAction[],
+        trackProgress: boolean,
+        onComplete: (failedFiles: string[]) => void,
+    ): void {
+        const failedFiles: string[] = [];
+        const handleLoadError = (file: Phaser.Loader.File): void => {
+            failedFiles.push(file.key);
+        };
+        const handleProgress = (progress: number): void => {
+            this.loadingMessage?.setText(
+                `Chargement des sprites essentiels… ${Math.round(progress * 100)} %`,
+            );
+        };
+        const handleComplete = (): void => {
+            cleanup();
+            onComplete(failedFiles);
+        };
+        const cleanup = (): void => {
+            this.load.off(Phaser.Loader.Events.COMPLETE, handleComplete);
+            this.load.off(Phaser.Loader.Events.FILE_LOAD_ERROR, handleLoadError);
+            this.load.off(Phaser.Loader.Events.PROGRESS, handleProgress);
+            if (this.activeSpriteLoadCleanup === cleanup) {
+                this.activeSpriteLoadCleanup = null;
+            }
+        };
+
+        this.activeSpriteLoadCleanup?.();
+        this.activeSpriteLoadCleanup = cleanup;
+        this.load.on(Phaser.Loader.Events.FILE_LOAD_ERROR, handleLoadError);
+        if (trackProgress) this.load.on(Phaser.Loader.Events.PROGRESS, handleProgress);
+        const queuedFiles = MonsterSpriteView.preload(this, monsterIds, actions);
+        if (queuedFiles === 0) {
+            handleComplete();
+            return;
+        }
+
+        this.load.once(Phaser.Loader.Events.COMPLETE, handleComplete);
+        this.load.start();
+    }
+
+    private hideLoadingOverlay(): void {
+        this.loadingOverlay?.destroy(true);
+        this.loadingOverlay = null;
+        this.loadingMessage = null;
+    }
+
     private changeCellHeightAtHoveredCell(delta: BoardHeightChange): void {
         if (!this.hoveredCell) return;
         const position = { ...this.hoveredCell };
-        this.runLocalCommand(
-            { type: "changeCellHeight", delta, position },
-            () => this.changeCellHeight(delta, position),
+        this.runLocalCommand({ type: "changeCellHeight", delta, position }, () =>
+            this.changeCellHeight(delta, position),
         );
     }
 
@@ -282,9 +414,7 @@ export class GameScene extends GameSceneComputer {
             cancelBoardAction: () =>
                 this.runLocalCommand({ type: "cancelBoardAction" }, () => this.cancelBoardAction()),
             cancelInvocation: () =>
-                this.runLocalCommand({ type: "cancelInvocation" }, () =>
-                    this.cancelInvocation(),
-                ),
+                this.runLocalCommand({ type: "cancelInvocation" }, () => this.cancelInvocation()),
             finishTurn: () => this.runLocalCommand({ type: "finishTurn" }, () => this.finishTurn()),
             leaveGame: () => this.game.events.emit("leave-game"),
             scrollActionHistory: (offset) => this.scrollActionHistory(offset),
@@ -293,6 +423,7 @@ export class GameScene extends GameSceneComputer {
 
     protected handleRemoteCommand(value: unknown): void {
         if (
+            !this.assetsReady ||
             !this.isHost ||
             this.mode !== "online" ||
             this.currentPlayer !== 2 ||
