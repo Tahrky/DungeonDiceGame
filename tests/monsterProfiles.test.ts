@@ -90,7 +90,7 @@ describe("profils de monstres", () => {
                 healAmount: 3,
                 targetsAlliesOnly: true,
                 usesPerTurn: 1,
-                pattern: { type: "line", range: 4, allDirections: true },
+                pattern: { type: "radius", range: 4 },
             },
             {
                 name: "Récupération de sorts",

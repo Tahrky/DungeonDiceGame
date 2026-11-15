@@ -32,6 +32,26 @@ describe("configuration des règles de partie", () => {
         expect(parseGameConfiguration(legacyConfiguration)?.testBoard).toBe(false);
     });
 
+    it("migre les profils enregistrés en remplaçant l'ancien motif de soin du Prêtre", () => {
+        const configuration = getDefaultGameConfiguration();
+        configuration.diceCount = 3;
+        const priest = configuration.monsters.find((monster) => monster.id === "priest");
+        expect(priest).toBeDefined();
+        priest!.attacks[0].pattern = {
+            type: "line",
+            range: 4,
+            allDirections: true,
+        };
+        const legacyConfiguration: unknown = { ...configuration, version: 1 };
+
+        const migrated = parseGameConfiguration(legacyConfiguration);
+
+        expect(migrated?.version).toBe(2);
+        expect(migrated?.diceCount).toBe(3);
+        expect(migrated?.monsters.find((monster) => monster.id === "priest")?.attacks[0].pattern)
+            .toEqual({ type: "radius", range: 4 });
+    });
+
     it("valide les motifs et capacités modifiés sans accepter de profil incomplet", () => {
         const profile = getDefaultGameConfiguration().monsters.find(
             (monster) => monster.id === "archer",
@@ -125,7 +145,7 @@ describe("configuration des règles de partie", () => {
 
     it("refuse les configurations de version ou de limites invalides", () => {
         const configuration = getDefaultGameConfiguration();
-        expect(parseGameConfiguration({ ...configuration, version: 2 })).toBeNull();
+        expect(parseGameConfiguration({ ...configuration, version: 3 })).toBeNull();
         expect(parseGameConfiguration({ ...configuration, diceCount: 6 })).toBeNull();
         expect(
             parseGameConfiguration({

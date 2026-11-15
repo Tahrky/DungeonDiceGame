@@ -1,6 +1,7 @@
-import { useState, type CSSProperties } from 'react';
+import { useState, type CSSProperties } from "react";
 
-import { MONSTER_SPRITES } from '../data/monsterSprites';
+import { MONSTER_SPRITES } from "../data/monsterSprites";
+import { UnsavedChangesDialog, useBeforeUnloadWarning } from "./UnsavedChangesDialog";
 import {
     DECK_SIZE,
     DECK_STORAGE_KEY,
@@ -8,11 +9,11 @@ import {
     getSavedDeck,
     parseDeck,
     serializeDeck,
-} from '../game/decks';
-import { getSavedGameConfiguration } from '../game/gameConfiguration';
-import { describeMonsterAttack, describeMonsterMovement } from '../game/monsterDescriptions';
+} from "../game/decks";
+import { getSavedGameConfiguration } from "../game/gameConfiguration";
+import { describeMonsterAttack, describeMonsterMovement } from "../game/monsterDescriptions";
 
-import type { Monster } from '../types/GameTypes';
+import type { Monster } from "../types/GameTypes";
 interface DeckEditorProps {
     readonly onBack: () => void;
 }
@@ -20,11 +21,11 @@ interface DeckEditorProps {
 function MonsterIdlePreview({ monster }: { readonly monster: Monster }) {
     const spriteDefinition = MONSTER_SPRITES[monster.id];
     const idleAnimation = spriteDefinition?.animations.idle;
-    if (!idleAnimation || !('spriteSheet' in idleAnimation)) {
+    if (!idleAnimation || !("spriteSheet" in idleAnimation)) {
         return (
             <span
                 className="monster-symbol"
-                style={{ color: `#${monster.color.toString(16).padStart(6, '0')}` }}
+                style={{ color: `#${monster.color.toString(16).padStart(6, "0")}` }}
             >
                 {monster.symbol}
             </span>
@@ -39,18 +40,18 @@ function MonsterIdlePreview({ monster }: { readonly monster: Monster }) {
     const spriteCropHeight = 56;
     const frameCount = idleAnimation.framesPerRow;
     const style: CSSProperties & {
-        '--monster-sprite-south-x': string;
-        '--monster-sprite-south-y': string;
-        '--monster-sprite-last-frame-x': string;
+        "--monster-sprite-south-x": string;
+        "--monster-sprite-south-y": string;
+        "--monster-sprite-last-frame-x": string;
     } = {
         backgroundImage: `url("${idleAnimation.spriteSheet}")`,
         backgroundSize: `${frameSize * frameCount}px ${frameSize * Object.keys(idleAnimation.rows).length}px`,
         animation: `monster-idle-south ${frameCount / idleAnimation.frameRate}s steps(${frameCount - 1}) infinite`,
         width: `${(frameSize * (frameWidth - spriteCropLeft)) / frameWidth}px`,
         height: `${(frameSize * spriteCropHeight) / frameHeight}px`,
-        '--monster-sprite-south-x': `${-(frameSize * spriteCropLeft) / frameWidth}px`,
-        '--monster-sprite-south-y': `${-frameSize * (2 + spriteCropTop / frameHeight)}px`,
-        '--monster-sprite-last-frame-x': `${-frameSize * (frameCount - 1 + spriteCropLeft / frameWidth)}px`,
+        "--monster-sprite-south-x": `${-(frameSize * spriteCropLeft) / frameWidth}px`,
+        "--monster-sprite-south-y": `${-frameSize * (2 + spriteCropTop / frameHeight)}px`,
+        "--monster-sprite-last-frame-x": `${-frameSize * (frameCount - 1 + spriteCropLeft / frameWidth)}px`,
     };
 
     return (
@@ -64,15 +65,29 @@ function MonsterIdlePreview({ monster }: { readonly monster: Monster }) {
 }
 
 export function DeckEditor({ onBack }: DeckEditorProps) {
-    const [selectedDeck, setSelectedDeck] = useState(() => getSavedDeck() ?? getDefaultDeck());
+    const [savedDeck, setSavedDeck] = useState(() => getSavedDeck() ?? getDefaultDeck());
+    const [selectedDeck, setSelectedDeck] = useState(savedDeck);
     const [monsters] = useState(() => getSavedGameConfiguration().monsters);
     const [deckJson, setDeckJson] = useState(() => serializeDeck(selectedDeck));
-    const [notice, setNotice] = useState('');
+    const [notice, setNotice] = useState("");
+    const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
     const [hoveredMonster, setHoveredMonster] = useState<{
         monster: Monster;
         left: number;
         top: number;
     } | null>(null);
+    const isDirty =
+        serializeDeck(selectedDeck) !== serializeDeck(savedDeck) ||
+        deckJson !== serializeDeck(selectedDeck);
+    useBeforeUnloadWarning(isDirty);
+
+    function requestBack(): void {
+        if (isDirty) {
+            setShowUnsavedDialog(true);
+            return;
+        }
+        onBack();
+    }
 
     function showMonsterInfo(monster: Monster, element: HTMLButtonElement): void {
         const bounds = element.getBoundingClientRect();
@@ -99,20 +114,36 @@ export function DeckEditor({ onBack }: DeckEditorProps) {
 
         setSelectedDeck(nextDeck);
         setDeckJson(serializeDeck(nextDeck));
-        setNotice('');
+        setNotice("");
     }
 
-    function saveDeck(): void {
-        const validDeck = parseDeck(selectedDeck);
+    function saveDeck(): boolean {
+        const draftDeck =
+            deckJson === serializeDeck(selectedDeck) ? selectedDeck : parseDeck(deckJson);
+        const validDeck = draftDeck ? parseDeck(draftDeck) : null;
         if (!validDeck) {
             setNotice(`Sélectionnez exactement ${DECK_SIZE} monstres avant d’enregistrer.`);
-            return;
+            return false;
         }
         try {
             localStorage.setItem(DECK_STORAGE_KEY, serializeDeck(validDeck));
-            setNotice('Deck enregistré sur cet appareil.');
+            const serializedDeck = serializeDeck(validDeck);
+            setSelectedDeck(validDeck);
+            setDeckJson(serializedDeck);
+            setSavedDeck(validDeck);
+            setNotice("Deck enregistré sur cet appareil.");
+            return true;
         } catch {
-            setNotice('Impossible d’enregistrer le deck dans le stockage de ce navigateur.');
+            setNotice("Impossible d’enregistrer le deck dans le stockage de ce navigateur.");
+            return false;
+        }
+    }
+
+    function saveAndLeave(): void {
+        if (saveDeck()) {
+            onBack();
+        } else {
+            setShowUnsavedDialog(false);
         }
     }
 
@@ -121,7 +152,7 @@ export function DeckEditor({ onBack }: DeckEditorProps) {
         try {
             value = JSON.parse(deckJson);
         } catch {
-            setNotice('JSON invalide. Vérifiez le format puis réessayez.');
+            setNotice("JSON invalide. Vérifiez le format puis réessayez.");
             return;
         }
         const deck = parseDeck(value);
@@ -133,26 +164,28 @@ export function DeckEditor({ onBack }: DeckEditorProps) {
         }
         setSelectedDeck(deck);
         setDeckJson(serializeDeck(deck));
-        setNotice('Sélection chargée. Enregistrez-la pour la conserver.');
+        setNotice("Sélection chargée. Enregistrez-la pour la conserver.");
     }
 
     async function copyDeckJson(): Promise<void> {
         try {
             await navigator.clipboard.writeText(deckJson);
-            setNotice('JSON copié dans le presse-papiers.');
+            setNotice("JSON copié dans le presse-papiers.");
         } catch {
-            setNotice('Copie impossible dans ce navigateur. Sélectionnez le texte pour le copier.');
+            setNotice("Copie impossible dans ce navigateur. Sélectionnez le texte pour le copier.");
         }
     }
 
     return (
         <section id="menu-screen" aria-live="polite">
             <section id="deck-editor" className="menu-panel">
-                <button className="back-button" onClick={onBack}>
+                <button className="back-button" onClick={requestBack}>
                     ← Retour au menu
                 </button>
                 <p className="eyebrow">VOTRE ARMÉE</p>
-                <h2>Choisissez 5 monstres ({selectedDeck.length}/{DECK_SIZE})</h2>
+                <h2>
+                    Choisissez 5 monstres ({selectedDeck.length}/{DECK_SIZE})
+                </h2>
                 <p className="panel-description">
                     Votre sélection est sauvegardée sur cet appareil. Sans deck enregistré, les cinq
                     monstres les moins chers sont utilisés.
@@ -164,7 +197,7 @@ export function DeckEditor({ onBack }: DeckEditorProps) {
                             <button
                                 key={monster.id}
                                 type="button"
-                                className={`monster-card${selected ? ' selected' : ''}`}
+                                className={`monster-card${selected ? " selected" : ""}`}
                                 aria-pressed={selected}
                                 onClick={() => toggleMonster(monster.id)}
                                 onPointerEnter={(event) =>
@@ -177,7 +210,7 @@ export function DeckEditor({ onBack }: DeckEditorProps) {
                                 <span
                                     className="monster-symbol"
                                     style={{
-                                        color: `#${monster.color.toString(16).padStart(6, '0')}`,
+                                        color: `#${monster.color.toString(16).padStart(6, "0")}`,
                                     }}
                                 >
                                     {monster.symbol}
@@ -206,7 +239,7 @@ export function DeckEditor({ onBack }: DeckEditorProps) {
                             </div>
                         </div>
                         <p>
-                            Invocation : {hoveredMonster.monster.cost} · PV :{' '}
+                            Invocation : {hoveredMonster.monster.cost} · PV :{" "}
                             {hoveredMonster.monster.hp}
                         </p>
                         <div className="monster-info-attacks">
@@ -219,7 +252,7 @@ export function DeckEditor({ onBack }: DeckEditorProps) {
                         <p>{describeMonsterMovement(hoveredMonster.monster)}</p>
                         {hoveredMonster.monster.bonusDamageFromBehind !== undefined && (
                             <p>
-                                Bonus de dos : +{hoveredMonster.monster.bonusDamageFromBehind}{' '}
+                                Bonus de dos : +{hoveredMonster.monster.bonusDamageFromBehind}{" "}
                                 dégâts
                             </p>
                         )}
@@ -253,6 +286,13 @@ export function DeckEditor({ onBack }: DeckEditorProps) {
                     </output>
                 </div>
             </section>
+            {showUnsavedDialog && (
+                <UnsavedChangesDialog
+                    onSave={saveAndLeave}
+                    onDiscard={onBack}
+                    onCancel={() => setShowUnsavedDialog(false)}
+                />
+            )}
         </section>
     );
 }

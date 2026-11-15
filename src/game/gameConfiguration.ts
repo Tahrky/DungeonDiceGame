@@ -9,7 +9,7 @@ import type {
 } from "../types/GameTypes";
 
 export const GAME_CONFIGURATION_STORAGE_KEY = "dungeon-dice.configuration";
-export const GAME_CONFIGURATION_VERSION = 1;
+export const GAME_CONFIGURATION_VERSION = 2;
 export const MAX_DICE_COUNT = DICE.length;
 
 export interface GameConfiguration {
@@ -189,6 +189,42 @@ function parseAttack(value: unknown): MonsterAttack | null {
     };
 }
 
+function migrateGameConfiguration(value: unknown): unknown {
+    if (!isRecord(value) || value.version !== 1 || !Array.isArray(value.monsters)) {
+        return value;
+    }
+
+    const defaultHealPattern = MONSTERS.find((monster) => monster.id === "priest")?.attacks[0]
+        .pattern;
+    const monsters = value.monsters.map((monster) => {
+        if (!isRecord(monster) || monster.id !== "priest" || !Array.isArray(monster.attacks)) {
+            return monster;
+        }
+
+        const [healAttack, ...otherAttacks] = monster.attacks;
+        if (
+            !isRecord(healAttack) ||
+            healAttack.name !== "Soin" ||
+            !isRecord(healAttack.pattern) ||
+            healAttack.pattern.type !== "line" ||
+            healAttack.pattern.range !== 4 ||
+            healAttack.pattern.allDirections !== true ||
+            healAttack.pattern.minRange !== undefined ||
+            healAttack.pattern.length !== undefined ||
+            !defaultHealPattern
+        ) {
+            return monster;
+        }
+
+        return {
+            ...monster,
+            attacks: [{ ...healAttack, pattern: { ...defaultHealPattern } }, ...otherAttacks],
+        };
+    });
+
+    return { ...value, version: GAME_CONFIGURATION_VERSION, monsters };
+}
+
 export function parseMonsterConfiguration(value: unknown, expectedId?: string): Monster | null {
     if (
         !isRecord(value) ||
@@ -258,21 +294,22 @@ export function parseMonsterConfiguration(value: unknown, expectedId?: string): 
 }
 
 export function parseGameConfiguration(value: unknown): GameConfiguration | null {
+    const migratedValue = migrateGameConfiguration(value);
     if (
-        !isRecord(value) ||
-        value.version !== GAME_CONFIGURATION_VERSION ||
-        !isIntegerInRange(value.diceCount, 1, MAX_DICE_COUNT) ||
-        typeof value.randomBoard !== "boolean" ||
-        (value.testBoard !== undefined && typeof value.testBoard !== "boolean") ||
-        !isIntegerInRange(value.initialPlayerHealth, 1, 20) ||
-        !isIntegerInRange(value.maxMonstersPerPlayer, 1, 20) ||
-        !Array.isArray(value.monsters) ||
-        value.monsters.length !== MONSTERS.length
+        !isRecord(migratedValue) ||
+        migratedValue.version !== GAME_CONFIGURATION_VERSION ||
+        !isIntegerInRange(migratedValue.diceCount, 1, MAX_DICE_COUNT) ||
+        typeof migratedValue.randomBoard !== "boolean" ||
+        (migratedValue.testBoard !== undefined && typeof migratedValue.testBoard !== "boolean") ||
+        !isIntegerInRange(migratedValue.initialPlayerHealth, 1, 20) ||
+        !isIntegerInRange(migratedValue.maxMonstersPerPlayer, 1, 20) ||
+        !Array.isArray(migratedValue.monsters) ||
+        migratedValue.monsters.length !== MONSTERS.length
     ) {
         return null;
     }
 
-    const parsedMonsters = value.monsters.map((monster, index) =>
+    const parsedMonsters = migratedValue.monsters.map((monster, index) =>
         parseMonsterConfiguration(monster, MONSTERS[index].id),
     );
     if (
@@ -285,11 +322,11 @@ export function parseGameConfiguration(value: unknown): GameConfiguration | null
 
     return {
         version: GAME_CONFIGURATION_VERSION,
-        diceCount: value.diceCount,
-        randomBoard: value.randomBoard,
-        testBoard: value.testBoard === true,
-        initialPlayerHealth: value.initialPlayerHealth,
-        maxMonstersPerPlayer: value.maxMonstersPerPlayer,
+        diceCount: migratedValue.diceCount,
+        randomBoard: migratedValue.randomBoard,
+        testBoard: migratedValue.testBoard === true,
+        initialPlayerHealth: migratedValue.initialPlayerHealth,
+        maxMonstersPerPlayer: migratedValue.maxMonstersPerPlayer,
         monsters,
     };
 }

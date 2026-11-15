@@ -202,7 +202,7 @@ export abstract class GameHudActionsPanel extends GameHudHistory {
         });
 
         this.addText(
-            "RÉSERVES · Clique 2 symboles pour en obtenir 1",
+            "RÉSERVES · 2 → 1",
             diceStartX,
             682,
             "#ffffff",
@@ -247,35 +247,73 @@ export abstract class GameHudActionsPanel extends GameHudHistory {
                 );
             }
         }
-        this.renderReserveConversion(state, actions);
+        this.renderReserveConversion(state, actions, diceStartX);
     }
 
-    protected renderReserveConversion(state: GameViewState, actions: GameHudActions): void {
+    protected renderReserveConversion(
+        state: GameViewState,
+        actions: GameHudActions,
+        diceStartX: number,
+    ): void {
         if (state.actionMode.type !== "convertSymbols") return;
 
-        const rightX = getHudRightX(this.scene);
-        const hasTwoSymbols = state.actionMode.selectedSymbols.length === 2;
-        const instruction = this.addRightInstruction(
-            hasTwoSymbols
-                ? "Choisis le symbole obtenu (2 → 1)"
-                : "Choisis un deuxième symbole dans ta réserve",
-            ACTION_PANEL_Y,
+        const selectedSymbols = state.actionMode.selectedSymbols;
+        const hasTwoSymbols = selectedSymbols.length === 2;
+        const reserveTopY = 704;
+        const controlsX = diceStartX + 40 + DICE_SYMBOLS.length * 78 + 8;
+        this.addText(
+            hasTwoSymbols ? "CHOISIS LE RÉSULTAT" : "CHOISIS UN 2E SYMBOLE",
+            controlsX,
+            reserveTopY - 19,
+            "#f1cf65",
+            11,
         );
-        let controlsY = ACTION_PANEL_Y + instruction.height + 8;
+
+        const targetSymbols = DICE_SYMBOLS.filter(
+            (symbol) => !selectedSymbols.includes(symbol),
+        );
+        let cancelX = controlsX;
         if (hasTwoSymbols) {
-            for (const symbol of DICE_SYMBOLS) {
-                this.addButton(
-                    `${DICE_SYMBOL_PRESENTATION[symbol].emoji} ${DICE_SYMBOL_PRESENTATION[symbol].label}`,
-                    rightX,
-                    controlsY,
-                    () => actions.chooseReserveConversionTarget(symbol),
-                    { rightAligned: true },
+            targetSymbols.forEach((symbol, index) => {
+                const x = controlsX + index * 56;
+                const y = reserveTopY;
+                const background = this.scene.add
+                    .rectangle(x, y, 50, 50, 0x2a3644, 1)
+                    .setOrigin(0)
+                    .setStrokeStyle(2, 0xf1cf65);
+                background.setInteractive({ useHandCursor: true });
+                background.on("pointerover", () => background.setFillStyle(0x51482d, 1));
+                background.on("pointerout", () => background.setFillStyle(0x2a3644, 1));
+                background.on(
+                    "pointerdown",
+                    (
+                        _pointer: Phaser.Input.Pointer,
+                        _localX: number,
+                        _localY: number,
+                        event: Phaser.Types.Input.EventData,
+                    ) => {
+                        event.stopPropagation();
+                        actions.chooseReserveConversionTarget(symbol);
+                    },
                 );
-                controlsY += 38;
-            }
+                this.container.add(background);
+
+                const icon = this.scene.add
+                    .text(x + 25, y + 25, DICE_SYMBOL_PRESENTATION[symbol].emoji, {
+                        fontFamily: "Arial",
+                        fontSize: "28px",
+                    })
+                    .setOrigin(0.5);
+                this.container.add(icon);
+            });
+            cancelX += targetSymbols.length * 56 + 8;
         }
-        this.addButton("ANNULER", rightX, controlsY, actions.cancelBoardAction, {
-            rightAligned: true,
+
+        this.addButton("ANNULER", cancelX, reserveTopY, actions.cancelBoardAction, {
+            uniformSize: true,
+            centerVertically: true,
+            width: 96,
+            height: 50,
         });
     }
 

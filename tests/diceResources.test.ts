@@ -98,10 +98,20 @@ describe("réserve et dépense des symboles", () => {
         expect(reserve).toEqual({ invocation: 1, attack: 0, movement: 0 });
 
         reserve.invocation++;
-        expect(convertReservedSymbols(reserve, ["invocation", "invocation"], "invocation")).toBe(
-            true,
-        );
-        expect(reserve).toEqual({ invocation: 1, attack: 0, movement: 0 });
+        expect(
+            convertReservedSymbols(reserve, ["invocation", "invocation"], "invocation"),
+        ).toBe(false);
+        expect(reserve).toEqual({ invocation: 2, attack: 0, movement: 0 });
+        expect(convertReservedSymbols(reserve, ["invocation", "invocation"], "attack")).toBe(true);
+        expect(reserve).toEqual({ invocation: 0, attack: 1, movement: 0 });
+    });
+
+    it("refuse un symbole source comme résultat après une conversion mixte", () => {
+        const reserve = { invocation: 0, attack: 1, movement: 1 };
+
+        expect(convertReservedSymbols(reserve, ["attack", "movement"], "attack")).toBe(false);
+        expect(convertReservedSymbols(reserve, ["attack", "movement"], "movement")).toBe(false);
+        expect(reserve).toEqual({ invocation: 0, attack: 1, movement: 1 });
     });
 
     it("stocke automatiquement tous les dés disponibles à la fin du tour", () => {

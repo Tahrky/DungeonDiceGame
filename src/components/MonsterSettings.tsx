@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import { UnsavedChangesDialog, useBeforeUnloadWarning } from "./UnsavedChangesDialog";
 import {
     GAME_CONFIGURATION_STORAGE_KEY,
     parseGameConfiguration,
@@ -24,14 +25,28 @@ export function MonsterSettings({
     onSave,
 }: MonsterSettingsProps) {
     const [configuration, setConfiguration] = useState(initialConfiguration);
+    const [savedConfiguration, setSavedConfiguration] = useState(initialConfiguration);
     const [selectedMonsterId, setSelectedMonsterId] = useState(initialConfiguration.monsters[0].id);
     const [monsterJson, setMonsterJson] = useState(() =>
         serializeMonster(initialConfiguration.monsters[0]),
     );
     const [notice, setNotice] = useState("");
+    const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
     const selectedMonster = configuration.monsters.find(
         (monster) => monster.id === selectedMonsterId,
     );
+    const isDirty =
+        serializeGameConfiguration(configuration) !==
+            serializeGameConfiguration(savedConfiguration) || hasUnappliedMonsterJson();
+    useBeforeUnloadWarning(isDirty);
+
+    function requestBack(): void {
+        if (isDirty) {
+            setShowUnsavedDialog(true);
+            return;
+        }
+        onBack();
+    }
 
     function hasUnappliedMonsterJson(): boolean {
         return selectedMonster !== undefined && monsterJson !== serializeMonster(selectedMonster);
@@ -62,15 +77,15 @@ export function MonsterSettings({
         setNotice("Profil appliqué. Enregistrez pour conserver les changements.");
     }
 
-    function saveConfiguration(): void {
+    function saveConfiguration(): boolean {
         if (hasUnappliedMonsterJson()) {
             setNotice("Appliquez les modifications du profil sélectionné avant d’enregistrer.");
-            return;
+            return false;
         }
         const validConfiguration = parseGameConfiguration(configuration);
         if (!validConfiguration) {
             setNotice("La configuration contient des valeurs invalides.");
-            return;
+            return false;
         }
         try {
             localStorage.setItem(
@@ -79,16 +94,27 @@ export function MonsterSettings({
             );
         } catch {
             setNotice("Impossible d’enregistrer la configuration dans ce navigateur.");
-            return;
+            return false;
         }
         onSave(validConfiguration);
+        setConfiguration(validConfiguration);
+        setSavedConfiguration(validConfiguration);
         setNotice("Configuration des monstres enregistrée sur cet appareil.");
+        return true;
+    }
+
+    function saveAndLeave(): void {
+        if (saveConfiguration()) {
+            onBack();
+        } else {
+            setShowUnsavedDialog(false);
+        }
     }
 
     return (
         <section id="menu-screen">
             <section id="monster-settings" className="menu-panel">
-                <button className="back-button" onClick={onBack}>
+                <button className="back-button" onClick={requestBack}>
                     ← Retour aux options
                 </button>
                 <p className="eyebrow">PROFILS DE MONSTRES</p>
@@ -153,6 +179,13 @@ export function MonsterSettings({
                     {notice}
                 </output>
             </section>
+            {showUnsavedDialog && (
+                <UnsavedChangesDialog
+                    onSave={saveAndLeave}
+                    onDiscard={onBack}
+                    onCancel={() => setShowUnsavedDialog(false)}
+                />
+            )}
         </section>
     );
 }

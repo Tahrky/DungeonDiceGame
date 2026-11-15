@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 
+import { UnsavedChangesDialog, useBeforeUnloadWarning } from "./UnsavedChangesDialog";
 import {
     GAME_CONFIGURATION_STORAGE_KEY,
     MAX_DICE_COUNT,
@@ -20,8 +21,22 @@ export function GameSettings({
     onSave,
 }: GameSettingsProps) {
     const [configuration, setConfiguration] = useState(initialConfiguration);
+    const [savedConfiguration, setSavedConfiguration] = useState(initialConfiguration);
     const [notice, setNotice] = useState("");
+    const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const isDirty =
+        serializeGameConfiguration(configuration) !==
+        serializeGameConfiguration(savedConfiguration);
+    useBeforeUnloadWarning(isDirty);
+
+    function requestBack(): void {
+        if (isDirty) {
+            setShowUnsavedDialog(true);
+            return;
+        }
+        onBack();
+    }
 
     function updateNumber(
         key: "diceCount" | "initialPlayerHealth" | "maxMonstersPerPlayer",
@@ -35,11 +50,11 @@ export function GameSettings({
         setConfiguration((current) => ({ ...current, [key]: boundedValue }));
     }
 
-    function saveConfiguration(): void {
+    function saveConfiguration(): boolean {
         const validConfiguration = parseGameConfiguration(configuration);
         if (!validConfiguration) {
             setNotice("La configuration contient des valeurs invalides.");
-            return;
+            return false;
         }
         try {
             localStorage.setItem(
@@ -48,10 +63,21 @@ export function GameSettings({
             );
         } catch {
             setNotice("Impossible d’enregistrer la configuration dans ce navigateur.");
-            return;
+            return false;
         }
         onSave(validConfiguration);
+        setConfiguration(validConfiguration);
+        setSavedConfiguration(validConfiguration);
         setNotice("Configuration enregistrée sur cet appareil.");
+        return true;
+    }
+
+    function saveAndLeave(): void {
+        if (saveConfiguration()) {
+            onBack();
+        } else {
+            setShowUnsavedDialog(false);
+        }
     }
 
     function exportConfiguration(): void {
@@ -96,7 +122,7 @@ export function GameSettings({
     return (
         <section id="menu-screen">
             <section id="game-settings" className="menu-panel">
-                <button className="back-button" onClick={onBack}>
+                <button className="back-button" onClick={requestBack}>
                     ← Retour aux options
                 </button>
                 <p className="eyebrow">RÈGLES PERSONNALISÉES</p>
@@ -220,6 +246,13 @@ export function GameSettings({
                     {notice}
                 </output>
             </section>
+            {showUnsavedDialog && (
+                <UnsavedChangesDialog
+                    onSave={saveAndLeave}
+                    onDiscard={onBack}
+                    onCancel={() => setShowUnsavedDialog(false)}
+                />
+            )}
         </section>
     );
 }

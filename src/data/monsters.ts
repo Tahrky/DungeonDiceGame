@@ -83,7 +83,7 @@ export const MONSTERS: Monster[] = [
         symbol: "BK",
         color: 0x111111,
         cost: 4,
-        hp: 6,
+        hp: 8,
         attacks: [
             {
                 name: "Corps à corps",
@@ -159,14 +159,14 @@ export const MONSTERS: Monster[] = [
         name: "Prêtre",
         symbol: "P",
         color: 0x54b8e8,
-        cost: 6,
+        cost: 4,
         hp: 5,
         attacks: [
             {
                 name: "Soin",
                 damage: 0,
-                cost: 2,
-                pattern: { type: "line", range: 4, allDirections: true },
+                cost: 1,
+                pattern: { type: "radius", range: 4 },
                 targetsAlliesOnly: true,
                 healAmount: 3,
                 usesPerTurn: 1,
@@ -174,7 +174,7 @@ export const MONSTERS: Monster[] = [
             {
                 name: "Récupération de sorts",
                 damage: 0,
-                cost: 3,
+                cost: 2,
                 pattern: { type: "radius", range: 3 },
                 animation: "alternativeAttack1",
                 targetsAlliesOnly: true,

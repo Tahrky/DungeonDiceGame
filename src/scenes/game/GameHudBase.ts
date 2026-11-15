@@ -32,6 +32,7 @@ export interface ButtonOptions {
     rightAligned?: boolean;
     muted?: boolean;
     uniformSize?: boolean;
+    centerVertically?: boolean;
     width?: number;
     height?: number;
 }
@@ -358,9 +359,11 @@ export abstract class GameHudBase {
             rightAligned = false,
             muted = false,
             uniformSize = false,
+            centerVertically = false,
             width = HUD_BUTTON_WIDTH,
             height = HUD_BUTTON_HEIGHT,
         } = options;
+        const verticalPadding = centerVertically ? Math.max(0, Math.floor((height - 18) / 2)) : 7;
         let color = "#ffffff";
         let backgroundColor = "#a45e39";
         if (!enabled) {
@@ -376,7 +379,7 @@ export abstract class GameHudBase {
             color,
             backgroundColor,
             align: uniformSize ? "center" : "left",
-            padding: uniformSize ? { x: 6, y: 7 } : { x: 10, y: 8 },
+            padding: uniformSize ? { x: 6, y: verticalPadding } : { x: 10, y: 8 },
         });
         if (uniformSize) button.setFixedSize(width, height);
         if (rightAligned) button.setOrigin(1, 0);

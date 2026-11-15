@@ -77,6 +77,7 @@ export function convertReservedSymbols(
     if (selectedSymbols.length !== 2) return false;
     const [firstSymbol, secondSymbol] = selectedSymbols;
     if (!firstSymbol || !secondSymbol) return false;
+    if (selectedSymbols.includes(targetSymbol)) return false;
     if (firstSymbol === secondSymbol) {
         if (reserve[firstSymbol] < 2) return false;
     } else if (reserve[firstSymbol] < 1 || reserve[secondSymbol] < 1) {
