@@ -213,9 +213,9 @@ export abstract class GameHudBase {
         const camera = this.scene.cameras.main;
         const center = camera.getWorldPoint(this.scene.scale.width / 2, 0);
         ([1, 2] as const).forEach((player) => {
-            const width = 260;
-            const height = 122;
-            const gap = 20;
+            const width = 200;
+            const height = 110;
+            const gap = 190;
             const x =
                 player === 1
                     ? center.x - width - gap / 2

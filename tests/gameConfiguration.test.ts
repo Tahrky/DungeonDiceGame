@@ -21,7 +21,29 @@ describe("configuration des règles de partie", () => {
         expect(
             parseGameConfiguration(JSON.parse(serializeGameConfiguration(configuration))),
         ).toEqual(configuration);
+        expect(configuration.monsters.find((monster) => monster.id === "ghost")?.canPassHostiles)
+            .toBe(true);
+        expect(configuration.monsters.find((monster) => monster.id === "spectre")?.canPassHostiles)
+            .toBe(true);
         expect(MONSTERS.find((monster) => monster.id === "frost-mage")?.hp).toBe(5);
+    });
+
+    it("conserve la capacité de traversée dans les anciennes configurations de monstres", () => {
+        const configuration = JSON.parse(
+            serializeGameConfiguration(getDefaultGameConfiguration()),
+        ) as ReturnType<typeof getDefaultGameConfiguration>;
+        for (const monster of configuration.monsters) {
+            delete monster.canPassHostiles;
+        }
+
+        const parsed = parseGameConfiguration(configuration);
+
+        expect(parsed?.monsters.find((monster) => monster.id === "ghost")?.canPassHostiles).toBe(
+            true,
+        );
+        expect(parsed?.monsters.find((monster) => monster.id === "spectre")?.canPassHostiles).toBe(
+            true,
+        );
     });
 
     it("désactive le plateau de test par défaut et accepte les anciennes configurations", () => {

@@ -5,6 +5,7 @@ import {
     canUseActionThisTurn,
     canAttackBaseThisTurn,
     canAttackMonster,
+    canPassHostileMonsters,
     canTargetMonsterOwner,
     canMoveMonsterTo,
     canUseMonsterAttackThisTurn,
@@ -455,6 +456,40 @@ describe("portée des actions de monstre", () => {
 
         expect(canMoveMonsterTo(movement(destination))).toBe(true);
         expect(canMoveMonsterTo(movement(enemy))).toBe(false);
+    });
+
+    it("permet au Fantôme et au Spectre de traverser un ennemi sans s'y arrêter", () => {
+        const ghost = MONSTERS.find((monster) => monster.id === "ghost");
+        const spectre = MONSTERS.find((monster) => monster.id === "spectre");
+        const thief = MONSTERS.find((monster) => monster.id === "thief");
+        const source = { x: 1, y: 1 };
+        const enemy = { x: 2, y: 1 };
+        const destination = { x: 3, y: 1 };
+        const movement = (
+            canPassHostiles: boolean,
+            target: Position,
+        ): Parameters<typeof canMoveMonsterTo>[0] => ({
+            source,
+            destination: target,
+            deployedCells: [enemy, destination],
+            occupiedCells: [enemy],
+            blockedCells: [],
+            range: 2,
+            hostileCells: [enemy],
+            canPassHostiles,
+        });
+
+        if (!ghost || !spectre || !thief) throw new Error("Profils de test indisponibles.");
+
+        for (const monster of [ghost, spectre]) {
+            expect(canPassHostileMonsters(monster)).toBe(true);
+            expect(canMoveMonsterTo(movement(canPassHostileMonsters(monster), destination))).toBe(
+                true,
+            );
+            expect(canMoveMonsterTo(movement(canPassHostileMonsters(monster), enemy))).toBe(false);
+        }
+        expect(canPassHostileMonsters(thief)).toBe(false);
+        expect(canMoveMonsterTo(movement(canPassHostileMonsters(thief), destination))).toBe(false);
     });
 
     it("refuse les déplacements trop longs, hors dés ou vers une case bloquée", () => {

@@ -248,6 +248,10 @@ function migrateGameConfiguration(value: unknown): unknown {
 }
 
 export function parseMonsterConfiguration(value: unknown, expectedId?: string): Monster | null {
+    const defaultMonster =
+        isRecord(value) && typeof value.id === "string"
+            ? MONSTERS.find((monster) => monster.id === value.id)
+            : undefined;
     if (
         !isRecord(value) ||
         typeof value.id !== "string" ||
@@ -283,6 +287,7 @@ export function parseMonsterConfiguration(value: unknown, expectedId?: string): 
             !isIntegerInRange(value.movementActionsPerTurn, 1, 10)) ||
         (value.movementCost !== undefined && !isIntegerInRange(value.movementCost, 0, 20)) ||
         (value.flying !== undefined && typeof value.flying !== "boolean") ||
+        (value.canPassHostiles !== undefined && typeof value.canPassHostiles !== "boolean") ||
         (value.bonusDamageFromBehind !== undefined &&
             !isIntegerInRange(value.bonusDamageFromBehind, 0, 50))
     ) {
@@ -295,6 +300,10 @@ export function parseMonsterConfiguration(value: unknown, expectedId?: string): 
         typeof value.movementActionsPerTurn === "number" ? value.movementActionsPerTurn : undefined;
     const movementCost = typeof value.movementCost === "number" ? value.movementCost : undefined;
     const flying = typeof value.flying === "boolean" ? value.flying : undefined;
+    const canPassHostiles =
+        typeof value.canPassHostiles === "boolean"
+            ? value.canPassHostiles
+            : defaultMonster?.canPassHostiles;
     const bonusDamageFromBehind =
         typeof value.bonusDamageFromBehind === "number" ? value.bonusDamageFromBehind : undefined;
 
@@ -311,6 +320,7 @@ export function parseMonsterConfiguration(value: unknown, expectedId?: string): 
         ...(movementActionsPerTurn === undefined ? {} : { movementActionsPerTurn }),
         ...(movementCost === undefined ? {} : { movementCost }),
         ...(flying === undefined ? {} : { flying }),
+        ...(canPassHostiles === undefined ? {} : { canPassHostiles }),
         ...(bonusDamageFromBehind === undefined ? {} : { bonusDamageFromBehind }),
     };
 }

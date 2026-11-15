@@ -2,7 +2,18 @@ import { GameSceneCombat } from "./GameSceneCombat";
 import Phaser from "phaser";
 import { getAvailableSymbolCount, storeRemainingDice } from "../game/diceResources";
 import { isBoardCell } from "../game/boards";
-import { advanceAttackCooldowns, canUseActionThisTurn, getFacingFromMovement, getGridDistance, getInitialAttackUses, getMovementActionsPerTurn, getMovementCost, getMonsterMovementPath, type MovementOptions } from "../game/monsterActions";
+import {
+    advanceAttackCooldowns,
+    canPassHostileMonsters,
+    canUseActionThisTurn,
+    getFacingFromMovement,
+    getGridDistance,
+    getInitialAttackUses,
+    getMonsterMovementPath,
+    getMovementActionsPerTurn,
+    getMovementCost,
+    type MovementOptions,
+} from "../game/monsterActions";
 import { ACTION_LOG_VISIBLE_COUNT } from "./game/GameHudBase";
 import type { PlacedMonster, Position } from "../types/GameTypes";
 
@@ -110,7 +121,7 @@ export abstract class GameSceneMovement extends GameSceneCombat {
             ],
             range: monster.monster.movementRange,
             hostileCells,
-            canPassHostiles: monster.monster.flying === true,
+            canPassHostiles: canPassHostileMonsters(monster.monster),
             boardWidth: this.board.width,
             boardHeight: this.board.height,
         };

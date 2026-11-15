@@ -128,6 +128,7 @@ export interface Monster {
     movementActionsPerTurn?: number;
     movementCost?: number;
     flying?: boolean;
+    canPassHostiles?: boolean;
     bonusDamageFromBehind?: number;
 }
 

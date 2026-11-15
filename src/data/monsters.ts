@@ -75,6 +75,35 @@ export const MONSTERS: Monster[] = [
         ],
         movementRange: 2,
         movementCost: 0,
+        canPassHostiles: true,
+    },
+
+    {
+        id: "spectre",
+        name: "Spectre",
+        symbol: "Sp",
+        color: 0x8E10DE,
+        cost: 2,
+        hp: 3,
+        attacks: [
+            {
+                name: "Matière nébuleuse",
+                damage: 2,
+                cost: 2,
+                pattern: { type: "selfRadius", range: 2 },
+                hitsAllies: true,
+                animation: "alternativeAttack1",
+            },
+            {
+                name: "Coup au corps à corps",
+                damage: 1,
+                cost: 1,
+                pattern: { type: "radius", range: 2},
+            },
+        ],
+        movementRange: 2,
+        movementCost: 0,
+        canPassHostiles: true,
     },
 
     {

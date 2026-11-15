@@ -107,6 +107,12 @@ export function getMovementCost(monster: Pick<Monster, "movementCost">): number 
     return monster.movementCost ?? 1;
 }
 
+export function canPassHostileMonsters(
+    monster: Pick<Monster, "flying" | "canPassHostiles">,
+): boolean {
+    return monster.flying === true || monster.canPassHostiles === true;
+}
+
 export function getMovementActionsPerTurn(
     monster: Pick<Monster, "movementActionsPerTurn">,
 ): number {
