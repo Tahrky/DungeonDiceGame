@@ -11,7 +11,14 @@ import {
     serializeDeck,
 } from "../game/decks";
 import { getSavedGameConfiguration } from "../game/gameConfiguration";
-import { describeMonsterAttack, describeMonsterMovement } from "../game/monsterDescriptions";
+import { DICE_SYMBOL_PRESENTATION } from "../data/dice";
+import {
+    describeMonsterAttack,
+    describeMonsterMovement,
+    describeMonsterTraits,
+    formatCost,
+    formatHitPoints,
+} from "../game/monsterDescriptions";
 
 import type { Monster } from "../types/GameTypes";
 interface DeckEditorProps {
@@ -218,7 +225,10 @@ export function DeckEditor({ onBack }: DeckEditorProps) {
                                 <span>
                                     <strong>{monster.name}</strong>
                                     <small>
-                                        Coût {monster.cost} · {monster.hp} PV
+                                        {formatCost(
+                                            monster.cost,
+                                            DICE_SYMBOL_PRESENTATION.invocation.emoji,
+                                        )} {formatHitPoints(monster.hp)}
                                     </small>
                                 </span>
                             </button>
@@ -235,12 +245,16 @@ export function DeckEditor({ onBack }: DeckEditorProps) {
                             <MonsterIdlePreview monster={hoveredMonster.monster} />
                             <div>
                                 <strong>{hoveredMonster.monster.name}</strong>
-                                {hoveredMonster.monster.flying && <small>Volant</small>}
+                                {describeMonsterTraits(hoveredMonster.monster).map((trait) => (
+                                    <small key={trait}>{trait}</small>
+                                ))}
                             </div>
                         </div>
                         <p>
-                            Invocation : {hoveredMonster.monster.cost} · PV :{" "}
-                            {hoveredMonster.monster.hp}
+                            {formatCost(
+                                hoveredMonster.monster.cost,
+                                DICE_SYMBOL_PRESENTATION.invocation.emoji,
+                            )} {formatHitPoints(hoveredMonster.monster.hp)}
                         </p>
                         <div className="monster-info-attacks">
                             {hoveredMonster.monster.attacks.map((attack) => (

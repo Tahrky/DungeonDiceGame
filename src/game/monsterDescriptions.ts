@@ -1,7 +1,38 @@
 import { DICE_SYMBOL_PRESENTATION } from "../data/dice";
-import { getMovementActionsPerTurn, getMovementCost } from "./monsterActions";
+import {
+    getAttackActionsPerTurn,
+    getMovementActionsPerTurn,
+    getMovementCost,
+} from "./monsterActions";
 
-import type { AttackPattern, Monster, MonsterAttack } from "../types/GameTypes";
+import type {
+    AttackPattern,
+    Monster,
+    MonsterAttack,
+    MonsterStatusEffect,
+} from "../types/GameTypes";
+
+export function describeMonsterStatusEffect(effect: MonsterStatusEffect): string {
+    if (effect.type === "damageOverTime") return `-${effect.damagePerTurn} PV / Tour`;
+    return "";
+}
+
+export function formatCost(cost: number, symbol: string): string {
+    return `${cost} ${symbol}`;
+}
+
+export function formatHitPoints(hitPoints: number): string {
+    return `${hitPoints} PV`;
+}
+
+export function describeMonsterTraits(monster: Monster): string[] {
+    const traits: string[] = [];
+    if (monster.canPassHostiles) traits.push("Fantomatique");
+    if (monster.flying) traits.push("Volant");
+    const attacksPerTurn = getAttackActionsPerTurn(monster);
+    if (attacksPerTurn > 1) traits.push(`${attacksPerTurn} attaques par tour`);
+    return traits;
+}
 
 export function getAttackPatternDescription(pattern: AttackPattern): string {
     switch (pattern.type) {
@@ -52,8 +83,10 @@ export function describeMonsterAttack(attack: MonsterAttack): string {
             ? `soigne ${attack.healAmount} PV`
             : attack.cooldownReduction !== undefined
               ? `réduit les recharges de ${attack.cooldownReduction} tour${attack.cooldownReduction === 1 ? "" : "s"}`
-              : `${attack.damage} dégâts`;
-    return `${attack.name} : ${effect}, ${attack.cost} ⚔️ (${getAttackPatternDescription(
+              : attack.statusEffect?.type === "damageOverTime"
+                ? `${attack.damage} dégât initial, puis ${attack.statusEffect.damagePerTurn} dégâts au début du tour de la cible (${attack.statusEffect.duration === "untilDeath" ? "jusqu'à sa mort" : `${attack.statusEffect.duration} tour${attack.statusEffect.duration === 1 ? "" : "s"}`})`
+                : `${attack.damage} dégâts`;
+    return `${formatCost(attack.cost, DICE_SYMBOL_PRESENTATION.attack.emoji)} ${attack.name} : ${effect} (${getAttackPatternDescription(
         attack.pattern,
     )}${special}${friendlyFire}${targetRestriction}${usesPerTurn})${cooldown}`;
 }
@@ -62,5 +95,9 @@ export function describeMonsterMovement(monster: Monster): string {
     const actionsPerTurn = getMovementActionsPerTurn(monster);
     const actionCount =
         actionsPerTurn === 1 ? "" : `, ${actionsPerTurn} déplacements par tour`;
-    return `Déplacement : ${monster.movementRange} cases, coût : ${getMovementCost(monster)} ${DICE_SYMBOL_PRESENTATION.movement.emoji}${actionCount}`;
+    const cost = formatCost(
+        getMovementCost(monster),
+        DICE_SYMBOL_PRESENTATION.movement.emoji,
+    );
+    return `${cost} Déplacement : ${monster.movementRange} cases${actionCount}`;
 }

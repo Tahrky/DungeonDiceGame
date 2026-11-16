@@ -424,7 +424,10 @@ export abstract class GameSceneState extends Phaser.Scene {
         this.patternSelectorExpanded = value.patternSelectorExpanded;
         this.invocationMenuOpen = value.invocationMenuOpen;
         this.pendingCells = value.pendingCells;
-        this.placedMonsters = value.placedMonsters;
+        this.placedMonsters = value.placedMonsters.map((monster) => ({
+            ...monster,
+            statusEffects: monster.statusEffects ?? [],
+        }));
         this.obstacles = value.obstacles;
         this.actionHistory = value.actionHistory;
         this.actionHistoryScrollOffset = value.actionHistoryScrollOffset;

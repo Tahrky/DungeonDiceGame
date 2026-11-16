@@ -61,6 +61,7 @@ export abstract class GameSceneComputer extends GameSceneMovement {
                     attackUsesThisTurn: getInitialAttackUses(monster),
                     movementsUsedThisTurn: 0,
                     attackCooldowns: getInitialAttackCooldowns(monster),
+                    statusEffects: [],
                 });
                 this.recordAction({
                     type: "invocation",

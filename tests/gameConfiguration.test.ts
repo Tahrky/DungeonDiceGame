@@ -190,6 +190,73 @@ describe("configuration des règles de partie", () => {
         ).toBeNull();
     });
 
+    it("préserve la durée et la couleur des effets de dégâts périodiques", () => {
+        const configuration = getDefaultGameConfiguration();
+        const poisonAttack = configuration.monsters.find((monster) => monster.id === "swamp-thing")
+            ?.attacks[0];
+
+        expect(poisonAttack).toMatchObject({
+            damage: 0,
+            statusEffect: {
+                type: "damageOverTime",
+                damagePerTurn: 2,
+                duration: "untilDeath",
+                color: "green",
+            },
+        });
+        expect(
+            parseGameConfiguration(
+                JSON.parse(serializeGameConfiguration(configuration)),
+            )?.monsters.find((monster) => monster.id === "swamp-thing")?.attacks[0].statusEffect
+                ?.duration,
+        ).toBe("untilDeath");
+
+        for (const color of ["green", "red", "blue", "yellow", "white", "violet", "gray"]) {
+            const parsed = parseMonsterConfiguration(
+                {
+                    ...configuration.monsters.find((monster) => monster.id === "swamp-thing")!,
+                    attacks: [
+                        {
+                            ...poisonAttack!,
+                            statusEffect: { ...poisonAttack!.statusEffect!, color },
+                        },
+                    ],
+                },
+                "swamp-thing",
+            );
+            expect(parsed?.attacks[0].statusEffect?.color).toBe(color);
+        }
+
+        expect(
+            parseMonsterConfiguration(
+                {
+                    ...configuration.monsters.find((monster) => monster.id === "swamp-thing")!,
+                    attacks: [
+                        {
+                            ...poisonAttack!,
+                            statusEffect: { ...poisonAttack!.statusEffect!, duration: 0 },
+                        },
+                    ],
+                },
+                "swamp-thing",
+            ),
+        ).toBeNull();
+        expect(
+            parseMonsterConfiguration(
+                {
+                    ...configuration.monsters.find((monster) => monster.id === "swamp-thing")!,
+                    attacks: [
+                        {
+                            ...poisonAttack!,
+                            statusEffect: { ...poisonAttack!.statusEffect!, color: 0x00ff00 },
+                        },
+                    ],
+                },
+                "swamp-thing",
+            ),
+        ).toBeNull();
+    });
+
     it("refuse les configurations de version ou de limites invalides", () => {
         const configuration = getDefaultGameConfiguration();
         expect(parseGameConfiguration({ ...configuration, version: 4 })).toBeNull();

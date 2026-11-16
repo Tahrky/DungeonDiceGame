@@ -16,7 +16,14 @@ import {
     hasLineOfSight,
     isBehind,
 } from "../game/monsterActions";
-import type { DiceSymbol, Monster, PlayerId, PlacedMonster, Position } from "../types/GameTypes";
+import type {
+    DiceSymbol,
+    Monster,
+    PlayerId,
+    PlacedMonster,
+    Position,
+    StatusEffectDefinition,
+} from "../types/GameTypes";
 import { getMonsterEliminationWinner } from "../game/matchRules";
 
 export abstract class GameSceneCombat extends GameSceneInvocation {
@@ -282,7 +289,14 @@ export abstract class GameSceneCombat extends GameSceneInvocation {
                 canAttackMonster(attacker.monster, attack, monster.monster)
             ) {
                 monster.currentHp -= attack.damage;
-                this.monsterSpriteView.takeDamage(monster.id, monster.currentHp, monster.position);
+                this.applyAttackStatusEffect(monster, attack.statusEffect);
+                if (attack.damage > 0) {
+                    this.monsterSpriteView.takeDamage(
+                        monster.id,
+                        monster.currentHp,
+                        monster.position,
+                    );
+                }
                 this.recordAttack(
                     attacker,
                     `${monster.monster.name} (J${monster.owner})`,
@@ -328,9 +342,28 @@ export abstract class GameSceneCombat extends GameSceneInvocation {
         const backstabBonus = attacker.monster.bonusDamageFromBehind ?? 0;
         const damage = attack.damage + (isBackstab ? backstabBonus : 0);
         target.currentHp -= damage;
-        this.monsterSpriteView.takeDamage(target.id, target.currentHp, target.position);
+        this.applyAttackStatusEffect(target, attack.statusEffect);
+        if (damage > 0) {
+            this.monsterSpriteView.takeDamage(target.id, target.currentHp, target.position);
+        }
         this.recordAttack(attacker, `${target.monster.name} (J${target.owner})`, damage);
         this.finishAttack();
+    }
+
+    protected applyAttackStatusEffect(
+        target: PlacedMonster,
+        effect: StatusEffectDefinition | undefined,
+    ): void {
+        if (target.currentHp <= 0) {
+            target.statusEffects = [];
+            return;
+        }
+        if (!effect) return;
+        const appliedEffect = { ...effect, remainingTurns: effect.duration };
+        target.statusEffects = [
+            ...target.statusEffects.filter((status) => status.type !== effect.type),
+            appliedEffect,
+        ];
     }
 
     protected recordAttack(

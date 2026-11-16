@@ -3,14 +3,20 @@ import Phaser from "phaser";
 import { GAME_CONFIG } from "../../config";
 import { DICE_SYMBOL_PRESENTATION } from "../../data/dice";
 import { MONSTER_SPRITES, type MonsterSpriteFacing } from "../../data/monsterSprites";
+import { STATUS_EFFECT_COLORS } from "../../game/statusEffects";
 import {
     describeMonsterAttack,
     describeMonsterMovement,
+    describeMonsterStatusEffect,
+    describeMonsterTraits,
+    formatCost,
+    formatHitPoints,
 } from "../../game/monsterDescriptions";
 
 import type {
     Facing,
     Monster,
+    MonsterStatusEffect,
     PlacedMonster,
     PlayerId,
     Position,
@@ -22,6 +28,7 @@ interface MonsterTooltipOptions {
     readonly hp: number;
     readonly owner: PlayerId;
     readonly attackCooldowns?: readonly number[];
+    readonly statusEffects?: readonly MonsterStatusEffect[];
     readonly x: number;
     readonly y: number;
     readonly alignLeft: boolean;
@@ -81,11 +88,12 @@ export class MonsterTooltip {
         if (hovered) {
             const center = this.toScreen(hovered.position);
             this.show({
-                key: `${hovered.id}:${hovered.position.x},${hovered.position.y}:${hovered.currentHp}:${hovered.attackCooldowns.join(",")}`,
+                key: `${hovered.id}:${hovered.position.x},${hovered.position.y}:${hovered.currentHp}:${hovered.attackCooldowns.join(",")}:${JSON.stringify(hovered.statusEffects)}`,
                 monster: hovered.monster,
                 hp: hovered.currentHp,
                 owner: hovered.owner,
                 attackCooldowns: hovered.attackCooldowns,
+                statusEffects: hovered.statusEffects,
                 x: center.x,
                 y: center.y - 40,
                 alignLeft: false,
@@ -115,8 +123,17 @@ export class MonsterTooltip {
     }
 
     private show(options: MonsterTooltipOptions): void {
-        const { key, monster, hp, owner, attackCooldowns = [], x, y, alignLeft } =
-            options;
+        const {
+            key,
+            monster,
+            hp,
+            owner,
+            attackCooldowns = [],
+            statusEffects = [],
+            x,
+            y,
+            alignLeft,
+        } = options;
         const isNewTooltip = this.hoveredMonsterKey !== key;
         if (isNewTooltip) {
             this.container.removeAll(true);
@@ -133,12 +150,13 @@ export class MonsterTooltip {
             const backstab = monster.bonusDamageFromBehind
                 ? `\nBonus de dos : +${monster.bonusDamageFromBehind} dégâts`
                 : "";
+            const traits = describeMonsterTraits(monster).join(" · ");
             const contentWidth = Math.min(440, GAME_CONFIG.screenWidth - 128);
             const contentX = 104;
             const title = this.scene.add.text(
                 contentX,
                 6,
-                `${monster.name}${monster.flying ? " (volant)" : ""}`,
+                monster.name,
                 {
                     fontFamily: "Arial",
                     fontSize: "16px",
@@ -151,43 +169,79 @@ export class MonsterTooltip {
                 fontSize: "16px",
                 color: owner === 1 ? "#ff8d78" : "#70bdff",
             });
+            const firstLineWidth = title.width + 6 + playerLabel.width;
+            const titleRowBottom = 6 + Math.max(title.height, playerLabel.height);
+            const traitsLabel = traits
+                ? this.scene.add.text(contentX, titleRowBottom + 2, traits, {
+                      fontFamily: "Arial",
+                      fontSize: "14px",
+                      color: "#aab5c2",
+                  })
+                : null;
+            const hpY = traitsLabel ? traitsLabel.y + traitsLabel.height + 2 : titleRowBottom + 3;
             const invocationCost = this.scene.add.text(
-                0,
-                6,
-                `${monster.cost} ${DICE_SYMBOL_PRESENTATION.invocation.emoji}`,
+                contentX,
+                hpY,
+                formatCost(monster.cost, DICE_SYMBOL_PRESENTATION.invocation.emoji),
                 {
                     fontFamily: "Arial",
                     fontSize: "16px",
                     color: "#ffffff",
                 },
             );
-            const firstLineWidth = title.width + 6 + playerLabel.width + 12 + invocationCost.width;
-            invocationCost.setX(contentX + firstLineWidth - invocationCost.width);
-
-            const hpY = 6 + Math.max(title.height, playerLabel.height, invocationCost.height) + 3;
-            const hpLabel = this.scene.add
-                .text(contentX, hpY, "PV : ", {
-                    fontFamily: "Arial",
-                    fontSize: "16px",
-                    color: "#ffffff",
-                })
-                .setPadding(0, 2, 4, 0);
             const currentHp = this.scene.add
-                .text(contentX + hpLabel.width, hpY, `${hp}`, {
+                .text(
+                    invocationCost.x + invocationCost.width + 8,
+                    hpY,
+                    formatHitPoints(hp),
+                    {
+                        fontFamily: "Arial",
+                        fontSize: "14px",
+                        color: hp < monster.hp ? "#ff5555" : "#ffffff",
+                    },
+                )
+                .setPadding(0, 2, 4, 0);
+            const hpSeparator = this.scene.add
+                .text(currentHp.x + currentHp.width + 4, hpY, " / ", {
                     fontFamily: "Arial",
                     fontSize: "14px",
-                    color: hp < monster.hp ? "#ff5555" : "#ffffff",
+                    color: "#ffffff",
                 })
                 .setPadding(0, 2, 4, 0);
             const hpTotal = this.scene.add
-                .text(currentHp.x + currentHp.width, hpY, ` / ${monster.hp}`, {
+                .text(hpSeparator.x + hpSeparator.width, hpY, formatHitPoints(monster.hp), {
                     fontFamily: "Arial",
                     fontSize: "14px",
                     color: "#ffffff",
                 })
                 .setPadding(0, 2, 4, 0);
-            const hpRowWidth = hpLabel.width + currentHp.width + hpTotal.width;
-            const detailsY = hpY + Math.max(hpLabel.height, currentHp.height, hpTotal.height) + 2;
+            let hpRowWidth =
+                invocationCost.width + 8 + currentHp.width + hpSeparator.width + hpTotal.width;
+            let statusX = hpTotal.x + hpTotal.width + 8;
+            const statusLabels = statusEffects.map((effect) => {
+                const label = this.scene.add.text(
+                    statusX,
+                    hpY,
+                    describeMonsterStatusEffect(effect),
+                    {
+                        fontFamily: "Arial",
+                        fontSize: "14px",
+                        color: `#${STATUS_EFFECT_COLORS[effect.color].toString(16).padStart(6, "0")}`,
+                    },
+                );
+                statusX = label.x + label.width + 8;
+                hpRowWidth = Math.max(hpRowWidth, label.x + label.width - contentX);
+                return label;
+            });
+            const detailsY =
+                hpY +
+                Math.max(
+                    currentHp.height,
+                    hpSeparator.height,
+                    hpTotal.height,
+                    ...statusLabels.map((label) => label.height),
+                ) +
+                2;
             const details = this.scene.add.text(
                 contentX,
                 detailsY,
@@ -202,9 +256,8 @@ export class MonsterTooltip {
             );
             const textWidth = Math.min(
                 contentWidth,
-                Math.max(firstLineWidth, hpRowWidth, details.width),
+                Math.max(firstLineWidth, hpRowWidth, traitsLabel?.width ?? 0, details.width),
             );
-            invocationCost.setX(contentX + textWidth - invocationCost.width);
             const width = contentX + textWidth;
             const tooltipVerticalPadding =
                 MONSTER_SPRITES[monster.id]?.tooltipVerticalPadding ?? 32;
@@ -234,9 +287,11 @@ export class MonsterTooltip {
                 title,
                 playerLabel,
                 invocationCost,
-                hpLabel,
+                ...(traitsLabel ? [traitsLabel] : []),
                 currentHp,
+                hpSeparator,
                 hpTotal,
+                ...statusLabels,
                 details,
             ]);
             this.container.setSize(background.width, background.height);

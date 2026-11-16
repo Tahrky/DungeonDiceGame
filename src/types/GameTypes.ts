@@ -102,6 +102,7 @@ export interface MonsterAttack {
     damage: number;
     cost: number;
     pattern: AttackPattern;
+    statusEffect?: StatusEffectDefinition;
     /** Sprite animation key; defaults to "attack". */
     animation?: MonsterAttackAnimation;
     cooldownTurns?: number;
@@ -112,6 +113,19 @@ export interface MonsterAttack {
     healAmount?: number;
     cooldownReduction?: number;
     movesToZone?: boolean;
+}
+
+export interface StatusEffectDefinition {
+    type: "damageOverTime";
+    damagePerTurn: number;
+    duration: number | "untilDeath";
+    color: StatusEffectColor;
+}
+
+export type StatusEffectColor = "green" | "red" | "blue" | "yellow" | "white" | "violet" | "gray";
+
+export interface MonsterStatusEffect extends StatusEffectDefinition {
+    remainingTurns: number | "untilDeath";
 }
 
 export interface Monster {
@@ -145,6 +159,7 @@ export interface PlacedMonster {
     attackUsesThisTurn: number[];
     movementsUsedThisTurn: number;
     attackCooldowns: number[];
+    statusEffects: MonsterStatusEffect[];
 }
 
 export type GameActionLogEntry =

@@ -16,6 +16,8 @@ import {
 } from "../game/monsterActions";
 import { ACTION_LOG_VISIBLE_COUNT } from "./game/GameHudBase";
 import type { PlacedMonster, Position } from "../types/GameTypes";
+import { applyStatusEffectsAtTurnStart } from "../game/statusEffects";
+import { getMonsterEliminationWinner } from "../game/matchRules";
 
 export abstract class GameSceneMovement extends GameSceneCombat {
     protected handleMovementAction(position: Position, monsterId: string | null): void {
@@ -175,11 +177,19 @@ export abstract class GameSceneMovement extends GameSceneCombat {
         if (previousPlayer === 2) this.turnNumber++;
         for (const monster of this.placedMonsters) {
             if (monster.owner !== this.currentPlayer) continue;
+            const statusDamage = applyStatusEffectsAtTurnStart(monster);
+            if (statusDamage > 0) {
+                this.monsterSpriteView.takeDamage(monster.id, monster.currentHp, monster.position);
+            }
             monster.attacksUsedThisTurn = 0;
             monster.attackUsesThisTurn = getInitialAttackUses(monster.monster);
             monster.movementsUsedThisTurn = 0;
             monster.attackCooldowns = advanceAttackCooldowns(monster.attackCooldowns);
         }
+        this.winner ??= getMonsterEliminationWinner(
+            this.placedMonsters,
+            this.gameConfiguration.monstersKilledForVictory,
+        );
         this.hasRolled = false;
         this.rolledDice = [];
         this.selectedMonster = null;

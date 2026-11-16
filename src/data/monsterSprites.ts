@@ -47,6 +47,7 @@ const PIRATE_ASSET_ROOT = "/sprites/pirate";
 const PRIEST_ASSET_ROOT = "/sprites/priest";
 const THIEF_ASSET_ROOT = "/sprites/thief";
 const SPECTRE_ASSET_ROOT = "/sprites/spectre";
+const SWAMP_ASSET_ROOT = "/sprites/swampThing";
 
 function monsterAtlas(
     assetRoot: string,
@@ -279,6 +280,49 @@ export const MONSTER_SPRITES: Readonly<Record<string, MonsterSpriteDefinition>> 
             hit: {
                 frameRate: 8,
                 ...monsterAtlas(FROST_MAGE_ASSET_ROOT, "TakeDamage"),
+            },
+        },
+    },
+
+    "swamp-thing": {
+        frameWidth: 128,
+        frameHeight: 128,
+        scale: 1,
+        previewScale: 2,
+        previewOffsetX: -2,
+        previewOffsetY: -12,
+        originX: 0.5,
+        originY: 0.67,
+        facingOffsetY: {
+            north: 8,
+            east: 4,
+            south: 4,
+            west: 8,
+        },
+        animations: {
+            idle: {
+                frameRate: 8,
+                ...monsterAtlas(SWAMP_ASSET_ROOT, "Idle"),
+            },
+            attack: {
+                frameRate: 8,
+                ...monsterAtlas(SWAMP_ASSET_ROOT, "Attack"),
+            },
+            alternativeAttack1: {
+                frameRate: 15,
+                ...monsterAtlas(SWAMP_ASSET_ROOT, "AttackAoe"),
+            },
+            death: {
+                frameRate: 8,
+                ...monsterAtlas(SWAMP_ASSET_ROOT, "Die"),
+            },
+            move: {
+                frameRate: 8,
+                ...monsterAtlas(SWAMP_ASSET_ROOT, "Walk"),
+            },
+            hit: {
+                frameRate: 8,
+                ...monsterAtlas(SWAMP_ASSET_ROOT, "TakeDamage"),
             },
         },
     },

@@ -26,6 +26,7 @@ function createMonsters(player: PlayerId, count: number, currentHp: number): Pla
         attackUsesThisTurn: [],
         movementsUsedThisTurn: 0,
         attackCooldowns: [],
+        statusEffects: [],
     }));
 }
 

@@ -24,8 +24,12 @@ import {
 } from "../src/game/monsterActions";
 import { MONSTERS } from "../src/data/monsters";
 import {
+    describeMonsterTraits,
     describeMonsterAttack,
     describeMonsterMovement,
+    describeMonsterStatusEffect,
+    formatCost,
+    formatHitPoints,
 } from "../src/game/monsterDescriptions";
 import type { Position } from "../src/types/GameTypes";
 
@@ -86,6 +90,29 @@ describe("portée des actions de monstre", () => {
     it("utilise un coût de déplacement configurable avec une valeur par défaut de un", () => {
         expect(getMovementCost({})).toBe(1);
         expect(getMovementCost({ movementCost: 0 })).toBe(0);
+    });
+
+    it("affiche les coûts en symboles avant le nom et les caractéristiques", () => {
+        const blackKnight = MONSTERS.find((monster) => monster.id === "black-knight");
+        const ghost = MONSTERS.find((monster) => monster.id === "ghost");
+        const spectre = MONSTERS.find((monster) => monster.id === "spectre");
+        if (!blackKnight || !ghost || !spectre) {
+            throw new Error("Profils de test indisponibles.");
+        }
+
+        expect(describeMonsterAttack(blackKnight.attacks[0])).toMatch(/^1 ⚔️ Corps à corps :/);
+        expect(describeMonsterTraits(blackKnight)).toContain("2 attaques par tour");
+        expect(describeMonsterTraits(ghost)).toContain("Fantomatique");
+        expect(describeMonsterTraits(spectre)).toEqual(["Fantomatique", "Volant"]);
+        expect(describeMonsterMovement(blackKnight)).toMatch(/^1 ➡️ Déplacement :/);
+        expect(formatCost(3, "🐍")).toBe("3 🐍");
+        expect(formatHitPoints(2)).toBe("2 PV");
+        const poison = MONSTERS.find((monster) => monster.id === "swamp-thing")?.attacks[0]
+            .statusEffect;
+        if (!poison) throw new Error("Effet de poison indisponible.");
+        expect(describeMonsterStatusEffect({ ...poison, remainingTurns: "untilDeath" })).toBe(
+            "-2 PV / Tour",
+        );
     });
 
     it("calcule les zones adjacentes et les attaques en ligne orientées", () => {

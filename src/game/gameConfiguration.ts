@@ -1,5 +1,6 @@
 import { MONSTERS } from "../data/monsters";
 import { DICE } from "../data/dice";
+import { isStatusEffectColor } from "./statusEffects";
 import {
     DEFAULT_MONSTERS_KILLED_FOR_VICTORY,
     MAX_MONSTERS_PER_PLAYER,
@@ -9,6 +10,7 @@ import type {
     Monster,
     MonsterAttack,
     MonsterAttackAnimation,
+    StatusEffectDefinition,
 } from "../types/GameTypes";
 
 export const GAME_CONFIGURATION_STORAGE_KEY = "dungeon-dice.configuration";
@@ -129,6 +131,26 @@ function parseAttackPattern(value: unknown): AttackPattern | null {
     }
 }
 
+function parseStatusEffect(value: unknown): StatusEffectDefinition | undefined | null {
+    if (value === undefined) return undefined;
+    if (
+        !isRecord(value) ||
+        value.type !== "damageOverTime" ||
+        !isIntegerInRange(value.damagePerTurn, 1, 50) ||
+        (value.duration !== "untilDeath" && !isIntegerInRange(value.duration, 1, 50)) ||
+        !isStatusEffectColor(value.color)
+    ) {
+        return null;
+    }
+
+    return {
+        type: "damageOverTime",
+        damagePerTurn: value.damagePerTurn,
+        duration: value.duration,
+        color: value.color,
+    };
+}
+
 function parseAttack(value: unknown): MonsterAttack | null {
     if (
         !isRecord(value) ||
@@ -144,8 +166,10 @@ function parseAttack(value: unknown): MonsterAttack | null {
         value.animation === undefined ? undefined : parseMonsterAttackAnimation(value.animation);
     if (value.animation !== undefined && animation === undefined) return null;
     const pattern = parseAttackPattern(value.pattern);
+    const statusEffect = parseStatusEffect(value.statusEffect);
     if (
         !pattern ||
+        statusEffect === null ||
         (value.cooldownTurns !== undefined && !isIntegerInRange(value.cooldownTurns, 0, 50)) ||
         (value.initialCooldownTurns !== undefined &&
             !isIntegerInRange(value.initialCooldownTurns, 0, 50)) ||
@@ -184,6 +208,7 @@ function parseAttack(value: unknown): MonsterAttack | null {
         damage: value.damage,
         cost: value.cost,
         pattern,
+        ...(statusEffect === undefined ? {} : { statusEffect }),
         ...(animation === undefined ? {} : { animation }),
         ...(cooldownTurns === undefined ? {} : { cooldownTurns }),
         ...(initialCooldownTurns === undefined ? {} : { initialCooldownTurns }),

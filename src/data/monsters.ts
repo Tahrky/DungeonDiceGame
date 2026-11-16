@@ -45,7 +45,46 @@ export const MONSTERS: Monster[] = [
             },
         ],
         movementRange: 2,
-        //flying: true,
+    },
+
+    {
+        id: "swamp-thing",
+        name: "Créature des Marais",
+        symbol: "PM",
+        color: 0x415d10,
+        cost: 4,
+        hp: 5,
+        attacks: [
+            {
+                name: "Magie de Poison",
+                damage: 0,
+                cost: 1,
+                pattern: { type: "radius", range: 6 },
+                cooldownTurns: 1,
+                statusEffect: {
+                    type: "damageOverTime",
+                    damagePerTurn: 2,
+                    duration: "untilDeath",
+                    color: "green",
+                },
+            },
+            {
+                name: "Explosion de Poison",
+                damage: 1,
+                cost: 2,
+                pattern: { type: "selfRadius", range: 2 },
+                hitsAllies: true,
+                cooldownTurns: 2,
+                animation: "alternativeAttack1",
+                statusEffect: {
+                    type: "damageOverTime",
+                    damagePerTurn: 2,
+                    duration: "untilDeath",
+                    color: "green",
+                },
+            },
+        ],
+        movementRange: 2,
     },
 
     {
@@ -214,6 +253,5 @@ export const MONSTERS: Monster[] = [
         ],
         movementRange: 2,
         attackActionsPerTurn: 2,
-        //flying: true,
     },
 ];

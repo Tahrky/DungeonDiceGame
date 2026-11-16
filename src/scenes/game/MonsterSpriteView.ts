@@ -8,6 +8,7 @@ import {
     type MonsterSpriteFacing,
 } from "../../data/monsterSprites";
 import { getFacingFromMovement } from "../../game/monsterActions";
+import { STATUS_EFFECT_COLORS } from "../../game/statusEffects";
 
 import type {
     Monster,
@@ -16,6 +17,7 @@ import type {
     PlacedMonster,
     PlayerId,
     Position,
+    StatusEffectColor,
 } from "../../types/GameTypes";
 
 interface MonsterSpriteState {
@@ -23,6 +25,8 @@ interface MonsterSpriteState {
     readonly monster: Monster;
     readonly owner: PlayerId;
     grayscaleEffect: Phaser.FX.ColorMatrix | null;
+    statusTintEffect: Phaser.FX.ColorMatrix | null;
+    statusColor: StatusEffectColor | null;
     position: Position;
     facing: Facing;
     action: MonsterSpriteAction;
@@ -209,6 +213,10 @@ export class MonsterSpriteView {
             const state = this.sprites.get(monster.id) ?? this.createSprite(monster);
             if (state.isDead) continue;
             state.shouldBeGrayscale = grayscaleMonsterIds.has(monster.id);
+            this.updateStatusTint(
+                state,
+                monster.statusEffects[monster.statusEffects.length - 1]?.color ?? null,
+            );
             this.updateGrayscale(state);
             const angleChanged = state.facing !== monster.facing;
             if (!state.isMoving) {
@@ -371,9 +379,10 @@ export class MonsterSpriteView {
 
     takeDamage(id: string, currentHp: number, position: Position): void {
         const state = this.sprites.get(id);
+        if (!state || state.isDead) return;
         const animation = currentHp <= 0 ? "death" : "hit";
-        if (!state || state.isDead || !MONSTER_SPRITES[state.monster.id]?.animations[animation])
-            return;
+        if (currentHp <= 0) this.updateStatusTint(state, null);
+        if (!MONSTER_SPRITES[state.monster.id]?.animations[animation]) return;
 
         this.scene.tweens.killTweensOf(state.sprite);
         state.position = { ...position };
@@ -424,6 +433,8 @@ export class MonsterSpriteView {
             monster: monster.monster,
             owner: monster.owner,
             grayscaleEffect: null,
+            statusTintEffect: null,
+            statusColor: null,
             position: { ...monster.position },
             facing: monster.facing,
             action: "idle",
@@ -448,7 +459,9 @@ export class MonsterSpriteView {
         if (state.isMoving || state.action !== "idle") return;
         if (state.shouldBeGrayscale && !state.isGrayscale) {
             if (!state.grayscaleEffect) {
-                state.grayscaleEffect = state.sprite.preFX.addColorMatrix();
+                const preFX = state.sprite.preFX;
+                if (!preFX) return;
+                state.grayscaleEffect = preFX.addColorMatrix();
                 state.grayscaleEffect.grayscale();
             }
             state.grayscaleEffect.active = true;
@@ -457,6 +470,53 @@ export class MonsterSpriteView {
             if (state.grayscaleEffect) state.grayscaleEffect.active = false;
             state.isGrayscale = false;
         }
+    }
+
+    private updateStatusTint(state: MonsterSpriteState, color: StatusEffectColor | null): void {
+        if (state.statusColor === color) return;
+        if (color === null) {
+            state.statusColor = null;
+            if (state.statusTintEffect) state.statusTintEffect.active = false;
+            return;
+        }
+
+        if (!state.statusTintEffect) {
+            const preFX = state.sprite.preFX;
+            if (!preFX) return;
+            state.statusTintEffect = preFX.addColorMatrix();
+        }
+        state.statusColor = color;
+        const luminanceRed = 0.299;
+        const luminanceGreen = 0.587;
+        const luminanceBlue = 0.114;
+        const hexColor = STATUS_EFFECT_COLORS[color];
+        const red = ((hexColor >> 16) & 0xff) / 255;
+        const green = ((hexColor >> 8) & 0xff) / 255;
+        const blue = (hexColor & 0xff) / 255;
+        const brightness = color === "gray" ? 1 : Math.max(red, green, blue);
+        state.statusTintEffect.set([
+            (luminanceRed * red) / brightness,
+            (luminanceGreen * red) / brightness,
+            (luminanceBlue * red) / brightness,
+            0,
+            0,
+            (luminanceRed * green) / brightness,
+            (luminanceGreen * green) / brightness,
+            (luminanceBlue * green) / brightness,
+            0,
+            0,
+            (luminanceRed * blue) / brightness,
+            (luminanceGreen * blue) / brightness,
+            (luminanceBlue * blue) / brightness,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+        ]);
+        state.statusTintEffect.active = true;
     }
 
     private play(state: MonsterSpriteState, action: MonsterSpriteAction, restart = false): void {
