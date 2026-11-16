@@ -14,14 +14,19 @@ import type {
 } from "../types/GameTypes";
 
 export const GAME_CONFIGURATION_STORAGE_KEY = "dungeon-dice.configuration";
-export const GAME_CONFIGURATION_VERSION = 3;
+export const GAME_CONFIGURATION_VERSION = 4;
 export const MIN_DICE_COUNT = 2;
 export const MAX_DICE_COUNT = DICE.length;
 export const DEFAULT_DICE_COUNT = 5;
+export const MIN_DECK_SIZE = 3;
+export const MAX_DECK_SIZE = 15;
+export const DEFAULT_DECK_SIZE = 5;
+export const MAX_AVAILABLE_DECK_SIZE = Math.min(MAX_DECK_SIZE, MONSTERS.length);
 
 export interface GameConfiguration {
     version: typeof GAME_CONFIGURATION_VERSION;
     diceCount: number;
+    deckSize: number;
     randomBoard: boolean;
     testBoard: boolean;
     initialPlayerHealth: number;
@@ -66,6 +71,7 @@ export function getDefaultGameConfiguration(): GameConfiguration {
     return {
         version: GAME_CONFIGURATION_VERSION,
         diceCount: DEFAULT_DICE_COUNT,
+        deckSize: DEFAULT_DECK_SIZE,
         randomBoard: false,
         testBoard: false,
         initialPlayerHealth: 3,
@@ -224,7 +230,7 @@ function parseAttack(value: unknown): MonsterAttack | null {
 function migrateGameConfiguration(value: unknown): unknown {
     if (
         !isRecord(value) ||
-        (value.version !== 1 && value.version !== 2) ||
+        (value.version !== 1 && value.version !== 2 && value.version !== 3) ||
         !Array.isArray(value.monsters)
     ) {
         return value;
@@ -264,6 +270,7 @@ function migrateGameConfiguration(value: unknown): unknown {
     return {
         ...value,
         version: GAME_CONFIGURATION_VERSION,
+        deckSize: value.deckSize === undefined ? DEFAULT_DECK_SIZE : value.deckSize,
         monstersKilledForVictory:
             value.monstersKilledForVictory === undefined
                 ? DEFAULT_MONSTERS_KILLED_FOR_VICTORY
@@ -356,6 +363,7 @@ export function parseGameConfiguration(value: unknown): GameConfiguration | null
         !isRecord(migratedValue) ||
         migratedValue.version !== GAME_CONFIGURATION_VERSION ||
         !isIntegerInRange(migratedValue.diceCount, MIN_DICE_COUNT, MAX_DICE_COUNT) ||
+        !isIntegerInRange(migratedValue.deckSize, MIN_DECK_SIZE, MAX_AVAILABLE_DECK_SIZE) ||
         typeof migratedValue.randomBoard !== "boolean" ||
         (migratedValue.testBoard !== undefined && typeof migratedValue.testBoard !== "boolean") ||
         !isIntegerInRange(migratedValue.initialPlayerHealth, 1, 20) ||
@@ -381,6 +389,7 @@ export function parseGameConfiguration(value: unknown): GameConfiguration | null
     return {
         version: GAME_CONFIGURATION_VERSION,
         diceCount: migratedValue.diceCount,
+        deckSize: migratedValue.deckSize,
         randomBoard: migratedValue.randomBoard,
         testBoard: migratedValue.testBoard === true,
         initialPlayerHealth: migratedValue.initialPlayerHealth,

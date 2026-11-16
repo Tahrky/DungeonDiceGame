@@ -3,7 +3,6 @@ import { useState, type CSSProperties } from "react";
 import { MONSTER_SPRITES } from "../data/monsterSprites";
 import { UnsavedChangesDialog, useBeforeUnloadWarning } from "./UnsavedChangesDialog";
 import {
-    DECK_SIZE,
     DECK_STORAGE_KEY,
     getDefaultDeck,
     getSavedDeck,
@@ -23,6 +22,7 @@ import {
 import type { Monster } from "../types/GameTypes";
 interface DeckEditorProps {
     readonly onBack: () => void;
+    readonly deckSize: number;
 }
 
 function MonsterIdlePreview({ monster }: { readonly monster: Monster }) {
@@ -71,8 +71,10 @@ function MonsterIdlePreview({ monster }: { readonly monster: Monster }) {
     );
 }
 
-export function DeckEditor({ onBack }: DeckEditorProps) {
-    const [savedDeck, setSavedDeck] = useState(() => getSavedDeck() ?? getDefaultDeck());
+export function DeckEditor({ onBack, deckSize }: DeckEditorProps) {
+    const [savedDeck, setSavedDeck] = useState(
+        () => getSavedDeck(deckSize) ?? getDefaultDeck(deckSize),
+    );
     const [selectedDeck, setSelectedDeck] = useState(savedDeck);
     const [monsters] = useState(() => getSavedGameConfiguration().monsters);
     const [deckJson, setDeckJson] = useState(() => serializeDeck(selectedDeck));
@@ -112,10 +114,10 @@ export function DeckEditor({ onBack }: DeckEditorProps) {
         let nextDeck: string[];
         if (selectedDeck.includes(monsterId)) {
             nextDeck = selectedDeck.filter((id) => id !== monsterId);
-        } else if (selectedDeck.length < DECK_SIZE) {
+        } else if (selectedDeck.length < deckSize) {
             nextDeck = [...selectedDeck, monsterId];
         } else {
-            setNotice(`Votre deck contient déjà ${DECK_SIZE} monstres.`);
+            setNotice(`Votre deck contient déjà ${deckSize} monstres.`);
             return;
         }
 
@@ -126,10 +128,10 @@ export function DeckEditor({ onBack }: DeckEditorProps) {
 
     function saveDeck(): boolean {
         const draftDeck =
-            deckJson === serializeDeck(selectedDeck) ? selectedDeck : parseDeck(deckJson);
-        const validDeck = draftDeck ? parseDeck(draftDeck) : null;
+            deckJson === serializeDeck(selectedDeck) ? selectedDeck : parseDeck(deckJson, deckSize);
+        const validDeck = draftDeck ? parseDeck(draftDeck, deckSize) : null;
         if (!validDeck) {
-            setNotice(`Sélectionnez exactement ${DECK_SIZE} monstres avant d’enregistrer.`);
+            setNotice(`Sélectionnez exactement ${deckSize} monstres avant d’enregistrer.`);
             return false;
         }
         try {
@@ -162,10 +164,10 @@ export function DeckEditor({ onBack }: DeckEditorProps) {
             setNotice("JSON invalide. Vérifiez le format puis réessayez.");
             return;
         }
-        const deck = parseDeck(value);
+        const deck = parseDeck(value, deckSize);
         if (!deck) {
             setNotice(
-                `Le JSON doit contenir exactement ${DECK_SIZE} identifiants de monstres uniques et disponibles.`,
+                `Le JSON doit contenir exactement ${deckSize} identifiants de monstres uniques et disponibles.`,
             );
             return;
         }
@@ -191,11 +193,11 @@ export function DeckEditor({ onBack }: DeckEditorProps) {
                 </button>
                 <p className="eyebrow">VOTRE ARMÉE</p>
                 <h2>
-                    Choisissez 5 monstres ({selectedDeck.length}/{DECK_SIZE})
+                    Choisissez {deckSize} monstres ({selectedDeck.length}/{deckSize})
                 </h2>
                 <p className="panel-description">
-                    Votre sélection est sauvegardée sur cet appareil. Sans deck enregistré, les cinq
-                    monstres les moins chers sont utilisés.
+                    Votre sélection est sauvegardée sur cet appareil. Sans deck enregistré, les
+                    {deckSize} monstres les moins chers sont utilisés.
                 </p>
                 <div className="monster-list">
                     {monsters.map((monster) => {

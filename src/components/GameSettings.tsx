@@ -3,7 +3,10 @@ import { useRef, useState } from "react";
 import { UnsavedChangesDialog, useBeforeUnloadWarning } from "./UnsavedChangesDialog";
 import {
     GAME_CONFIGURATION_STORAGE_KEY,
+    MAX_DECK_SIZE,
     MAX_DICE_COUNT,
+    MAX_AVAILABLE_DECK_SIZE,
+    MIN_DECK_SIZE,
     MIN_DICE_COUNT,
     parseGameConfiguration,
     serializeGameConfiguration,
@@ -42,6 +45,7 @@ export function GameSettings({
     function updateNumber(
         key:
             | "diceCount"
+            | "deckSize"
             | "initialPlayerHealth"
             | "maxMonstersPerPlayer"
             | "monstersKilledForVictory",
@@ -152,6 +156,25 @@ export function GameSettings({
                                     event.currentTarget.value,
                                     MIN_DICE_COUNT,
                                     MAX_DICE_COUNT,
+                                )
+                            }
+                        />
+                    </label>
+                    <label className="settings-field">
+                        Monstres différents par deck ({MIN_DECK_SIZE} à{" "}
+                        {MAX_AVAILABLE_DECK_SIZE} disponibles, jusqu’à {MAX_DECK_SIZE} prévus)
+                        <input
+                            type="number"
+                            min={MIN_DECK_SIZE}
+                            max={MAX_AVAILABLE_DECK_SIZE}
+                            step="1"
+                            value={configuration.deckSize}
+                            onChange={(event) =>
+                                updateNumber(
+                                    "deckSize",
+                                    event.currentTarget.value,
+                                    MIN_DECK_SIZE,
+                                    MAX_AVAILABLE_DECK_SIZE,
                                 )
                             }
                         />

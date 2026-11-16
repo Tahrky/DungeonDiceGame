@@ -7,13 +7,8 @@ import {
 } from "@ably/pubsub-device";
 import Phaser from "phaser";
 
-import { DeckEditor } from "./components/DeckEditor";
-import { GameSettings } from "./components/GameSettings";
-import { MainMenu } from "./components/MainMenu";
-import { MonsterSettings } from "./components/MonsterSettings";
-import { OptionsMenu } from "./components/OptionsMenu";
-import { PlayMenu } from "./components/PlayMenu";
-import { RoomScreen } from "./components/RoomScreen";
+import { AppScreen } from "./components/AppScreen";
+import type { AppScreenName } from "./components/AppScreen";
 import { GAME_CONFIG } from "./config";
 import { getDefaultBoard, getRandomBoard, getTestBoard, parseBoardDefinition } from "./game/boards";
 import { getDefaultDeck, getSavedDeck, parseDeck, type GameSetup } from "./game/decks";
@@ -26,15 +21,6 @@ import { GameScene } from "./scenes/GameScene";
 
 import type { GameSnapshot, PlayerId, RemoteGameCommand } from "./types/GameTypes";
 
-type Screen =
-    | "menu"
-    | "play-menu"
-    | "options-menu"
-    | "deck"
-    | "settings"
-    | "monster-settings"
-    | "room"
-    | "game";
 type RoomRole = "host" | "guest";
 type RoomStatus = "connecting" | "connected" | "error";
 
@@ -100,7 +86,7 @@ export function App() {
     const guestClientIdRef = useRef<string | null>(null);
     const roomStartRequestedRef = useRef(false);
     const [game, setGame] = useState<Phaser.Game | null>(null);
-    const [screen, setScreen] = useState<Screen>("menu");
+    const [screen, setScreen] = useState<AppScreenName>("menu");
     const [gameConfiguration, setGameConfiguration] = useState(getSavedGameConfiguration);
     const [roomCode, setRoomCode] = useState("");
     const [roomRole, setRoomRole] = useState<RoomRole | null>(null);
@@ -225,13 +211,17 @@ export function App() {
             )
                 return;
 
-            const hostDeck = parseDeck(message.data.hostDeck);
-            const guestDeck = parseDeck(message.data.guestDeck);
             const board = "board" in message.data ? parseBoardDefinition(message.data.board) : null;
             const configuration =
                 "configuration" in message.data
                     ? parseGameConfiguration(message.data.configuration)
                     : null;
+            const hostDeck = configuration
+                ? parseDeck(message.data.hostDeck, configuration.deckSize)
+                : null;
+            const guestDeck = configuration
+                ? parseDeck(message.data.guestDeck, configuration.deckSize)
+                : null;
             if (!hostDeck || !guestDeck || !board || !configuration) {
                 setRoomError("L’hôte a envoyé des données de partie invalides.");
                 return;
@@ -295,7 +285,9 @@ export function App() {
             ]);
             await channel.presence.enter({
                 role: roomRole,
-                deck: getSavedDeck() ?? getDefaultDeck(),
+                deck:
+                    getSavedDeck(gameConfiguration.deckSize) ??
+                    getDefaultDeck(gameConfiguration.deckSize),
             });
             if (!active) return;
 
@@ -321,7 +313,7 @@ export function App() {
             if (channelRef.current === channel) channelRef.current = null;
             realtime.close();
         };
-    }, [roomCode, roomRole]);
+    }, [gameConfiguration.deckSize, roomCode, roomRole]);
 
     function startComputerGame(): void {
         const instance = gameRef.current;
@@ -329,8 +321,10 @@ export function App() {
 
         const setup: GameSetup = {
             mode: "computer",
-            playerDeck: getSavedDeck() ?? getDefaultDeck(),
-            opponentDeck: getDefaultDeck(),
+            playerDeck:
+                getSavedDeck(gameConfiguration.deckSize) ??
+                getDefaultDeck(gameConfiguration.deckSize),
+            opponentDeck: getDefaultDeck(gameConfiguration.deckSize),
             board: getConfiguredBoard(gameConfiguration),
             configuration: gameConfiguration,
         };
@@ -343,7 +337,8 @@ export function App() {
         const instance = gameRef.current;
         if (!instance) throw new Error("Le moteur de jeu n’est pas encore initialisé.");
 
-        const deck = getSavedDeck() ?? getDefaultDeck();
+        const deck =
+            getSavedDeck(gameConfiguration.deckSize) ?? getDefaultDeck(gameConfiguration.deckSize);
         const setup: GameSetup = {
             mode: "local",
             playerDeck: deck,
@@ -378,12 +373,20 @@ export function App() {
     }
 
     const startRoomGame = useCallback(async (): Promise<void> => {
-        const hostDeck = getSavedDeck() ?? getDefaultDeck();
+        const hostDeck =
+            getSavedDeck(gameConfiguration.deckSize) ??
+            getDefaultDeck(gameConfiguration.deckSize);
         const guestDeck = roomPlayers.find((player) => player.role === "guest")?.deck;
         const channel = channelRef.current;
         if (roomStartRequestedRef.current) return;
         if (roomRole !== "host" || !guestDeck || roomPlayers.length !== 2 || !channel) {
             setRoomError("Deux joueurs doivent être connectés pour démarrer.");
+            return;
+        }
+        if (guestDeck.length !== gameConfiguration.deckSize) {
+            setRoomError(
+                `Le deck de l’invité doit contenir ${gameConfiguration.deckSize} monstres pour cette partie.`,
+            );
             return;
         }
 
@@ -436,81 +439,25 @@ export function App() {
     }
 
     return (
-        <div className={`app-shell${screen === "game" ? " game-active" : ""}`}>
-            <header>
-                <h1>DUNGEON DICE</h1>
-            </header>
-
-            <main>
-                {screen === "menu" && (
-                    <MainMenu
-                        onOpenPlay={() => setScreen("play-menu")}
-                        onEditDeck={() => setScreen("deck")}
-                        onOpenOptions={() => setScreen("options-menu")}
-                    />
-                )}
-                {screen === "play-menu" && (
-                    <PlayMenu
-                        canPlay={game !== null}
-                        showOnlineOptions={showOnlineOptions}
-                        onBack={() => setScreen("menu")}
-                        onPlay={startComputerGame}
-                        onLocalPlay={startLocalGame}
-                        onOnline={createRoom}
-                    />
-                )}
-                {screen === "options-menu" && (
-                    <OptionsMenu
-                        onBack={() => setScreen("menu")}
-                        onConfigureRules={() => setScreen("settings")}
-                        onConfigureMonsters={() => setScreen("monster-settings")}
-                    />
-                )}
-                {screen === "deck" && <DeckEditor onBack={() => setScreen("menu")} />}
-                {screen === "settings" && (
-                    <GameSettings
-                        configuration={gameConfiguration}
-                        onBack={() => setScreen("options-menu")}
-                        onSave={setGameConfiguration}
-                    />
-                )}
-                {screen === "monster-settings" && (
-                    <MonsterSettings
-                        configuration={gameConfiguration}
-                        onBack={() => setScreen("options-menu")}
-                        onSave={setGameConfiguration}
-                    />
-                )}
-                {screen === "room" && roomRole && (
-                    <RoomScreen
-                        roomCode={roomCode}
-                        isHost={roomRole === "host"}
-                        roomStatus={roomStatus}
-                        playerCount={roomPlayers.length}
-                        roomError={roomError}
-                        onBack={leaveRoom}
-                        onJoinRoom={joinRoom}
-                    />
-                )}
-                {screen === "game" && roomError && (
-                    <output className="notice" aria-live="polite">
-                        {roomError}
-                    </output>
-                )}
-                {screen === "game" && (
-                    <div className="portrait-orientation-message" role="status" aria-live="polite">
-                        <div>
-                            <span aria-hidden="true">↻</span>
-                            <strong>Tournez votre appareil</strong>
-                            <p>Le plateau est plus lisible en mode paysage.</p>
-                            <button className="portrait-return-button" onClick={leaveGame}>
-                                MENU
-                            </button>
-                        </div>
-                    </div>
-                )}
-                <div id="game-container" ref={gameContainerRef} aria-hidden={screen !== "game"} />
-            </main>
-        </div>
+        <AppScreen
+            screen={screen}
+            game={game}
+            gameContainerRef={gameContainerRef}
+            gameConfiguration={gameConfiguration}
+            showOnlineOptions={showOnlineOptions}
+            roomCode={roomCode}
+            roomRole={roomRole}
+            roomStatus={roomStatus}
+            roomPlayerCount={roomPlayers.length}
+            roomError={roomError}
+            onScreenChange={setScreen}
+            onPlay={startComputerGame}
+            onLocalPlay={startLocalGame}
+            onCreateRoom={createRoom}
+            onJoinRoom={joinRoom}
+            onLeaveGame={leaveGame}
+            onLeaveRoom={leaveRoom}
+            onSaveConfiguration={setGameConfiguration}
+        />
     );
 }

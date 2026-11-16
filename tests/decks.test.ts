@@ -8,6 +8,7 @@ import {
     parseDeck,
     serializeDeck,
 } from "../src/game/decks";
+import { MAX_AVAILABLE_DECK_SIZE, MIN_DECK_SIZE } from "../src/game/gameConfiguration";
 
 describe("sélections de monstres", () => {
     it("choisit les cinq monstres les moins chers par défaut", () => {
@@ -16,13 +17,24 @@ describe("sélections de monstres", () => {
 
         expect(deck).toHaveLength(DECK_SIZE);
         expect(costs).toEqual([...costs].sort((first, second) => first - second));
-        expect(costs).toEqual([1, 2, 3, 3, 4]);
+        expect(costs).toEqual([1, 2, 2, 3, 3]);
     });
 
     it("valide et sérialise un deck JSON de cinq monstres uniques", () => {
         const deck = getDefaultDeck();
 
         expect(parseDeck(JSON.parse(serializeDeck(deck)))).toEqual(deck);
+    });
+
+    it("crée et valide un deck de taille configurable dans les limites disponibles", () => {
+        const deck = getDefaultDeck(MIN_DECK_SIZE);
+        const largestDeck = getDefaultDeck(MAX_AVAILABLE_DECK_SIZE);
+
+        expect(deck).toHaveLength(MIN_DECK_SIZE);
+        expect(parseDeck(deck, MIN_DECK_SIZE)).toEqual(deck);
+        expect(largestDeck).toHaveLength(MAX_AVAILABLE_DECK_SIZE);
+        expect(parseDeck(largestDeck, MAX_AVAILABLE_DECK_SIZE)).toEqual(largestDeck);
+        expect(parseDeck(deck, DECK_SIZE)).toBeNull();
     });
 
     it("associe les decks à leurs joueurs même quand le joueur local est le joueur 2", () => {

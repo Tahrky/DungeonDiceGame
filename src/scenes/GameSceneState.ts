@@ -171,8 +171,10 @@ export abstract class GameSceneState extends Phaser.Scene {
         this.computerOpponent = data?.mode === "computer";
         this.localPlayer = data?.localPlayer ?? 1;
         this.playerDecks = getPlayerDecks(
-            parseDeck(data?.playerDeck) ?? getDefaultDeck(),
-            parseDeck(data?.opponentDeck) ?? getDefaultDeck(),
+            parseDeck(data?.playerDeck, configuration.deckSize) ??
+                getDefaultDeck(configuration.deckSize),
+            parseDeck(data?.opponentDeck, configuration.deckSize) ??
+                getDefaultDeck(configuration.deckSize),
             this.localPlayer,
         );
         this.isHost = data?.isHost ?? true;

@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import { MONSTERS } from "../src/data/monsters";
 import {
+    DEFAULT_DECK_SIZE,
+    MAX_AVAILABLE_DECK_SIZE,
     getDefaultGameConfiguration,
+    MIN_DECK_SIZE,
     parseGameConfiguration,
     parseMonsterConfiguration,
     serializeGameConfiguration,
@@ -12,6 +15,7 @@ describe("configuration des règles de partie", () => {
     it("sérialise puis valide les réglages et profils par défaut", () => {
         const configuration = getDefaultGameConfiguration();
         configuration.diceCount = 3;
+        configuration.deckSize = 3;
         configuration.randomBoard = true;
         configuration.testBoard = true;
         configuration.initialPlayerHealth = 7;
@@ -50,6 +54,7 @@ describe("configuration des règles de partie", () => {
         const configuration = getDefaultGameConfiguration();
         expect(configuration.testBoard).toBe(false);
         expect(configuration.diceCount).toBe(5);
+        expect(configuration.deckSize).toBe(DEFAULT_DECK_SIZE);
         expect(configuration.maxMonstersPerPlayer).toBe(8);
         expect(configuration.monstersKilledForVictory).toBe(8);
 
@@ -76,10 +81,12 @@ describe("configuration des règles de partie", () => {
             version: 1,
         };
         delete legacyConfiguration.monstersKilledForVictory;
+        delete legacyConfiguration.deckSize;
 
         const migrated = parseGameConfiguration(legacyConfiguration);
 
-        expect(migrated?.version).toBe(3);
+        expect(migrated?.version).toBe(4);
+        expect(migrated?.deckSize).toBe(DEFAULT_DECK_SIZE);
         expect(migrated?.diceCount).toBe(3);
         expect(migrated?.monstersKilledForVictory).toBe(8);
         expect(migrated?.monsters.find((monster) => monster.id === "priest")?.attacks[0].pattern)
@@ -92,10 +99,25 @@ describe("configuration des règles de partie", () => {
         );
         legacyConfiguration.version = 2;
         delete legacyConfiguration.monstersKilledForVictory;
+        delete legacyConfiguration.deckSize;
 
         expect(parseGameConfiguration(legacyConfiguration)).toMatchObject({
-            version: 3,
+            version: 4,
+            deckSize: DEFAULT_DECK_SIZE,
             monstersKilledForVictory: 8,
+        });
+    });
+
+    it("migre les réglages v3 en ajoutant la taille de deck par défaut", () => {
+        const legacyConfiguration: Record<string, unknown> = JSON.parse(
+            serializeGameConfiguration(getDefaultGameConfiguration()),
+        );
+        legacyConfiguration.version = 3;
+        delete legacyConfiguration.deckSize;
+
+        expect(parseGameConfiguration(legacyConfiguration)).toMatchObject({
+            version: 4,
+            deckSize: DEFAULT_DECK_SIZE,
         });
     });
 
@@ -259,7 +281,20 @@ describe("configuration des règles de partie", () => {
 
     it("refuse les configurations de version ou de limites invalides", () => {
         const configuration = getDefaultGameConfiguration();
-        expect(parseGameConfiguration({ ...configuration, version: 4 })).toBeNull();
+        expect(parseGameConfiguration({ ...configuration, version: 5 })).toBeNull();
+        expect(parseGameConfiguration({ ...configuration, deckSize: MIN_DECK_SIZE - 1 })).toBeNull();
+        expect(
+            parseGameConfiguration({ ...configuration, deckSize: MAX_AVAILABLE_DECK_SIZE + 1 }),
+        ).toBeNull();
+        expect(parseGameConfiguration({ ...configuration, deckSize: MIN_DECK_SIZE })?.deckSize).toBe(
+            MIN_DECK_SIZE,
+        );
+        expect(
+            parseGameConfiguration({
+                ...configuration,
+                deckSize: MAX_AVAILABLE_DECK_SIZE,
+            })?.deckSize,
+        ).toBe(MAX_AVAILABLE_DECK_SIZE);
         expect(parseGameConfiguration({ ...configuration, diceCount: 1 })).toBeNull();
         expect(parseGameConfiguration({ ...configuration, diceCount: 9 })).toBeNull();
         expect(parseGameConfiguration({ ...configuration, diceCount: 2 })?.diceCount).toBe(2);

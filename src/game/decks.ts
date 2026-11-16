@@ -1,9 +1,14 @@
 import { MONSTERS } from "../data/monsters";
 import type { BoardDefinition, BoardSelection } from "./boards";
+import {
+    DEFAULT_DECK_SIZE,
+    MAX_AVAILABLE_DECK_SIZE,
+    MIN_DECK_SIZE,
+} from "./gameConfiguration";
 import type { GameConfiguration } from "./gameConfiguration";
 import type { PlayerId } from "../types/GameTypes";
 
-export const DECK_SIZE = 5;
+export const DECK_SIZE = DEFAULT_DECK_SIZE;
 export const DECK_STORAGE_KEY = "dungeon-dice.deck";
 
 export interface GameSetup {
@@ -17,10 +22,10 @@ export interface GameSetup {
     isHost?: boolean;
 }
 
-export function getDefaultDeck(): string[] {
+export function getDefaultDeck(deckSize = DEFAULT_DECK_SIZE): string[] {
     return [...MONSTERS]
         .sort((first, second) => first.cost - second.cost)
-        .slice(0, DECK_SIZE)
+        .slice(0, deckSize)
         .map((monster) => monster.id);
 }
 
@@ -34,13 +39,21 @@ export function getPlayerDecks(
         : { 1: opponentDeck, 2: playerDeck };
 }
 
-export function parseDeck(value: unknown): string[] | null {
-    if (!Array.isArray(value) || value.length !== DECK_SIZE) return null;
+export function parseDeck(value: unknown, deckSize?: number): string[] | null {
+    if (
+        !Array.isArray(value) ||
+        value.length < MIN_DECK_SIZE ||
+        value.length > MAX_AVAILABLE_DECK_SIZE ||
+        (deckSize !== undefined && value.length !== deckSize)
+    ) {
+        return null;
+    }
+
     if (!value.every((id): id is string => typeof id === "string")) return null;
 
     const deck = [...new Set(value)];
     if (
-        deck.length !== DECK_SIZE ||
+        deck.length !== value.length ||
         deck.some((id) => !MONSTERS.some((monster) => monster.id === id))
     ) {
         return null;
@@ -53,10 +66,10 @@ export function serializeDeck(deck: readonly string[]): string {
     return JSON.stringify(deck, null, 2);
 }
 
-export function getSavedDeck(): string[] | null {
+export function getSavedDeck(deckSize = DEFAULT_DECK_SIZE): string[] | null {
     try {
         const storedDeck = localStorage.getItem(DECK_STORAGE_KEY);
-        return storedDeck === null ? null : parseDeck(JSON.parse(storedDeck));
+        return storedDeck === null ? null : parseDeck(JSON.parse(storedDeck), deckSize);
     } catch {
         return null;
     }
