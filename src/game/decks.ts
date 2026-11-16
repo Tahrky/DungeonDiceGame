@@ -7,6 +7,7 @@ import {
 } from "./gameConfiguration";
 import type { GameConfiguration } from "./gameConfiguration";
 import type { PlayerId } from "../types/GameTypes";
+import type { BotProfile } from "./botStrategy";
 
 export const DECK_SIZE = DEFAULT_DECK_SIZE;
 export const DECK_STORAGE_KEY = "dungeon-dice.deck";
@@ -15,6 +16,7 @@ export interface GameSetup {
     mode: "computer" | "local" | "online";
     playerDeck: string[];
     opponentDeck: string[];
+    opponentProfile?: BotProfile;
     configuration?: GameConfiguration;
     board?: BoardDefinition;
     boardSelection?: BoardSelection;

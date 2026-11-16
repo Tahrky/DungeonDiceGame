@@ -18,6 +18,7 @@ import {
     getMovementActionsPerTurn,
 } from "../game/monsterActions";
 import { getDefaultDeck, getPlayerDecks, parseDeck, type GameSetup } from "../game/decks";
+import type { BotProfile } from "../game/botStrategy";
 import { BoardView } from "./game/BoardView";
 import { GameHud } from "./game/GameHud";
 import { MonsterTooltip } from "./game/MonsterTooltip";
@@ -76,6 +77,8 @@ export abstract class GameSceneState extends Phaser.Scene {
     };
 
     protected computerOpponent = false;
+
+    protected opponentProfile: BotProfile = "balanced";
 
     protected mode: GameSetup["mode"] = "computer";
 
@@ -169,6 +172,7 @@ export abstract class GameSceneState extends Phaser.Scene {
         };
         this.mode = data?.mode ?? "computer";
         this.computerOpponent = data?.mode === "computer";
+        this.opponentProfile = data?.opponentProfile ?? "balanced";
         this.localPlayer = data?.localPlayer ?? 1;
         this.playerDecks = getPlayerDecks(
             parseDeck(data?.playerDeck, configuration.deckSize) ??

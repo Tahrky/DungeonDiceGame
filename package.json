@@ -5,6 +5,7 @@
     "scripts": {
         "dev": "vite",
         "build": "tsc && vite build",
+        "simulate": "vite build --config vite.simulation.config.ts && node dist/simulation/run-simulations.mjs",
         "preview": "vite preview",
         "test": "vitest run"
     },

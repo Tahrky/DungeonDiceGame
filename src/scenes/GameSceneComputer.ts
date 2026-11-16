@@ -1,11 +1,56 @@
 import { GameSceneMovement } from "./GameSceneMovement";
 import { PLACEMENT_PATTERNS } from "../data/placementPatterns";
 import { getAvailableSymbolCount, spendSymbols } from "../game/diceResources";
-import { getInitialAttackCooldowns, getInitialAttackUses } from "../game/monsterActions";
+import {
+    canAttackMonster,
+    canTargetMonsterOwner,
+    getAttackCost,
+    getAttackDamage,
+    getInitialAttackCooldowns,
+    getInitialAttackUses,
+    isBehind,
+} from "../game/monsterActions";
 import { findValidPlacement } from "../game/placement";
 import { isBoardCell } from "../game/boards";
-import type { PlacedMonster, Position } from "../types/GameTypes";
+import type { Monster, PlacedMonster, Position } from "../types/GameTypes";
 import { getInvokedMonsterCount } from "../game/matchRules";
+import {
+    findObjectiveMovement,
+    scoreMonsterForProfile,
+    scoreTacticalAttack,
+    scoreTerritoryExpansion,
+    type TacticalAttackValue,
+} from "../game/botStrategy";
+
+interface ComputerAttackChoice {
+    attacker: PlacedMonster;
+    attackIndex: number;
+    target: Position;
+    score: number;
+}
+
+function isAreaAttack(attack: Monster["attacks"][number]): boolean {
+    return (
+        attack.hitsAllies === true ||
+        attack.movesToZone === true ||
+        attack.pattern.type === "directionalArea" ||
+        attack.pattern.type === "selfRadius"
+    );
+}
+
+function createTacticalValue(): TacticalAttackValue {
+    return {
+        damage: 0,
+        kills: 0,
+        statusDamage: 0,
+        baseDamage: 0,
+        healing: 0,
+        clearedEffects: 0,
+        buffs: 0,
+        cooldownsReduced: 0,
+        friendlyDamage: 0,
+    };
+}
 
 export abstract class GameSceneComputer extends GameSceneMovement {
     protected playComputerTurn(): void {
@@ -17,7 +62,10 @@ export abstract class GameSceneComputer extends GameSceneMovement {
         this.rollDice(true);
         this.deployComputerMonsters();
         this.playComputerAttacks();
+        this.playComputerMovements();
+        this.playComputerAttacks();
         this.computerTurnInProgress = false;
+        this.actionMode = { type: "idle" };
         this.finishTurn();
     }
 
@@ -36,7 +84,11 @@ export abstract class GameSceneComputer extends GameSceneMovement {
             );
             const candidates = this.getDeckMonsters(2)
                 .filter((monster) => monster.cost <= availableInvocation)
-                .sort((first, second) => second.cost - first.cost);
+                .sort(
+                    (first, second) =>
+                        scoreMonsterForProfile(second, this.opponentProfile) -
+                        scoreMonsterForProfile(first, this.opponentProfile),
+                );
             let deployed = false;
 
             for (const monster of candidates) {
@@ -97,8 +149,6 @@ export abstract class GameSceneComputer extends GameSceneMovement {
                     .flatMap((placed) => placed.cells),
             ].map((cell) => `${cell.x},${cell.y}`),
         );
-        const frontierX = Math.min(...computerTerritory.map((cell) => cell.x));
-
         return findValidPlacement({
             patterns: PLACEMENT_PATTERNS,
             boardWidth: this.board.width,
@@ -133,14 +183,14 @@ export abstract class GameSceneComputer extends GameSceneMovement {
                     !crossesEnemyTerritory
                 );
             },
-            scorePlacement: (_position, cells) => {
-                const newCells = cells.filter(
-                    (cell) => !computerTerritoryKeys.has(`${cell.x},${cell.y}`),
-                );
-                const furthestProgress = Math.min(...newCells.map((cell) => cell.x));
-                const forwardProgress = frontierX - furthestProgress;
-                return forwardProgress * 100 + newCells.length;
-            },
+            scorePlacement: (_position, cells) =>
+                scoreTerritoryExpansion(
+                    2,
+                    cells,
+                    computerPathCells,
+                    this.startingPositions[2],
+                    this.startingPositions[1],
+                ),
         });
     }
 
@@ -153,16 +203,14 @@ export abstract class GameSceneComputer extends GameSceneMovement {
     protected hasComputerAttackResource(): boolean {
         return (
             this.winner === null &&
-            (getAvailableSymbolCount("attack", this.rolledDice, this.diceReserves[2]) > 0 ||
-                this.placedMonsters.some(
-                    (monster) =>
-                        monster.owner === 2 &&
-                        monster.currentHp > 0 &&
-                        (monster.turnBuffs?.attackCostReduction ?? 0) > 0 &&
-                        monster.monster.attacks.some((_, index) =>
-                            this.canUseMonsterAttack(monster, index),
-                        ),
-                ))
+            this.placedMonsters.some(
+                (monster) =>
+                    monster.owner === 2 &&
+                    monster.currentHp > 0 &&
+                    monster.monster.attacks.some((_, index) =>
+                        this.canUseMonsterAttack(monster, index),
+                    ),
+            )
         );
     }
 
@@ -170,29 +218,158 @@ export abstract class GameSceneComputer extends GameSceneMovement {
         const attackers = this.placedMonsters.filter(
             (monster) => monster.owner === 2 && monster.currentHp > 0,
         );
+        let best: ComputerAttackChoice | null = null;
         for (const attacker of attackers) {
-            if (this.performComputerAttackWith(attacker)) return true;
+            for (const attackIndex of attacker.monster.attacks.keys()) {
+                if (!this.canUseMonsterAttack(attacker, attackIndex)) continue;
+                const attack = attacker.monster.attacks[attackIndex];
+                if (!attack) continue;
+                const cost = getAttackCost(
+                    attack,
+                    attacker.turnBuffs?.attackCostReduction ?? 0,
+                );
+                for (const target of this.getAttackCandidateCells(attacker.id, attackIndex)) {
+                    if (!this.canAttackTarget(attacker.id, attackIndex, target)) continue;
+                    const score = this.scoreComputerAttack(
+                        attacker,
+                        attackIndex,
+                        target,
+                        this.getAttackPreviewCells(attacker.id, attackIndex, target),
+                        cost,
+                    );
+                    if (score > (best?.score ?? 0)) {
+                        best = { attacker, attackIndex, target, score };
+                    }
+                }
+            }
         }
-        return false;
+        if (!best) return false;
+        this.executeAttack(
+            best.attacker,
+            best.attackIndex,
+            best.target,
+            this.getLivingMonsterAt(best.target),
+        );
+        return true;
     }
 
-    protected performComputerAttackWith(attacker: PlacedMonster): boolean {
-        for (const attackIndex of attacker.monster.attacks.keys()) {
-            if (!this.canUseMonsterAttack(attacker, attackIndex)) continue;
+    protected scoreComputerAttack(
+        attacker: PlacedMonster,
+        attackIndex: number,
+        target: Position,
+        cells: readonly Position[],
+        cost: number,
+    ): number {
+        const attack = attacker.monster.attacks[attackIndex];
+        if (!attack) return 0;
+        const value = createTacticalValue();
+        const targetMonster = this.getLivingMonsterAt(target);
 
-            const targetPosition = this.getAttackCandidateCells(attacker.id, attackIndex).find(
-                (position) => this.canAttackTarget(attacker.id, attackIndex, position),
+        if (attack.targetsAlliesOnly) {
+            if (targetMonster?.owner !== 2) return 0;
+            value.healing = Math.min(
+                attack.healAmount ?? 0,
+                targetMonster.monster.hp - targetMonster.currentHp,
             );
-            if (!targetPosition) continue;
-
-            this.executeAttack(
-                attacker,
-                attackIndex,
-                targetPosition,
-                this.getLivingMonsterAt(targetPosition),
-            );
-            return true;
+            value.clearedEffects = attack.clearsStatusEffects
+                ? targetMonster.statusEffects.length
+                : 0;
+            value.cooldownsReduced = attack.cooldownReduction
+                ? targetMonster.attackCooldowns.filter((cooldown) => cooldown > 0).length
+                : 0;
+            value.buffs =
+                (attack.movementRangeBonus ?? 0) +
+                (attack.movementCostReduction ?? 0) +
+                (attack.attackDamageBonus ?? 0) * 2 +
+                (attack.attackCostReduction ?? 0);
+        } else {
+            const affectedCells = isAreaAttack(attack) ? cells : [target];
+            for (const cell of affectedCells) {
+                if (
+                    cell.x === this.startingPositions[1].x &&
+                    cell.y === this.startingPositions[1].y
+                ) {
+                    value.baseDamage = 1;
+                    continue;
+                }
+                const victim = this.getLivingMonsterAt(cell);
+                if (
+                    !victim ||
+                    victim.id === attacker.id ||
+                    (victim.owner === 2 && !attack.hitsAllies) ||
+                    !canTargetMonsterOwner(attack, victim.owner, 2) ||
+                    !canAttackMonster(attacker.monster, attack, victim.monster)
+                ) {
+                    continue;
+                }
+                const damage =
+                    getAttackDamage(attack, attacker.turnBuffs?.attackDamageBonus ?? 0) +
+                    (cell.x === target.x &&
+                    cell.y === target.y &&
+                    victim.owner === 1 &&
+                    (attacker.monster.bonusDamageFromBehind ?? 0) > 0 &&
+                    isBehind(victim.position, attacker.position, victim.facing)
+                        ? attacker.monster.bonusDamageFromBehind ?? 0
+                        : 0);
+                const effectiveDamage = Math.min(victim.currentHp, damage);
+                if (victim.owner === 2) {
+                    value.friendlyDamage += effectiveDamage;
+                } else {
+                    value.damage += effectiveDamage;
+                    if (damage >= victim.currentHp) value.kills++;
+                    if (
+                        attack.statusEffect &&
+                        !victim.statusEffects.some(
+                            (effect) => effect.type === attack.statusEffect?.type,
+                        )
+                    ) {
+                        value.statusDamage +=
+                            attack.statusEffect.damagePerTurn *
+                            Math.min(
+                                2,
+                                typeof attack.statusEffect.duration === "number"
+                                    ? attack.statusEffect.duration
+                                    : 2,
+                            );
+                    }
+                }
+            }
         }
-        return false;
+
+        return scoreTacticalAttack(
+            value,
+            cost,
+            this.opponentProfile,
+            this.playerHealth[1],
+        );
+    }
+
+    protected playComputerMovements(): void {
+        for (const monster of this.placedMonsters) {
+            if (this.winner !== null) return;
+            if (monster.owner !== 2 || monster.currentHp <= 0) continue;
+
+            while (this.canAffordMovement(monster)) {
+                const options = this.getMovementOptions(monster, monster.position);
+                const ownedCells = this.placedMonsters
+                    .filter((placed) => placed.owner === 2)
+                    .flatMap((placed) => placed.cells);
+                const movement = findObjectiveMovement(
+                    options,
+                    ownedCells,
+                    this.startingPositions[1],
+                    this.placedMonsters
+                        .filter((placed) => placed.owner === 1 && placed.currentHp > 0)
+                        .map((placed) => placed.position),
+                );
+                if (!movement) break;
+
+                const movementsUsed = monster.movementsUsedThisTurn;
+                this.actionMode = { type: "movement", monsterId: monster.id };
+                this.handleMovementAction(movement.position, monster.id);
+                this.actionMode = { type: "idle" };
+                if (monster.movementsUsedThisTurn === movementsUsed) break;
+            }
+        }
     }
 }

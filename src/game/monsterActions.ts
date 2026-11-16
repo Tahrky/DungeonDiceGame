@@ -35,10 +35,21 @@ export interface AttackZoneOption {
     readonly cells: Position[];
 }
 
+type MovementTraversalOptions = Pick<
+    MovementOptions,
+    | "deployedCells"
+    | "blockedCells"
+    | "hostileCells"
+    | "canPassHostiles"
+    | "canPassUndeployedCells"
+    | "boardWidth"
+    | "boardHeight"
+>;
+
 interface TraversalContext {
     visited: ReadonlyMap<string, number>;
     blockedKeys: ReadonlySet<string>;
-    deployedCells: readonly Position[];
+    deployedKeys: ReadonlySet<string>;
     hostileKeys: ReadonlySet<string>;
     canPassHostiles: boolean;
     canPassUndeployedCells: boolean;
@@ -441,34 +452,37 @@ export function getMonsterMovementPath(options: MovementOptions): Position[] {
     if (!isValidDestination(destination, deployedCells, occupiedCells, blockedCells, range)) {
         return [];
     }
+
     const key = (position: Position): string => `${position.x},${position.y}`;
-    const hostileKeys = new Set(hostileCells.map(key));
-    const blockedKeys = new Set(blockedCells.map(key));
-    const visited = new Map<string, number>([[key(source), 0]]);
+    const sourceKey = key(source);
+    const destinationKey = key(destination);
+    const visited = new Map<string, number>([[sourceKey, 0]]);
     const previous = new Map<string, Position>();
     const traversal: TraversalContext = {
         visited,
-        blockedKeys,
-        deployedCells,
-        hostileKeys,
+        blockedKeys: new Set(blockedCells.map(key)),
+        deployedKeys: new Set(deployedCells.map(key)),
+        hostileKeys: new Set(hostileCells.map(key)),
         canPassHostiles,
         canPassUndeployedCells,
         boardWidth,
         boardHeight,
     };
-    const queue = [source];
 
-    for (const current of queue) {
-        const distance = visited.get(key(current)) ?? 0;
-        if (isSamePosition(current, destination)) {
+    const queue = [source];
+    for (let index = 0; index < queue.length; index++) {
+        const current = queue[index]!;
+        const currentKey = key(current);
+        const distance = visited.get(currentKey) ?? 0;
+        if (currentKey === destinationKey) {
             if (distance === 0) return [];
             const path = [destination];
-            let currentKey = key(destination);
-            while (currentKey !== key(source)) {
-                const parent = previous.get(currentKey);
+            let pathKey = destinationKey;
+            while (pathKey !== sourceKey) {
+                const parent = previous.get(pathKey);
                 if (!parent) return [];
                 path.unshift(parent);
-                currentKey = key(parent);
+                pathKey = key(parent);
             }
             return path;
         }
@@ -483,6 +497,118 @@ export function getMonsterMovementPath(options: MovementOptions): Position[] {
         }
     }
     return [];
+}
+
+export function getMovementPathMap(options: MovementOptions): Map<string, Position[]> {
+    const {
+        source,
+        deployedCells,
+        occupiedCells,
+        blockedCells,
+        range = 2,
+        hostileCells = [],
+        canPassHostiles = false,
+        canPassUndeployedCells = false,
+        boardWidth = Number.POSITIVE_INFINITY,
+        boardHeight = Number.POSITIVE_INFINITY,
+    } = options;
+    const paths = new Map<string, Position[]>();
+    if (range <= 0) return paths;
+
+    const key = (position: Position): string => `${position.x},${position.y}`;
+    const sourceKey = key(source);
+    const hostileKeys = new Set(hostileCells.map(key));
+    const blockedKeys = new Set(blockedCells.map(key));
+    const deployedKeys = new Set(deployedCells.map(key));
+    const visited = new Map<string, number>([[sourceKey, 0]]);
+    const previous = new Map<string, Position>();
+    const traversal: TraversalContext = {
+        visited,
+        blockedKeys,
+        deployedKeys,
+        hostileKeys,
+        canPassHostiles,
+        canPassUndeployedCells,
+        boardWidth,
+        boardHeight,
+    };
+    const queue = [source];
+
+    for (let index = 0; index < queue.length; index++) {
+        const current = queue[index]!;
+        const distance = visited.get(key(current)) ?? 0;
+        if (distance >= range) continue;
+
+        for (const neighbor of getOrthogonalNeighbors(current)) {
+            const neighborKey = key(neighbor);
+            if (!isTraversableCell(neighbor, neighborKey, traversal)) continue;
+            visited.set(neighborKey, distance + 1);
+            previous.set(neighborKey, current);
+            queue.push(neighbor);
+        }
+    }
+
+    for (const destination of deployedCells) {
+        const destinationKey = key(destination);
+        if (
+            destinationKey === sourceKey ||
+            !visited.has(destinationKey) ||
+            !isValidDestination(destination, deployedCells, occupiedCells, blockedCells, range)
+        ) {
+            continue;
+        }
+        const path = [destination];
+        let currentKey = destinationKey;
+        while (currentKey !== sourceKey) {
+            const parent = previous.get(currentKey);
+            if (!parent) break;
+            path.unshift(parent);
+            currentKey = key(parent);
+        }
+        if (currentKey === sourceKey) paths.set(destinationKey, path);
+    }
+    return paths;
+}
+
+export function getMovementDistanceMap(
+    destinations: readonly Position[],
+    options: MovementTraversalOptions,
+): Map<string, number> {
+    const distances = new Map<string, number>();
+    const blockedKeys = new Set(options.blockedCells.map((cell) => `${cell.x},${cell.y}`));
+    const hostileKeys = new Set((options.hostileCells ?? []).map((cell) => `${cell.x},${cell.y}`));
+    const traversal: TraversalContext = {
+        visited: distances,
+        blockedKeys,
+        deployedKeys: new Set(options.deployedCells.map((cell) => `${cell.x},${cell.y}`)),
+        hostileKeys,
+        canPassHostiles: options.canPassHostiles ?? false,
+        canPassUndeployedCells: options.canPassUndeployedCells ?? false,
+        boardWidth: options.boardWidth ?? Number.POSITIVE_INFINITY,
+        boardHeight: options.boardHeight ?? Number.POSITIVE_INFINITY,
+    };
+    const queue: Position[] = [];
+
+    for (const destination of destinations) {
+        const key = `${destination.x},${destination.y}`;
+        if (isTraversableCell(destination, key, traversal)) {
+            distances.set(key, 0);
+            queue.push(destination);
+        }
+    }
+
+    for (let index = 0; index < queue.length; index++) {
+        const current = queue[index]!;
+        const currentKey = `${current.x},${current.y}`;
+        const distance = distances.get(currentKey)!;
+        for (const neighbor of getOrthogonalNeighbors(current)) {
+            const neighborKey = `${neighbor.x},${neighbor.y}`;
+            if (!isTraversableCell(neighbor, neighborKey, traversal)) continue;
+            distances.set(neighborKey, distance + 1);
+            queue.push(neighbor);
+        }
+    }
+    return distances;
 }
 
 function isValidDestination(
@@ -525,8 +651,7 @@ function isTraversableCell(
         position.y < context.boardHeight &&
         !context.visited.has(positionKey) &&
         !context.blockedKeys.has(positionKey) &&
-        (context.canPassUndeployedCells ||
-            context.deployedCells.some((cell) => isSamePosition(cell, position))) &&
+        (context.canPassUndeployedCells || context.deployedKeys.has(positionKey)) &&
         (context.canPassHostiles || !context.hostileKeys.has(positionKey))
     );
 }

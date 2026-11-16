@@ -8,7 +8,9 @@ import { MonsterSettings } from "./MonsterSettings";
 import { OptionsMenu } from "./OptionsMenu";
 import { PlayMenu } from "./PlayMenu";
 import { RoomScreen } from "./RoomScreen";
+import { SimulationLab } from "./SimulationLab";
 import type { GameConfiguration } from "../game/gameConfiguration";
+import type { BotProfile } from "../game/botStrategy";
 
 export type AppScreenName =
     | "menu"
@@ -18,6 +20,7 @@ export type AppScreenName =
     | "settings"
     | "monster-settings"
     | "room"
+    | "simulation"
     | "game";
 
 interface AppScreenProps {
@@ -31,8 +34,10 @@ interface AppScreenProps {
     roomStatus: "connecting" | "connected" | "error";
     roomPlayerCount: number;
     roomError: string;
+    opponentProfile: BotProfile;
     onScreenChange: (screen: AppScreenName) => void;
-    onPlay: () => void;
+    onPlay: (profile: BotProfile) => void;
+    onOpponentProfileChange: (profile: BotProfile) => void;
     onLocalPlay: () => void;
     onCreateRoom: () => void;
     onJoinRoom: (code: string) => void;
@@ -52,8 +57,10 @@ export function AppScreen({
     roomStatus,
     roomPlayerCount,
     roomError,
+    opponentProfile,
     onScreenChange,
     onPlay,
+    onOpponentProfileChange,
     onLocalPlay,
     onCreateRoom,
     onJoinRoom,
@@ -75,12 +82,20 @@ export function AppScreen({
                         onOpenOptions={() => onScreenChange("options-menu")}
                     />
                 )}
+                {screen === "simulation" && (
+                    <SimulationLab
+                        configuration={gameConfiguration}
+                        onBack={() => onScreenChange("menu")}
+                    />
+                )}
                 {screen === "play-menu" && (
                     <PlayMenu
                         canPlay={game !== null}
                         showOnlineOptions={showOnlineOptions}
+                        opponentProfile={opponentProfile}
                         onBack={() => onScreenChange("menu")}
                         onPlay={onPlay}
+                        onOpponentProfileChange={onOpponentProfileChange}
                         onLocalPlay={onLocalPlay}
                         onOnline={onCreateRoom}
                     />

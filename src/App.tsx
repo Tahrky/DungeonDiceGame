@@ -12,6 +12,7 @@ import type { AppScreenName } from "./components/AppScreen";
 import { GAME_CONFIG } from "./config";
 import { getDefaultBoard, getRandomBoard, getTestBoard, parseBoardDefinition } from "./game/boards";
 import { getDefaultDeck, getSavedDeck, parseDeck, type GameSetup } from "./game/decks";
+import { chooseDeck, type BotProfile } from "./game/botStrategy";
 import {
     getSavedGameConfiguration,
     parseGameConfiguration,
@@ -88,6 +89,7 @@ export function App() {
     const [game, setGame] = useState<Phaser.Game | null>(null);
     const [screen, setScreen] = useState<AppScreenName>("menu");
     const [gameConfiguration, setGameConfiguration] = useState(getSavedGameConfiguration);
+    const [opponentProfile, setOpponentProfile] = useState<BotProfile>("balanced");
     const [roomCode, setRoomCode] = useState("");
     const [roomRole, setRoomRole] = useState<RoomRole | null>(null);
     const [roomStatus, setRoomStatus] = useState<RoomStatus>("connecting");
@@ -154,6 +156,26 @@ export function App() {
 
         return () => observer.disconnect();
     }, [game, screen]);
+
+    useEffect(() => {
+        const handleMenuShortcut = (event: KeyboardEvent): void => {
+            const target = event.target;
+            if (
+                target instanceof HTMLElement &&
+                (target.isContentEditable ||
+                    target.closest("input, textarea, select, [contenteditable=true]"))
+            ) {
+                return;
+            }
+            if (event.altKey || event.ctrlKey || event.metaKey || event.repeat) return;
+            if (screen === "menu" && event.key.toLowerCase() === "s") {
+                event.preventDefault();
+                setScreen("simulation");
+            }
+        };
+        window.addEventListener("keydown", handleMenuShortcut);
+        return () => window.removeEventListener("keydown", handleMenuShortcut);
+    }, [screen]);
 
     useEffect(() => {
         if (!roomCode || !roomRole) return;
@@ -315,16 +337,21 @@ export function App() {
         };
     }, [gameConfiguration.deckSize, roomCode, roomRole]);
 
-    function startComputerGame(): void {
+    function startComputerGame(profile: BotProfile): void {
         const instance = gameRef.current;
         if (!instance) throw new Error("Le moteur de jeu n’est pas encore initialisé.");
 
         const setup: GameSetup = {
             mode: "computer",
+            opponentProfile: profile,
             playerDeck:
                 getSavedDeck(gameConfiguration.deckSize) ??
                 getDefaultDeck(gameConfiguration.deckSize),
-            opponentDeck: getDefaultDeck(gameConfiguration.deckSize),
+            opponentDeck: chooseDeck(
+                gameConfiguration.monsters,
+                profile,
+                gameConfiguration.deckSize,
+            ),
             board: getConfiguredBoard(gameConfiguration),
             configuration: gameConfiguration,
         };
@@ -450,8 +477,10 @@ export function App() {
             roomStatus={roomStatus}
             roomPlayerCount={roomPlayers.length}
             roomError={roomError}
+            opponentProfile={opponentProfile}
             onScreenChange={setScreen}
             onPlay={startComputerGame}
+            onOpponentProfileChange={setOpponentProfile}
             onLocalPlay={startLocalGame}
             onCreateRoom={createRoom}
             onJoinRoom={joinRoom}
