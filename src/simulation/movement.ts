@@ -20,7 +20,7 @@ import {
     spend,
     type MatchState,
 } from "./matchState";
-import { findObjectiveMovement } from "../game/botStrategy";
+import { chooseBotObjective, findObjectiveMovement } from "../game/botStrategy";
 
 export function performMovements(state: MatchState, board: BoardDefinition): void {
     if (state.winner !== null) return;
@@ -53,12 +53,21 @@ export function performMovements(state: MatchState, board: BoardDefinition): voi
             const best = findObjectiveMovement(
                 movement,
                 ownedCells,
-                enemyStart,
+                chooseBotObjective(
+                    state.profiles[player],
+                    monster.position,
+                    enemyStart,
+                    enemyPositions,
+                ),
                 enemyPositions,
             );
             if (!best || !spend(state, player, "movement", cost)) break;
 
             const from = monster.position;
+            const movementGoal =
+                state.profiles[player] === "defensive" && enemyPositions.length > 0
+                    ? "les monstres adverses"
+                    : "le départ ennemi";
             monster.facing = getFacingFromMovement(from, best.position, monster.facing);
             monster.position = best.position;
             monster.movementsUsedThisTurn++;
@@ -67,7 +76,7 @@ export function performMovements(state: MatchState, board: BoardDefinition): voi
                 state,
                 player,
                 "strategy",
-                `Suit le chemin vers le départ ennemi : ${best.routeProgress} case(s) plus près.`,
+                `Suit le chemin vers ${movementGoal} : ${best.routeProgress} case(s) plus près.`,
                 {
                     monsterId: monster.id,
                     monsterTypeId: monster.monster.id,

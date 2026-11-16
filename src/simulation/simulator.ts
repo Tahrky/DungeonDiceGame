@@ -44,13 +44,27 @@ function createMatch(
         1: options.profile1,
         2: options.profile2,
     };
+    const deckRandom: Record<PlayerId, () => number> = {
+        1: createRandom((seed ^ 0x9e3779b9) >>> 0),
+        2: createRandom((seed ^ 0x85ebca6b) >>> 0),
+    };
     const decks: Record<PlayerId, string[]> = {
         1:
             options.deck1 ??
-            chooseDeck(configuration.monsters, options.profile1, configuration.deckSize),
+            chooseDeck(
+                configuration.monsters,
+                options.profile1,
+                configuration.deckSize,
+                deckRandom[1],
+            ),
         2:
             options.deck2 ??
-            chooseDeck(configuration.monsters, options.profile2, configuration.deckSize),
+            chooseDeck(
+                configuration.monsters,
+                options.profile2,
+                configuration.deckSize,
+                deckRandom[2],
+            ),
     };
     const state: MatchState = {
         turn: 1,

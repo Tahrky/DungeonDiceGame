@@ -143,7 +143,7 @@ export const MONSTERS: Monster[] = [
         movementRange: 2,
         movementCost: 0,
         flying: true,
-        //highAltitude: true,
+        highAltitude: true,
         canPassHostiles: true,
     },
 
@@ -250,6 +250,7 @@ export const MONSTERS: Monster[] = [
                 pattern: { type: "radius", range: 3 },
                 animation: "alternativeAttack1",
                 targetsAlliesOnly: true,
+                targetsSelf: true,
                 attackDamageBonus: 1,
                 attackCostReduction: 1,
                 usesPerTurn: 1,

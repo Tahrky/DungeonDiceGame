@@ -19,6 +19,7 @@ export interface AnalyzableMatch {
     profiles: Record<PlayerId, BotProfile>;
     decks: Record<PlayerId, string[]>;
     winner: PlayerId | null;
+    finishReason: "baseDestroyed" | "monstersEliminated" | "turnLimit";
     turns: number;
     statistics: Record<PlayerId, AnalyzablePlayerStats>;
     finalBoard: FinalBoard;
@@ -54,6 +55,7 @@ export interface SimulationAnalytics {
     averageTurns: number;
     averageDeployments: Record<PlayerId, number>;
     winsByPlayer: Record<PlayerId, number>;
+    winsByFinishReason: { baseDestroyed: number; monstersEliminated: number };
     draws: number;
     turnDistribution: Array<{ turns: number; matches: number }>;
     winsByProfile: Partial<Record<BotProfile, number>>;
@@ -157,6 +159,9 @@ function isMatch(value: unknown): value is AnalyzableMatch {
         Array.isArray(value.decks[2]) &&
         value.decks[2].every((id) => typeof id === "string") &&
         (value.winner === null || isPlayerId(value.winner)) &&
+        (value.finishReason === "baseDestroyed" ||
+            value.finishReason === "monstersEliminated" ||
+            value.finishReason === "turnLimit") &&
         Number.isInteger(value.turns) &&
         isStatistics(value.statistics[1]) &&
         isStatistics(value.statistics[2]) &&
@@ -193,6 +198,7 @@ export function analyzeSimulationData(data: SimulationData): SimulationAnalytics
     const winsByProfile: Partial<Record<BotProfile, number>> = {};
     let deployments: Record<PlayerId, number> = { 1: 0, 2: 0 };
     const winsByPlayer: Record<PlayerId, number> = { 1: 0, 2: 0 };
+    const winsByFinishReason = { baseDestroyed: 0, monstersEliminated: 0 };
     let draws = 0;
     let totalTurns = 0;
     for (const match of data.matches) {
@@ -206,6 +212,9 @@ export function analyzeSimulationData(data: SimulationData): SimulationAnalytics
             winsByPlayer[match.winner]++;
             const profile = match.profiles[match.winner];
             winsByProfile[profile] = (winsByProfile[profile] ?? 0) + 1;
+            if (match.finishReason !== "turnLimit") {
+                winsByFinishReason[match.finishReason]++;
+            }
         } else {
             draws++;
         }
@@ -262,6 +271,7 @@ export function analyzeSimulationData(data: SimulationData): SimulationAnalytics
             2: deployments[2] / matchCount,
         },
         winsByPlayer,
+        winsByFinishReason,
         draws,
         turnDistribution: [...turns.entries()]
             .sort(([first], [second]) => first - second)

@@ -8,6 +8,7 @@ import {
     spendSymbols,
 } from "../game/diceResources";
 import {
+    DEFAULT_PLAYER_LIFE,
     getDefaultGameConfiguration,
     parseGameConfiguration,
     type GameConfiguration,
@@ -67,7 +68,10 @@ export abstract class GameSceneState extends Phaser.Scene {
 
     protected turnNumber = 1;
 
-    protected playerHealth: Record<PlayerId, number> = { 1: 3, 2: 3 };
+    protected playerHealth: Record<PlayerId, number> = {
+        1: DEFAULT_PLAYER_LIFE,
+        2: DEFAULT_PLAYER_LIFE,
+    };
 
     protected gameConfiguration: GameConfiguration = getDefaultGameConfiguration();
 

@@ -1,4 +1,10 @@
-import type { Monster, PlayerId, Position } from "../types/GameTypes";
+import type {
+    DiceReserve,
+    DiceSymbol,
+    Monster,
+    PlayerId,
+    Position,
+} from "../types/GameTypes";
 import {
     getGridDistance,
     getMovementDistanceMap,
@@ -12,6 +18,7 @@ export const BOT_PROFILES = [
     "expensive",
     "offensive",
     "support",
+    "defensive",
 ] as const;
 
 export type BotProfile = (typeof BOT_PROFILES)[number];
@@ -22,6 +29,7 @@ export const BOT_PROFILE_LABELS: Record<BotProfile, string> = {
     expensive: "Monstres coûteux",
     offensive: "Offensif",
     support: "Soutien",
+    defensive: "Défensif — chasse les monstres",
 };
 
 export interface TacticalAttackValue {
@@ -40,6 +48,61 @@ export interface ObjectiveMovement {
     position: Position;
     path: Position[];
     routeProgress: number;
+}
+
+export interface SymbolConversionChoice {
+    sourceSymbols: [DiceSymbol, DiceSymbol];
+    targetSymbol: DiceSymbol;
+}
+
+const SYMBOL_CONVERSION_PAIRS: readonly [DiceSymbol, DiceSymbol][] = [
+    ["invocation", "invocation"],
+    ["attack", "attack"],
+    ["movement", "movement"],
+    ["invocation", "attack"],
+    ["invocation", "movement"],
+    ["attack", "movement"],
+];
+
+export function chooseSymbolConversion(
+    reserve: DiceReserve,
+    opportunities: DiceReserve,
+    protectedCounts: DiceReserve,
+): SymbolConversionChoice | null {
+    let bestChoice: SymbolConversionChoice | null = null;
+    let bestOpportunity = 0;
+    let bestSurplus = Number.NEGATIVE_INFINITY;
+
+    for (const targetSymbol of ["invocation", "attack", "movement"] as const) {
+        const opportunity = opportunities[targetSymbol];
+        if (opportunity <= 0 || opportunity < bestOpportunity) continue;
+
+        for (const sourceSymbols of SYMBOL_CONVERSION_PAIRS) {
+            if (sourceSymbols.includes(targetSymbol)) continue;
+
+            const remaining = { ...reserve };
+            remaining[sourceSymbols[0]]--;
+            remaining[sourceSymbols[1]]--;
+            if (
+                remaining[sourceSymbols[0]] < protectedCounts[sourceSymbols[0]] ||
+                remaining[sourceSymbols[1]] < protectedCounts[sourceSymbols[1]]
+            ) {
+                continue;
+            }
+
+            const surplus = sourceSymbols.reduce(
+                (total, symbol) => total + remaining[symbol] - protectedCounts[symbol],
+                0,
+            );
+            if (opportunity === bestOpportunity && surplus <= bestSurplus) continue;
+
+            bestChoice = { sourceSymbols: [...sourceSymbols], targetSymbol };
+            bestOpportunity = opportunity;
+            bestSurplus = surplus;
+        }
+    }
+
+    return bestChoice;
 }
 
 function supportValue(monster: Monster): number {
@@ -76,6 +139,8 @@ export function scoreMonsterForProfile(monster: Monster, profile: BotProfile): n
             return offenseValue(monster) * 4 + monster.hp * 0.1 - monster.cost * 0.15;
         case "support":
             return supportValue(monster) * 10 + offenseValue(monster) * 0.1 - monster.cost * 0.1;
+        case "defensive":
+            return offenseValue(monster) * 2 + monster.hp * 0.6 - monster.cost * 0.1;
         case "balanced":
             return 5 - Math.abs(monster.cost - 4) + monster.hp * 0.1;
     }
@@ -85,15 +150,35 @@ export function chooseDeck(
     monsters: readonly Monster[],
     profile: BotProfile,
     deckSize: number,
+    random: () => number = Math.random,
 ): string[] {
-    return [...monsters]
+    const remaining = [...monsters]
         .sort(
             (first, second) =>
                 scoreMonsterForProfile(second, profile) - scoreMonsterForProfile(first, profile) ||
                 first.id.localeCompare(second.id),
-        )
-        .slice(0, deckSize)
-        .map(({ id }) => id);
+        );
+    const deck: string[] = [];
+
+    while (deck.length < deckSize && remaining.length > 0) {
+        const totalWeight = remaining.reduce(
+            (total, _monster, rank) => total + 1 / (rank + 1),
+            0,
+        );
+        let selection = Math.max(0, Math.min(1 - Number.EPSILON, random())) * totalWeight;
+        let selectedIndex = remaining.length - 1;
+        for (let rank = 0; rank < remaining.length; rank++) {
+            selection -= 1 / (rank + 1);
+            if (selection < 0) {
+                selectedIndex = rank;
+                break;
+            }
+        }
+
+        deck.push(remaining.splice(selectedIndex, 1)[0]!.id);
+    }
+
+    return deck;
 }
 
 export function describeDeploymentChoice(monster: Monster, profile: BotProfile): string {
@@ -106,6 +191,8 @@ export function describeDeploymentChoice(monster: Monster, profile: BotProfile):
             return `profil offensive : valeur offensive ${offenseValue(monster).toFixed(2)}`;
         case "support":
             return `profil support : valeur de soutien ${supportValue(monster)}`;
+        case "defensive":
+            return `profil défensif : privilégie les PV et les attaques, coût ${monster.cost}`;
         case "balanced":
             return `profil balanced : choix polyvalent, coût ${monster.cost}, ${monster.hp} PV`;
     }
@@ -147,6 +234,21 @@ export function scoreTerritoryExpansion(
     return objectiveProgress * 100 + forwardProgress * 5 + newCells.length;
 }
 
+export function chooseBotObjective(
+    profile: BotProfile,
+    source: Position,
+    enemyBase: Position,
+    enemyPositions: readonly Position[],
+): Position {
+    if (profile !== "defensive" || enemyPositions.length === 0) return enemyBase;
+
+    return enemyPositions.reduce((closest, candidate) =>
+        getGridDistance(source, candidate) < getGridDistance(source, closest)
+            ? candidate
+            : closest,
+    );
+}
+
 export function scoreTacticalAttack(
     value: TacticalAttackValue,
     cost: number,
@@ -155,10 +257,11 @@ export function scoreTacticalAttack(
 ): number {
     const supportMultiplier = profile === "support" ? 1.5 : 1;
     const offenseMultiplier = profile === "offensive" ? 1.25 : 1;
-    const baseMultiplier = enemyBaseHealth <= 1 ? 14 : 8;
+    const defensive = profile === "defensive";
+    const baseMultiplier = defensive ? 0.25 : enemyBaseHealth <= 1 ? 14 : 8;
     const score =
         (value.damage * 2 + value.statusDamage) * offenseMultiplier +
-        value.kills * 5 +
+        value.kills * (defensive ? 30 : 5) +
         value.baseDamage * baseMultiplier +
         supportMultiplier *
             (value.healing * 2 +

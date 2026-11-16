@@ -17,6 +17,7 @@ import type {
     Position,
 } from "../types/GameTypes";
 import {
+    chooseBotObjective,
     describeDeploymentChoice,
     scoreMonsterForProfile,
     scoreTerritoryExpansion,
@@ -118,6 +119,7 @@ function findPlacement(
     state: MatchState,
     board: BoardDefinition,
     player: PlayerId,
+    profile: BotProfile,
 ): { position: Position; cells: Position[] } | null {
     const starts = getStartingPositions(board);
     const occupiedCells = [...Object.values(starts), ...state.monsters.flatMap((m) => m.cells)];
@@ -127,6 +129,15 @@ function findPlacement(
     const opponentCells = state.monsters
         .filter((monster) => monster.owner !== player)
         .flatMap((monster) => monster.cells);
+    const enemyPositions = state.monsters
+        .filter((monster) => monster.owner !== player && monster.currentHp > 0)
+        .map((monster) => monster.position);
+    const expansionObjective = chooseBotObjective(
+        profile,
+        starts[player],
+        starts[opposingPlayer(player)],
+        enemyPositions,
+    );
     const ownKeys = new Set([starts[player], ...ownCells].map(({ x, y }) => `${x},${y}`));
     const enemyKeys = new Set(
         [starts[opposingPlayer(player)], ...opponentCells].map(({ x, y }) => `${x},${y}`),
@@ -162,7 +173,7 @@ function findPlacement(
                 cells,
                 ownCells,
                 starts[player],
-                starts[opposingPlayer(player)],
+                expansionObjective,
             ),
     });
 }
@@ -200,8 +211,9 @@ export function deployMonsters(
             configuration.maxMonstersPerPlayer &&
         state.winner === null
     ) {
-        const placement = findPlacement(state, board, state.currentPlayer);
+        const placement = findPlacement(state, board, state.currentPlayer, profile);
         if (!placement) return;
+        const summonedByMonster = state.statistics[state.currentPlayer].summonedByMonster;
         const choices = deck
             .map((id) => {
                 const monster = configuration.monsters.find((candidate) => candidate.id === id);
@@ -212,10 +224,15 @@ export function deployMonsters(
                 canSpend(state, state.currentPlayer, "invocation", monster.cost),
             )
             .sort(
-                (first, second) =>
-                    scoreMonsterForProfile(second, profile) -
+                (first, second) => {
+                    return (
+                        (summonedByMonster[first.id] ?? 0) -
+                            (summonedByMonster[second.id] ?? 0) ||
+                        scoreMonsterForProfile(second, profile) -
                         scoreMonsterForProfile(first, profile) ||
-                    first.cost - second.cost,
+                        first.cost - second.cost
+                    );
+                },
             );
         const monster = choices[0];
         if (!monster || !spend(state, state.currentPlayer, "invocation", monster.cost)) return;

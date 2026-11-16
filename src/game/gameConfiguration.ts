@@ -22,6 +22,7 @@ export const MIN_DECK_SIZE = 3;
 export const MAX_DECK_SIZE = 15;
 export const DEFAULT_DECK_SIZE = 5;
 export const MAX_AVAILABLE_DECK_SIZE = Math.min(MAX_DECK_SIZE, MONSTERS.length);
+export const DEFAULT_PLAYER_LIFE = 8;
 
 export interface GameConfiguration {
     version: typeof GAME_CONFIGURATION_VERSION;
@@ -74,7 +75,7 @@ export function getDefaultGameConfiguration(): GameConfiguration {
         deckSize: DEFAULT_DECK_SIZE,
         randomBoard: false,
         testBoard: false,
-        initialPlayerHealth: 3,
+        initialPlayerHealth: DEFAULT_PLAYER_LIFE,
         maxMonstersPerPlayer: MAX_MONSTERS_PER_PLAYER,
         monstersKilledForVictory: DEFAULT_MONSTERS_KILLED_FOR_VICTORY,
         monsters: MONSTERS.map(cloneMonster),

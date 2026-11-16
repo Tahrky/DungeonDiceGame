@@ -15,6 +15,15 @@ describe("analyse des résultats de simulation", () => {
         });
         const data = parseSimulationData(batch);
         if (!data) throw new Error("Export de simulation attendu comme valide.");
+        data.matches[0]!.winner = 1;
+        data.matches[0]!.finishReason = "baseDestroyed";
+        data.matches[1]!.winner = 2;
+        data.matches[1]!.finishReason = "monstersEliminated";
+        const baselineGhost = analyzeSimulationData(data).monsters.find(
+            (monster) => monster.id === "ghost",
+        );
+        if (!baselineGhost) throw new Error("Analyse du fantôme attendue.");
+
         data.matches[0]!.history.push(
             {
                 turn: 1,
@@ -49,10 +58,16 @@ describe("analyse des résultats de simulation", () => {
         expect(analytics.averageTurns).toBe(1);
         expect(analytics.turnDistribution).toEqual([{ turns: 1, matches: 2 }]);
         expect(analytics.averageDeployments[1]).toBeGreaterThanOrEqual(0);
-        expect(analytics.monsters.find((monster) => monster.id === "ghost")).toMatchObject({
-            averageDamage: 4,
-            attacks: 3,
+        expect(analytics.winsByFinishReason).toEqual({
+            baseDestroyed: 1,
+            monstersEliminated: 1,
         });
+        const ghostAnalysis = analytics.monsters.find((monster) => monster.id === "ghost");
+        expect(ghostAnalysis?.attacks).toBe(baselineGhost.attacks + 3);
+        expect(ghostAnalysis?.averageDamage).toBeCloseTo(
+            (baselineGhost.averageDamage * baselineGhost.attacks + 12) /
+                (baselineGhost.attacks + 3),
+        );
         expect(parseSimulationData({ ...batch, schemaVersion: 99 })).toBeNull();
         expect(
             parseSimulationData({

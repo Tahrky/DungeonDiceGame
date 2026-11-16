@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+    chooseBotObjective,
+    chooseSymbolConversion,
     chooseDeck,
     findObjectiveMovement,
     scoreTacticalAttack,
@@ -8,6 +10,14 @@ import {
 import type { MovementOptions } from "../src/game/monsterActions";
 import type { TacticalAttackValue } from "../src/game/botStrategy";
 import { getDefaultGameConfiguration } from "../src/game/gameConfiguration";
+
+function createRandom(seed: number): () => number {
+    let value = seed;
+    return () => {
+        value = (value * 1664525 + 1013904223) >>> 0;
+        return value / 0x1_0000_0000;
+    };
+}
 
 describe("stratégie des bots", () => {
     it("choisit des routes qui rapprochent le monstre de la base malgré un détour", () => {
@@ -102,13 +112,57 @@ describe("stratégie des bots", () => {
         expect(scoreTacticalAttack(support, 1, "support", 3)).toBeGreaterThan(
             scoreTacticalAttack(support, 1, "balanced", 3),
         );
+        expect(scoreTacticalAttack(finishingBlow, 1, "defensive", 3)).toBeGreaterThan(
+            scoreTacticalAttack({ ...damage, baseDamage: 1 }, 1, "defensive", 3),
+        );
     });
 
     it("sélectionne des decks distincts selon les profils", () => {
         const monsters = getDefaultGameConfiguration().monsters;
-        const offensive = chooseDeck(monsters, "offensive", 5);
-        const support = chooseDeck(monsters, "support", 5);
+        const offensive = chooseDeck(monsters, "offensive", 5, createRandom(42));
+        const support = chooseDeck(monsters, "support", 5, createRandom(42));
 
         expect(offensive).not.toEqual(support);
+    });
+
+    it("le profil défensif cible les monstres adverses plutôt que la base", () => {
+        const source = { x: 5, y: 5 };
+        const enemyBase = { x: 0, y: 5 };
+        const enemies = [{ x: 4, y: 5 }, { x: 8, y: 5 }];
+
+        expect(chooseBotObjective("defensive", source, enemyBase, enemies)).toEqual(enemies[0]);
+        expect(chooseBotObjective("offensive", source, enemyBase, enemies)).toEqual(enemyBase);
+        expect(chooseBotObjective("defensive", source, enemyBase, [])).toEqual(enemyBase);
+    });
+
+    it("varie les decks entre les simulations tout en gardant un biais de profil", () => {
+        const monsters = getDefaultGameConfiguration().monsters;
+        const decks = Array.from({ length: 20 }, (_, seed) =>
+            chooseDeck(monsters, "balanced", 5, createRandom(seed + 1)),
+        );
+        const deployedMonsterIds = new Set(decks.flat());
+
+        expect(new Set(decks.map((deck) => deck.join(","))).size).toBeGreaterThan(1);
+        expect(deployedMonsterIds.size).toBeGreaterThan(5);
+    });
+
+    it("convertit des symboles excédentaires pour débloquer la meilleure action", () => {
+        expect(
+            chooseSymbolConversion(
+                { invocation: 0, attack: 3, movement: 2 },
+                { invocation: 5, attack: 4, movement: 3 },
+                { invocation: 0, attack: 1, movement: 1 },
+            ),
+        ).toMatchObject({ targetSymbol: "invocation" });
+    });
+
+    it("évite une conversion qui empêcherait une action déjà accessible", () => {
+        expect(
+            chooseSymbolConversion(
+                { invocation: 0, attack: 1, movement: 1 },
+                { invocation: 5, attack: 0, movement: 0 },
+                { invocation: 0, attack: 1, movement: 1 },
+            ),
+        ).toBeNull();
     });
 });

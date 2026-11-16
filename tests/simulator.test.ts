@@ -4,6 +4,14 @@ import { chooseDeck } from "../src/simulation/strategies";
 import { runSimulations } from "../src/simulation/simulator";
 import type { SimulationOptions } from "../src/simulation/types";
 
+function createRandom(seed: number): () => number {
+    let value = seed;
+    return () => {
+        value = (value * 1664525 + 1013904223) >>> 0;
+        return value / 0x1_0000_0000;
+    };
+}
+
 describe("simulation de matchs", () => {
     it("produit un résultat reproductible avec l'état final et les décisions du bot", () => {
         const options: SimulationOptions = {
@@ -33,9 +41,9 @@ describe("simulation de matchs", () => {
 
     it("sélectionne des decks distincts selon les profils économiques et de soutien", () => {
         const monsters = getDefaultGameConfiguration().monsters;
-        const cheap = chooseDeck(monsters, "cheap", 5);
-        const expensive = chooseDeck(monsters, "expensive", 5);
-        const support = chooseDeck(monsters, "support", 5);
+        const cheap = chooseDeck(monsters, "cheap", 5, createRandom(42));
+        const expensive = chooseDeck(monsters, "expensive", 5, createRandom(42));
+        const support = chooseDeck(monsters, "support", 5, createRandom(42));
         const supportMonsters = new Set(
             monsters
                 .filter((monster) => monster.attacks.some((attack) => attack.targetsAlliesOnly))

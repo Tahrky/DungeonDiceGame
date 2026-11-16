@@ -129,6 +129,14 @@ export function ResultsAnalysisPanel({ generatedResult }: ResultsAnalysisPanelPr
                         />
                         <MetricCard label="Victoires · J1" value={String(analytics.winsByPlayer[1])} />
                         <MetricCard label="Victoires · J2" value={String(analytics.winsByPlayer[2])} />
+                        <MetricCard
+                            label="Victoires · PV de la base à 0"
+                            value={String(analytics.winsByFinishReason.baseDestroyed)}
+                        />
+                        <MetricCard
+                            label="Victoires · élimination des monstres adverses"
+                            value={String(analytics.winsByFinishReason.monstersEliminated)}
+                        />
                         <MetricCard label="Matchs nuls" value={String(analytics.draws)} />
                     </div>
 
