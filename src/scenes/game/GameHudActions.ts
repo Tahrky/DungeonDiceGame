@@ -10,11 +10,42 @@ import type { GameHudActions } from "./GameHudBase";
 import Phaser from "phaser";
 import { DICE_SYMBOL_PRESENTATION } from "../../data/dice";
 import { getAvailableSymbolCount } from "../../game/diceResources";
-import { canUseActionThisTurn, getAttackActionsPerTurn, getMovementActionsPerTurn, getMovementCost } from "../../game/monsterActions";
+import {
+    canUseActionThisTurn,
+    canUseMonsterAttackThisTurn,
+    getAttackActionsPerTurn,
+    getAttackCost,
+    getAttackDamage,
+    getMovementActionsPerTurn,
+    getMovementCost,
+    getMovementRange,
+} from "../../game/monsterActions";
 import { getInvokedMonsterCount } from "../../game/matchRules";
 import type { GameViewState } from "./GameViewState";
-import type { MonsterAttack } from "../../types/GameTypes";
+import type { MonsterAttack, PlacedMonster } from "../../types/GameTypes";
 import { GameHudReserves } from "./GameHudReserves";
+
+function getAttackEffectLabel(attack: MonsterAttack, attacker: PlacedMonster): string {
+    if (attack.healAmount !== undefined) return `soin ${attack.healAmount} PV`;
+    if (attack.cooldownReduction !== undefined) {
+        return `recharge -${attack.cooldownReduction} tour`;
+    }
+    const effects: string[] = [];
+    if (attack.movementRangeBonus !== undefined) {
+        effects.push(`déplacement +${attack.movementRangeBonus}`);
+    }
+    if (attack.movementCostReduction !== undefined) {
+        effects.push(`coût ➡️ -${attack.movementCostReduction}`);
+    }
+    if (attack.attackDamageBonus !== undefined) {
+        effects.push(`dégâts +${attack.attackDamageBonus}`);
+    }
+    if (attack.attackCostReduction !== undefined) {
+        effects.push(`coût ⚔️ -${attack.attackCostReduction}`);
+    }
+    if (effects.length > 0) return `${effects.join(", ")} (ce tour)`;
+    return `${getAttackDamage(attack, attacker.turnBuffs?.attackDamageBonus ?? 0)} dég.`;
+}
 
 export abstract class GameHudActionsPanel extends GameHudReserves {
     protected renderMonsterSelection(state: GameViewState, actions: GameHudActions): void {
@@ -189,20 +220,19 @@ export abstract class GameHudActionsPanel extends GameHudReserves {
 
             const reserve = state.diceReserves[state.currentPlayer];
             attacker.monster.attacks.forEach((attack, attackIndex) => {
+                const attackCost = getAttackCost(
+                    attack,
+                    attacker.turnBuffs?.attackCostReduction ?? 0,
+                );
                 const affordable =
-                    getAvailableSymbolCount("attack", state.rolledDice, reserve) >= attack.cost;
+                    getAvailableSymbolCount("attack", state.rolledDice, reserve) >= attackCost;
                 const cooldown = attacker.attackCooldowns[attackIndex] ?? 0;
                 const attackLimit = getAttackActionsPerTurn(attacker.monster);
                 const attacksRemaining = Math.max(0, attackLimit - attacker.attacksUsedThisTurn);
                 const useLimitReached =
                     attack.usesPerTurn !== undefined &&
                     (attacker.attackUsesThisTurn[attackIndex] ?? 0) >= attack.usesPerTurn;
-                const effect =
-                    attack.healAmount !== undefined
-                        ? `soin ${attack.healAmount} PV`
-                        : attack.cooldownReduction !== undefined
-                          ? `recharge -${attack.cooldownReduction} tour`
-                          : `${attack.damage} dég.`;
+                const effect = getAttackEffectLabel(attack, attacker);
                 const attackStatus =
                     useLimitReached
                         ? " · utilisée ce tour"
@@ -213,7 +243,7 @@ export abstract class GameHudActionsPanel extends GameHudReserves {
                           : "";
                 const y = actionPanelY + attackIndex * 40;
                 this.addButton(
-                    `${attack.name} — ${effect} — ${attack.cost} ⚔️${
+                    `${attack.name} — ${effect} — ${attackCost} ⚔️${
                         cooldown > 0 ? ` · recharge ${cooldown} tour${cooldown === 1 ? "" : "s"}` : ""
                     }${attackStatus}`,
                     rightX,
@@ -261,9 +291,15 @@ export abstract class GameHudActionsPanel extends GameHudReserves {
             const movingMonster = state.placedMonsters.find(
                 (monster) => monster.id === actionMode.monsterId,
             );
+            const movementRange = movingMonster
+                ? getMovementRange(
+                      movingMonster.monster,
+                      movingMonster.turnBuffs?.movementRangeBonus ?? 0,
+                  )
+                : 2;
             const instruction = this.addRightInstruction(
                 actionMode.monsterId
-                    ? `Choisis une case libre à ${movingMonster?.monster.movementRange ?? 2} pas sur un dé posé`
+                    ? `Choisis une case libre à ${movementRange} pas sur un dé posé`
                     : "Choisis un monstre à déplacer",
                 actionPanelY,
             );
@@ -282,6 +318,28 @@ export abstract class GameHudActionsPanel extends GameHudReserves {
         const reserve = state.diceReserves[state.currentPlayer];
         const attackCount = getAvailableSymbolCount("attack", state.rolledDice, reserve);
         const movementCount = getAvailableSymbolCount("movement", state.rolledDice, reserve);
+        const hasFreeAttack = state.placedMonsters.some(
+            (monster) =>
+                monster.owner === state.currentPlayer &&
+                monster.currentHp > 0 &&
+                (monster.turnBuffs?.attackCostReduction ?? 0) > 0 &&
+                canUseActionThisTurn(
+                    monster.attacksUsedThisTurn,
+                    getAttackActionsPerTurn(monster.monster),
+                ) &&
+                monster.monster.attacks.some(
+                    (attack, index) =>
+                        getAttackCost(
+                            attack,
+                            monster.turnBuffs?.attackCostReduction ?? 0,
+                        ) === 0 &&
+                        (monster.attackCooldowns[index] ?? 0) === 0 &&
+                        canUseMonsterAttackThisTurn(
+                            attack,
+                            monster.attackUsesThisTurn[index] ?? 0,
+                        ),
+                ),
+        );
         const canMove = state.placedMonsters.some(
             (monster) =>
                 monster.owner === state.currentPlayer &&
@@ -290,12 +348,15 @@ export abstract class GameHudActionsPanel extends GameHudReserves {
                     monster.movementsUsedThisTurn,
                     getMovementActionsPerTurn(monster.monster),
                 ) &&
-                getMovementCost(monster.monster) <= movementCount,
+                getMovementCost(
+                    monster.monster,
+                    monster.turnBuffs?.movementCostReduction ?? 0,
+                ) <= movementCount,
         );
         let visibleActions = 0;
-        if (attackCount > 0) {
+        if (attackCount > 0 || hasFreeAttack) {
             this.addButton(
-                `ATTAQUER ⚔️ (${attackCount})`,
+                attackCount > 0 ? `ATTAQUER ⚔️ (${attackCount})` : "ATTAQUER ⚔️ (gratuit)",
                 rightX,
                 actionPanelY + visibleActions * 48,
                 actions.startAttack,

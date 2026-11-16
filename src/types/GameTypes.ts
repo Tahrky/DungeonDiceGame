@@ -114,6 +114,10 @@ export interface MonsterAttack {
     clearsStatusEffects?: boolean;
     healAmount?: number;
     cooldownReduction?: number;
+    movementRangeBonus?: number;
+    movementCostReduction?: number;
+    attackDamageBonus?: number;
+    attackCostReduction?: number;
     movesToZone?: boolean;
 }
 
@@ -128,6 +132,13 @@ export type StatusEffectColor = "green" | "red" | "blue" | "yellow" | "white" | 
 
 export interface MonsterStatusEffect extends StatusEffectDefinition {
     remainingTurns: number | "untilDeath";
+}
+
+export interface MonsterTurnBuffs {
+    movementRangeBonus?: number;
+    movementCostReduction?: number;
+    attackDamageBonus?: number;
+    attackCostReduction?: number;
 }
 
 export interface Monster {
@@ -163,6 +174,7 @@ export interface PlacedMonster {
     movementsUsedThisTurn: number;
     attackCooldowns: number[];
     statusEffects: MonsterStatusEffect[];
+    turnBuffs?: MonsterTurnBuffs;
 }
 
 export type GameActionLogEntry =

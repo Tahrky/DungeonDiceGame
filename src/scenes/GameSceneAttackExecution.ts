@@ -1,7 +1,14 @@
 import { GameSceneAttackTargeting } from "./GameSceneAttackTargeting";
 import { getAvailableSymbolCount } from "../game/diceResources";
 import { getMonsterEliminationWinner } from "../game/matchRules";
-import { canAttackMonster, getFacingFromMovement, isBehind } from "../game/monsterActions";
+import {
+    applyMonsterTurnBuff,
+    canAttackMonster,
+    getAttackCost,
+    getAttackDamage,
+    getFacingFromMovement,
+    isBehind,
+} from "../game/monsterActions";
 import { clearStatusEffects, healMonster } from "../game/statusEffects";
 
 import type {
@@ -25,15 +32,30 @@ export abstract class GameSceneAttackExecution extends GameSceneAttackTargeting 
             attack.targetsAlliesOnly && clickedMonster?.owner === this.currentPlayer
                 ? clickedMonster
                 : undefined;
+        const hasTurnBuff =
+            attack.movementRangeBonus !== undefined ||
+            attack.movementCostReduction !== undefined ||
+            attack.attackDamageBonus !== undefined ||
+            attack.attackCostReduction !== undefined;
         if (
             attack.targetsAlliesOnly &&
             (!allyTarget ||
-                (attack.healAmount === undefined && attack.cooldownReduction === undefined))
+                (attack.healAmount === undefined &&
+                    attack.cooldownReduction === undefined &&
+                    !hasTurnBuff))
         ) {
             return;
         }
         const zone = this.getAttackZoneForTarget(attacker, attack, targetPosition);
-        if (!zone || !this.spendCurrentSymbol("attack", attack.cost)) return;
+        if (
+            !zone ||
+            !this.spendCurrentSymbol(
+                "attack",
+                getAttackCost(attack, attacker.turnBuffs?.attackCostReduction ?? 0),
+            )
+        ) {
+            return;
+        }
         const attackFacing = getFacingFromMovement(
             attacker.position,
             targetPosition,
@@ -101,6 +123,33 @@ export abstract class GameSceneAttackExecution extends GameSceneAttackTargeting 
             ).length;
             target.attackCooldowns = cooldowns;
             effect = `${reducedCooldowns} recharge${reducedCooldowns > 1 ? "s" : ""} réduite${reducedCooldowns > 1 ? "s" : ""} de ${cooldownReduction} tour${cooldownReduction === 1 ? "" : "s"}`;
+        } else if (
+            attack.movementRangeBonus !== undefined ||
+            attack.movementCostReduction !== undefined ||
+            attack.attackDamageBonus !== undefined ||
+            attack.attackCostReduction !== undefined
+        ) {
+            applyMonsterTurnBuff(target, attack);
+            const effects: string[] = [];
+            if (attack.movementRangeBonus !== undefined) {
+                effects.push(
+                    `déplacement +${attack.movementRangeBonus} case${attack.movementRangeBonus === 1 ? "" : "s"}`,
+                );
+            }
+            if (attack.movementCostReduction !== undefined) {
+                effects.push(
+                    `coût de déplacement -${attack.movementCostReduction} symbole${attack.movementCostReduction === 1 ? "" : "s"}`,
+                );
+            }
+            if (attack.attackDamageBonus !== undefined) {
+                effects.push(`dégâts +${attack.attackDamageBonus}`);
+            }
+            if (attack.attackCostReduction !== undefined) {
+                effects.push(
+                    `coût d’attaque -${attack.attackCostReduction} symbole${attack.attackCostReduction === 1 ? "" : "s"}`,
+                );
+            }
+            effect = `${effects.join(", ")} pour ce tour`;
         } else {
             return;
         }
@@ -124,6 +173,7 @@ export abstract class GameSceneAttackExecution extends GameSceneAttackTargeting 
             }
         }
 
+        const damage = getAttackDamage(attack, attacker.turnBuffs?.attackDamageBonus ?? 0);
         for (const monster of this.placedMonsters) {
             const isInZone = zone.some(
                 (cell) =>
@@ -138,13 +188,13 @@ export abstract class GameSceneAttackExecution extends GameSceneAttackTargeting 
                 (attack.hitsAllies || monster.owner !== this.currentPlayer) &&
                 canAttackMonster(attacker.monster, attack, monster.monster)
             ) {
-                monster.currentHp -= attack.damage;
+                monster.currentHp -= damage;
                 this.applyAttackStatusEffect(
                     monster,
                     attack.statusEffect,
                     attack.clearsStatusEffects,
                 );
-                if (attack.damage > 0) {
+                if (damage > 0) {
                     this.monsterSpriteView.takeDamage(
                         monster.id,
                         monster.currentHp,
@@ -154,7 +204,7 @@ export abstract class GameSceneAttackExecution extends GameSceneAttackTargeting 
                 this.recordAttack(
                     attacker,
                     `${monster.monster.name} (J${monster.owner})`,
-                    attack.damage,
+                    damage,
                 );
                 hitSomething = true;
             }
@@ -194,7 +244,9 @@ export abstract class GameSceneAttackExecution extends GameSceneAttackTargeting 
         }
         if (target.owner === this.currentPlayer) return;
         const backstabBonus = attacker.monster.bonusDamageFromBehind ?? 0;
-        const damage = attack.damage + (isBackstab ? backstabBonus : 0);
+        const damage =
+            getAttackDamage(attack, attacker.turnBuffs?.attackDamageBonus ?? 0) +
+            (isBackstab ? backstabBonus : 0);
         target.currentHp -= damage;
         this.applyAttackStatusEffect(target, attack.statusEffect, attack.clearsStatusEffects);
         if (damage > 0) {

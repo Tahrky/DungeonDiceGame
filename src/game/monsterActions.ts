@@ -3,6 +3,8 @@ import type {
     Facing,
     Monster,
     MonsterAttack,
+    MonsterTurnBuffs,
+    PlacedMonster,
     PlayerId,
     Position,
 } from "../types/GameTypes";
@@ -105,8 +107,45 @@ export function getInitialAttackUses(monster: Pick<Monster, "attacks">): number[
     return monster.attacks.map(() => 0);
 }
 
-export function getMovementCost(monster: Pick<Monster, "movementCost">): number {
-    return monster.movementCost ?? 1;
+export function getMovementRange(
+    monster: Pick<Monster, "movementRange">,
+    bonus = 0,
+): number {
+    return monster.movementRange + bonus;
+}
+
+export function getMovementCost(
+    monster: Pick<Monster, "movementCost">,
+    reduction = 0,
+): number {
+    return Math.max(0, (monster.movementCost ?? 1) - reduction);
+}
+
+export function getAttackCost(attack: Pick<MonsterAttack, "cost">, reduction = 0): number {
+    return Math.max(0, attack.cost - reduction);
+}
+
+export function getAttackDamage(attack: Pick<MonsterAttack, "damage">, bonus = 0): number {
+    return attack.damage + bonus;
+}
+
+export function applyMonsterTurnBuff(
+    monster: Pick<PlacedMonster, "turnBuffs">,
+    buff: MonsterTurnBuffs,
+): void {
+    const current = monster.turnBuffs ?? {};
+    monster.turnBuffs = {
+        movementRangeBonus:
+            (current.movementRangeBonus ?? 0) + (buff.movementRangeBonus ?? 0),
+        movementCostReduction:
+            (current.movementCostReduction ?? 0) + (buff.movementCostReduction ?? 0),
+        attackDamageBonus: (current.attackDamageBonus ?? 0) + (buff.attackDamageBonus ?? 0),
+        attackCostReduction: (current.attackCostReduction ?? 0) + (buff.attackCostReduction ?? 0),
+    };
+}
+
+export function clearMonsterTurnBuff(monster: Pick<PlacedMonster, "turnBuffs">): void {
+    monster.turnBuffs = undefined;
 }
 
 export function canPassHostileMonsters(

@@ -3,6 +3,7 @@ import { getAvailableSymbolCount } from "../game/diceResources";
 import {
     canUseActionThisTurn,
     getAttackActionsPerTurn,
+    getAttackCost,
     getMovementActionsPerTurn,
     getMovementCost,
 } from "../game/monsterActions";
@@ -10,10 +11,28 @@ import type { DiceSymbol, PlacedMonster, Position } from "../types/GameTypes";
 
 export abstract class GameSceneCombatCore extends GameSceneAttackExecution {
     protected startAttack(): void {
-        if (!this.canStartSymbolAction("attack")) return;
+        if (!this.canStartSymbolAction("attack") && !this.canStartFreeAttack()) return;
         this.selectedMonster = null;
         this.actionMode = { type: "attack", attackerId: null, attackIndex: null };
         this.render();
+    }
+
+    protected canStartFreeAttack(): boolean {
+        return (
+            this.winner === null &&
+            this.hasRolled &&
+            !this.pendingCells &&
+            this.actionMode.type === "idle" &&
+            this.placedMonsters.some(
+                (monster) =>
+                    monster.owner === this.currentPlayer &&
+                    monster.currentHp > 0 &&
+                    (monster.turnBuffs?.attackCostReduction ?? 0) > 0 &&
+                    monster.monster.attacks.some((_, index) =>
+                        this.canUseMonsterAttack(monster, index),
+                    ),
+            )
+        );
     }
 
     protected startMovement(): void {
@@ -46,7 +65,10 @@ export abstract class GameSceneCombatCore extends GameSceneAttackExecution {
                     monster.movementsUsedThisTurn,
                     getMovementActionsPerTurn(monster.monster),
                 ) &&
-                getMovementCost(monster.monster) <= movementCount,
+                getMovementCost(
+                    monster.monster,
+                    monster.turnBuffs?.movementCostReduction ?? 0,
+                ) <= movementCount,
         );
     }
 
@@ -111,7 +133,12 @@ export abstract class GameSceneCombatCore extends GameSceneAttackExecution {
             .filter(({ index }) => this.canUseMonsterAttack(monster, index));
         const cannotAffordSeveralAttacks =
             availableAttackSymbols <
-            affordableAttacks.reduce((total, { attack }) => total + attack.cost, 0);
+            affordableAttacks.reduce(
+                (total, { attack }) =>
+                    total +
+                    getAttackCost(attack, monster.turnBuffs?.attackCostReduction ?? 0),
+                0,
+            );
         let defaultAttack: (typeof affordableAttacks)[number] | undefined;
         if (affordableAttacks.length === 1) {
             defaultAttack = affordableAttacks[0];
@@ -119,7 +146,19 @@ export abstract class GameSceneCombatCore extends GameSceneAttackExecution {
             defaultAttack = affordableAttacks.reduce<
                 (typeof affordableAttacks)[number] | undefined
             >((cheapest, candidate) => {
-                if (!cheapest || candidate.attack.cost < cheapest.attack.cost) return candidate;
+                if (
+                    !cheapest ||
+                    getAttackCost(
+                        candidate.attack,
+                        monster.turnBuffs?.attackCostReduction ?? 0,
+                    ) <
+                        getAttackCost(
+                            cheapest.attack,
+                            monster.turnBuffs?.attackCostReduction ?? 0,
+                        )
+                ) {
+                    return candidate;
+                }
                 return cheapest;
             }, undefined);
         }

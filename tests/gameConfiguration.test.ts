@@ -43,6 +43,32 @@ describe("configuration des règles de partie", () => {
         ).toBeNull();
     });
 
+    it("valide les effets temporaires du Prêtre Buffer", () => {
+        const priestBuffer = getDefaultGameConfiguration().monsters.find(
+            (monster) => monster.id === "priestBuffer",
+        );
+
+        expect(parseMonsterConfiguration(priestBuffer, "priestBuffer")?.attacks).toMatchObject([
+            { movementRangeBonus: 1, movementCostReduction: 1 },
+            { attackDamageBonus: 1, attackCostReduction: 1 },
+        ]);
+        expect(
+            parseMonsterConfiguration(
+                {
+                    ...priestBuffer,
+                    attacks: [
+                        {
+                            ...priestBuffer!.attacks[0],
+                            movementCostReduction: 0,
+                        },
+                        priestBuffer!.attacks[1],
+                    ],
+                },
+                "priestBuffer",
+            ),
+        ).toBeNull();
+    });
+
     it("conserve la capacité de traversée dans les anciennes configurations de monstres", () => {
         const configuration = JSON.parse(
             serializeGameConfiguration(getDefaultGameConfiguration()),
@@ -96,12 +122,56 @@ describe("configuration des règles de partie", () => {
 
         const migrated = parseGameConfiguration(legacyConfiguration);
 
-        expect(migrated?.version).toBe(4);
+        expect(migrated?.version).toBe(5);
         expect(migrated?.deckSize).toBe(DEFAULT_DECK_SIZE);
         expect(migrated?.diceCount).toBe(3);
         expect(migrated?.monstersKilledForVictory).toBe(8);
         expect(migrated?.monsters.find((monster) => monster.id === "priest")?.attacks[0].pattern)
             .toEqual({ type: "radius", range: 4 });
+    });
+
+    it("migre les capacités par défaut enregistrées du Prêtre Buffer", () => {
+        const configuration = getDefaultGameConfiguration();
+        const priestBuffer = configuration.monsters.find(
+            (monster) => monster.id === "priestBuffer",
+        );
+        expect(priestBuffer).toBeDefined();
+        priestBuffer!.attacks = [
+            {
+                name: "Soin",
+                damage: 0,
+                cost: 1,
+                pattern: { type: "radius", range: 4 },
+                targetsAlliesOnly: true,
+                targetsSelf: true,
+                clearsStatusEffects: true,
+                healAmount: 3,
+                usesPerTurn: 1,
+            },
+            {
+                name: "Récupération de sorts",
+                damage: 0,
+                cost: 2,
+                pattern: { type: "radius", range: 3 },
+                animation: "alternativeAttack1",
+                targetsAlliesOnly: true,
+                targetsSelf: true,
+                cooldownReduction: 1,
+                usesPerTurn: 1,
+            },
+        ];
+        const legacyConfiguration: Record<string, unknown> = JSON.parse(
+            serializeGameConfiguration(configuration),
+        );
+        legacyConfiguration.version = 4;
+
+        const migrated = parseGameConfiguration(legacyConfiguration);
+
+        expect(migrated?.version).toBe(5);
+        expect(migrated?.monsters.find((monster) => monster.id === "priestBuffer")?.attacks).toMatchObject([
+            { name: "Foulée bénie", movementRangeBonus: 1, movementCostReduction: 1 },
+            { name: "Force sacrée", attackDamageBonus: 1, attackCostReduction: 1 },
+        ]);
     });
 
     it("migre les réglages v2 en ajoutant la condition de victoire par défaut", () => {
@@ -113,7 +183,7 @@ describe("configuration des règles de partie", () => {
         delete legacyConfiguration.deckSize;
 
         expect(parseGameConfiguration(legacyConfiguration)).toMatchObject({
-            version: 4,
+            version: 5,
             deckSize: DEFAULT_DECK_SIZE,
             monstersKilledForVictory: 8,
         });
@@ -127,7 +197,7 @@ describe("configuration des règles de partie", () => {
         delete legacyConfiguration.deckSize;
 
         expect(parseGameConfiguration(legacyConfiguration)).toMatchObject({
-            version: 4,
+            version: 5,
             deckSize: DEFAULT_DECK_SIZE,
         });
     });
@@ -310,7 +380,7 @@ describe("configuration des règles de partie", () => {
 
     it("refuse les configurations de version ou de limites invalides", () => {
         const configuration = getDefaultGameConfiguration();
-        expect(parseGameConfiguration({ ...configuration, version: 5 })).toBeNull();
+        expect(parseGameConfiguration({ ...configuration, version: 6 })).toBeNull();
         expect(parseGameConfiguration({ ...configuration, deckSize: MIN_DECK_SIZE - 1 })).toBeNull();
         expect(
             parseGameConfiguration({ ...configuration, deckSize: MAX_AVAILABLE_DECK_SIZE + 1 }),

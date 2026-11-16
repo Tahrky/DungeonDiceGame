@@ -1,12 +1,17 @@
 import { describe, expect, it } from "vitest";
+import type { MonsterTurnBuffs } from "../src/types/GameTypes";
 
 import {
     advanceAttackCooldowns,
+    applyMonsterTurnBuff,
     canUseActionThisTurn,
     canAttackBaseThisTurn,
     canAttackMonster,
     canTargetMonsterOwner,
     canUseMonsterAttackThisTurn,
+    clearMonsterTurnBuff,
+    getAttackCost,
+    getAttackDamage,
     getAttackZones,
     getAttackActionsPerTurn,
     getAttackZoneOptions,
@@ -15,6 +20,7 @@ import {
     getInitialAttackUses,
     getMovementActionsPerTurn,
     getMovementCost,
+    getMovementRange,
     hasLineOfSight,
 } from "../src/game/monsterActions";
 import { MONSTERS } from "../src/data/monsters";
@@ -83,6 +89,36 @@ describe("portée des actions de monstre", () => {
     it("utilise un coût de déplacement configurable avec une valeur par défaut de un", () => {
         expect(getMovementCost({})).toBe(1);
         expect(getMovementCost({ movementCost: 0 })).toBe(0);
+    });
+
+    it("applique les bonus temporaires de déplacement et d'attaque jusqu'à leur expiration", () => {
+        const target: { turnBuffs?: MonsterTurnBuffs } = {};
+        applyMonsterTurnBuff(target, {
+            movementRangeBonus: 1,
+            movementCostReduction: 1,
+        });
+        applyMonsterTurnBuff(target, {
+            attackDamageBonus: 1,
+            attackCostReduction: 1,
+        });
+
+        expect(target.turnBuffs).toEqual({
+            movementRangeBonus: 1,
+            movementCostReduction: 1,
+            attackDamageBonus: 1,
+            attackCostReduction: 1,
+        });
+        expect(getMovementRange({ movementRange: 2 }, target.turnBuffs?.movementRangeBonus)).toBe(
+            3,
+        );
+        expect(getMovementCost({ movementCost: 1 }, target.turnBuffs?.movementCostReduction)).toBe(
+            0,
+        );
+        expect(getAttackCost({ cost: 1 }, target.turnBuffs?.attackCostReduction)).toBe(0);
+        expect(getAttackDamage({ damage: 1 }, target.turnBuffs?.attackDamageBonus)).toBe(2);
+
+        clearMonsterTurnBuff(target);
+        expect(target.turnBuffs).toBeUndefined();
     });
 
     it("affiche les coûts en symboles avant le nom et les caractéristiques", () => {

@@ -6,6 +6,7 @@ import {
     canTargetMonsterOwner,
     canUseActionThisTurn,
     canUseMonsterAttackThisTurn,
+    getAttackCost,
     getAttackActionsPerTurn,
     getAttackZoneOptions,
     getGridDistance,
@@ -99,13 +100,16 @@ export abstract class GameSceneAttackTargeting extends GameSceneInvocation {
         );
     }
 
-    protected canAffordAttack(attack: Monster["attacks"][number]): boolean {
+    protected canAffordAttack(
+        attacker: PlacedMonster,
+        attack: Monster["attacks"][number],
+    ): boolean {
         return (
             getAvailableSymbolCount(
                 "attack",
                 this.rolledDice,
                 this.diceReserves[this.currentPlayer],
-            ) >= attack.cost
+            ) >= getAttackCost(attack, attacker.turnBuffs?.attackCostReduction ?? 0)
         );
     }
 
@@ -121,7 +125,7 @@ export abstract class GameSceneAttackTargeting extends GameSceneInvocation {
             ) &&
             (attacker.attackCooldowns[attackIndex] ?? 0) === 0 &&
             canUseMonsterAttackThisTurn(attack, attacker.attackUsesThisTurn[attackIndex] ?? 0) &&
-            this.canAffordAttack(attack)
+            this.canAffordAttack(attacker, attack)
         );
     }
 

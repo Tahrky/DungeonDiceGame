@@ -153,7 +153,16 @@ export abstract class GameSceneComputer extends GameSceneMovement {
     protected hasComputerAttackResource(): boolean {
         return (
             this.winner === null &&
-            getAvailableSymbolCount("attack", this.rolledDice, this.diceReserves[2]) > 0
+            (getAvailableSymbolCount("attack", this.rolledDice, this.diceReserves[2]) > 0 ||
+                this.placedMonsters.some(
+                    (monster) =>
+                        monster.owner === 2 &&
+                        monster.currentHp > 0 &&
+                        (monster.turnBuffs?.attackCostReduction ?? 0) > 0 &&
+                        monster.monster.attacks.some((_, index) =>
+                            this.canUseMonsterAttack(monster, index),
+                        ),
+                ))
         );
     }
 

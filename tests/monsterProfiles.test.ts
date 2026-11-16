@@ -104,6 +104,29 @@ describe("profils de monstres", () => {
         ]);
     });
 
+    it("configure le Prêtre Buffer avec ses deux bonus temporaires", () => {
+        const priestBuffer = MONSTERS.find((monster) => monster.id === "priestBuffer");
+
+        expect(priestBuffer?.attacks).toMatchObject([
+            {
+                name: "Foulée bénie",
+                movementRangeBonus: 1,
+                movementCostReduction: 1,
+                targetsAlliesOnly: true,
+                targetsSelf: true,
+                usesPerTurn: 1,
+            },
+            {
+                name: "Force sacrée",
+                attackDamageBonus: 1,
+                attackCostReduction: 1,
+                targetsAlliesOnly: true,
+                targetsSelf: true,
+                usesPerTurn: 1,
+            },
+        ]);
+    });
+
     it("définit le Spectre comme un monstre volant de haute altitude", () => {
         const spectre = MONSTERS.find((monster) => monster.id === "spectre");
 

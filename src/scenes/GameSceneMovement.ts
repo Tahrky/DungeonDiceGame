@@ -4,12 +4,14 @@ import { getAvailableSymbolCount, storeRemainingDice } from "../game/diceResourc
 import { isBoardCell } from "../game/boards";
 import {
     advanceAttackCooldowns,
+    clearMonsterTurnBuff,
     canPassHostileMonsters,
     canUseActionThisTurn,
     getFacingFromMovement,
     getGridDistance,
     getInitialAttackUses,
     getMonsterMovementPath,
+    getMovementRange,
     getMovementActionsPerTurn,
     getMovementCost,
     type MovementOptions,
@@ -49,7 +51,17 @@ export abstract class GameSceneMovement extends GameSceneCombat {
         if (!this.canMoveTo(monster, position)) return;
         const path = getMonsterMovementPath(this.getMovementOptions(monster, position));
         if (path.length < 2) return;
-        if (!this.spendCurrentSymbol("movement", getMovementCost(monster.monster))) return;
+        if (
+            !this.spendCurrentSymbol(
+                "movement",
+                getMovementCost(
+                    monster.monster,
+                    monster.turnBuffs?.movementCostReduction ?? 0,
+                ),
+            )
+        ) {
+            return;
+        }
         monster.movementsUsedThisTurn++;
 
         const distance = path.length - 1;
@@ -83,7 +95,10 @@ export abstract class GameSceneMovement extends GameSceneCombat {
                 monster.movementsUsedThisTurn,
                 getMovementActionsPerTurn(monster.monster),
             ) &&
-            getMovementCost(monster.monster) <=
+            getMovementCost(
+                monster.monster,
+                monster.turnBuffs?.movementCostReduction ?? 0,
+            ) <=
                 getAvailableSymbolCount(
                     "movement",
                     this.rolledDice,
@@ -121,7 +136,10 @@ export abstract class GameSceneMovement extends GameSceneCombat {
                 ...this.board.blockedCells,
                 ...this.obstacles.map(({ position }) => position),
             ],
-            range: monster.monster.movementRange,
+            range: getMovementRange(
+                monster.monster,
+                monster.turnBuffs?.movementRangeBonus ?? 0,
+            ),
             hostileCells,
             canPassHostiles: canPassHostileMonsters(monster.monster),
             canPassUndeployedCells: monster.monster.flying === true,
@@ -140,7 +158,11 @@ export abstract class GameSceneMovement extends GameSceneCombat {
                 if (!isBoardCell(this.board, { x, y })) continue;
                 if (
                     getGridDistance(monster.position, { x, y }) > 0 &&
-                    getGridDistance(monster.position, { x, y }) <= monster.monster.movementRange
+                    getGridDistance(monster.position, { x, y }) <=
+                        getMovementRange(
+                            monster.monster,
+                            monster.turnBuffs?.movementRangeBonus ?? 0,
+                        )
                 ) {
                     candidates.push({ x, y });
                 }
@@ -176,6 +198,7 @@ export abstract class GameSceneMovement extends GameSceneCombat {
         this.hasLeftLockedPreviewBoard = false;
         if (previousPlayer === 2) this.turnNumber++;
         for (const monster of this.placedMonsters) {
+            if (monster.owner === previousPlayer) clearMonsterTurnBuff(monster);
             if (monster.owner !== this.currentPlayer) continue;
             const statusDamage = applyStatusEffectsAtTurnStart(monster);
             if (statusDamage > 0) {

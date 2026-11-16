@@ -14,7 +14,7 @@ import type {
 } from "../types/GameTypes";
 
 export const GAME_CONFIGURATION_STORAGE_KEY = "dungeon-dice.configuration";
-export const GAME_CONFIGURATION_VERSION = 4;
+export const GAME_CONFIGURATION_VERSION = 5;
 export const MIN_DICE_COUNT = 2;
 export const MAX_DICE_COUNT = DICE.length;
 export const DEFAULT_DICE_COUNT = 5;
@@ -173,6 +173,13 @@ function parseAttack(value: unknown): MonsterAttack | null {
     if (value.animation !== undefined && animation === undefined) return null;
     const pattern = parseAttackPattern(value.pattern);
     const statusEffect = parseStatusEffect(value.statusEffect);
+    const hasTurnBuff =
+        value.movementRangeBonus !== undefined ||
+        value.movementCostReduction !== undefined ||
+        value.attackDamageBonus !== undefined ||
+        value.attackCostReduction !== undefined;
+    const hasAllyEffect =
+        value.healAmount !== undefined || value.cooldownReduction !== undefined || hasTurnBuff;
     if (
         !pattern ||
         statusEffect === null ||
@@ -189,14 +196,18 @@ function parseAttack(value: unknown): MonsterAttack | null {
         (value.healAmount !== undefined && !isIntegerInRange(value.healAmount, 1, 50)) ||
         (value.cooldownReduction !== undefined &&
             !isIntegerInRange(value.cooldownReduction, 1, 50)) ||
-        ((value.healAmount !== undefined || value.cooldownReduction !== undefined) &&
-            value.damage !== 0) ||
         (value.healAmount !== undefined && value.cooldownReduction !== undefined) ||
-        ((value.healAmount !== undefined || value.cooldownReduction !== undefined) &&
-            value.targetsAlliesOnly !== true) ||
-        (value.targetsAlliesOnly === true &&
-            value.healAmount === undefined &&
-            value.cooldownReduction === undefined) ||
+        (value.movementRangeBonus !== undefined &&
+            !isIntegerInRange(value.movementRangeBonus, 1, 23)) ||
+        (value.movementCostReduction !== undefined &&
+            !isIntegerInRange(value.movementCostReduction, 1, 20)) ||
+        (value.attackDamageBonus !== undefined &&
+            !isIntegerInRange(value.attackDamageBonus, 1, 50)) ||
+        (value.attackCostReduction !== undefined &&
+            !isIntegerInRange(value.attackCostReduction, 1, 20)) ||
+        (hasTurnBuff && (value.healAmount !== undefined || value.cooldownReduction !== undefined)) ||
+        (hasAllyEffect && (value.damage !== 0 || value.targetsAlliesOnly !== true)) ||
+        (value.targetsAlliesOnly === true && !hasAllyEffect) ||
         (value.movesToZone !== undefined && typeof value.movesToZone !== "boolean")
     ) {
         return null;
@@ -215,6 +226,14 @@ function parseAttack(value: unknown): MonsterAttack | null {
     const healAmount = typeof value.healAmount === "number" ? value.healAmount : undefined;
     const cooldownReduction =
         typeof value.cooldownReduction === "number" ? value.cooldownReduction : undefined;
+    const movementRangeBonus =
+        typeof value.movementRangeBonus === "number" ? value.movementRangeBonus : undefined;
+    const movementCostReduction =
+        typeof value.movementCostReduction === "number" ? value.movementCostReduction : undefined;
+    const attackDamageBonus =
+        typeof value.attackDamageBonus === "number" ? value.attackDamageBonus : undefined;
+    const attackCostReduction =
+        typeof value.attackCostReduction === "number" ? value.attackCostReduction : undefined;
     const movesToZone = typeof value.movesToZone === "boolean" ? value.movesToZone : undefined;
     return {
         name: value.name.trim(),
@@ -232,6 +251,10 @@ function parseAttack(value: unknown): MonsterAttack | null {
         ...(clearsStatusEffects === undefined ? {} : { clearsStatusEffects }),
         ...(healAmount === undefined ? {} : { healAmount }),
         ...(cooldownReduction === undefined ? {} : { cooldownReduction }),
+        ...(movementRangeBonus === undefined ? {} : { movementRangeBonus }),
+        ...(movementCostReduction === undefined ? {} : { movementCostReduction }),
+        ...(attackDamageBonus === undefined ? {} : { attackDamageBonus }),
+        ...(attackCostReduction === undefined ? {} : { attackCostReduction }),
         ...(movesToZone === undefined ? {} : { movesToZone }),
     };
 }
@@ -239,7 +262,10 @@ function parseAttack(value: unknown): MonsterAttack | null {
 function migrateGameConfiguration(value: unknown): unknown {
     if (
         !isRecord(value) ||
-        (value.version !== 1 && value.version !== 2 && value.version !== 3) ||
+        (value.version !== 1 &&
+            value.version !== 2 &&
+            value.version !== 3 &&
+            value.version !== 4) ||
         !Array.isArray(value.monsters)
     ) {
         return value;
@@ -275,6 +301,22 @@ function migrateGameConfiguration(value: unknown): unknown {
             };
         });
     }
+    const defaultBuffAttacks = MONSTERS.find(
+        (monster) => monster.id === "priestBuffer",
+    )?.attacks;
+    monsters = monsters.map((monster) => {
+        if (
+            !isRecord(monster) ||
+            monster.id !== "priestBuffer" ||
+            !Array.isArray(monster.attacks) ||
+            !isLegacyPriestBufferAttacks(monster.attacks) ||
+            !defaultBuffAttacks
+        ) {
+            return monster;
+        }
+
+        return { ...monster, attacks: defaultBuffAttacks };
+    });
 
     return {
         ...value,
@@ -286,6 +328,39 @@ function migrateGameConfiguration(value: unknown): unknown {
                 : value.monstersKilledForVictory,
         monsters,
     };
+}
+
+function isLegacyPriestBufferAttacks(attacks: unknown[]): boolean {
+    if (attacks.length !== 2) return false;
+    const [heal, cooldown] = attacks;
+    return (
+        isRecord(heal) &&
+        heal.name === "Soin" &&
+        heal.damage === 0 &&
+        heal.cost === 1 &&
+        isRecord(heal.pattern) &&
+        heal.pattern.type === "radius" &&
+        heal.pattern.range === 4 &&
+        heal.targetsAlliesOnly === true &&
+        heal.targetsSelf === true &&
+        heal.clearsStatusEffects === true &&
+        heal.healAmount === 3 &&
+        heal.usesPerTurn === 1 &&
+        Object.keys(heal).length === 9 &&
+        isRecord(cooldown) &&
+        cooldown.name === "Récupération de sorts" &&
+        cooldown.damage === 0 &&
+        cooldown.cost === 2 &&
+        isRecord(cooldown.pattern) &&
+        cooldown.pattern.type === "radius" &&
+        cooldown.pattern.range === 3 &&
+        cooldown.animation === "alternativeAttack1" &&
+        cooldown.targetsAlliesOnly === true &&
+        cooldown.targetsSelf === true &&
+        cooldown.cooldownReduction === 1 &&
+        cooldown.usesPerTurn === 1 &&
+        Object.keys(cooldown).length === 9
+    );
 }
 
 export function parseMonsterConfiguration(value: unknown, expectedId?: string): Monster | null {
