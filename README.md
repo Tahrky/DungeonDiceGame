@@ -34,7 +34,11 @@ Dans **Options → Configurer les règles**, le nombre de dés est réglable de 
 d’invocations et le nombre de monstres adverses à tuer pour gagner sont réglables séparément; leur
 valeur par défaut est 8. Les règles et les profils de monstres peuvent être exportés dans un fichier
 JSON séparé, puis réimportés depuis cet écran. La configuration enregistrée est aussi partagée par
-l’hôte au démarrage d’une partie en ligne.
+l’hôte au démarrage d’une partie en ligne. Dans un profil JSON, `targetsSelf: true` permet à un sort
+de soutien (`targetsAlliesOnly: true`) de cibler aussi son lanceur; `clearsStatusEffects: true`
+dissipe les effets de statut de la cible. `highAltitude: true` réserve le monstre aux attaques à
+distance ou aux attaques des monstres volants; `flying: true` seul ne protège pas des attaques au
+corps à corps.
 
 ## Sprites animés
 

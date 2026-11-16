@@ -9,7 +9,7 @@ export const GAME_CONFIG = {
     screenHeight: 760,
 
     boardOffsetX: 625,
-    boardOffsetY: 105,
+    boardOffsetY: 125,
 
     showDirectionLabels: false,
 };

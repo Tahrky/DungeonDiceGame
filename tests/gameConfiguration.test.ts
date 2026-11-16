@@ -32,6 +32,17 @@ describe("configuration des règles de partie", () => {
         expect(MONSTERS.find((monster) => monster.id === "frost-mage")?.hp).toBe(5);
     });
 
+    it("valide et préserve l'attribut de haute altitude", () => {
+        const spectre = getDefaultGameConfiguration().monsters.find(
+            (monster) => monster.id === "spectre",
+        );
+        expect(spectre?.highAltitude).toBe(true);
+        expect(parseMonsterConfiguration(spectre, "spectre")?.highAltitude).toBe(true);
+        expect(
+            parseMonsterConfiguration({ ...spectre, highAltitude: "true" }, "spectre"),
+        ).toBeNull();
+    });
+
     it("conserve la capacité de traversée dans les anciennes configurations de monstres", () => {
         const configuration = JSON.parse(
             serializeGameConfiguration(getDefaultGameConfiguration()),
@@ -198,10 +209,28 @@ describe("configuration des règles de partie", () => {
         expect(priest).toBeDefined();
 
         expect(parseMonsterConfiguration(priest, "priest")?.attacks).toEqual(priest?.attacks);
+        expect(priest?.attacks[0].targetsSelf).toBe(true);
+        expect(priest?.attacks[1].targetsSelf).toBe(true);
+        expect(priest?.attacks[0].clearsStatusEffects).toBe(true);
         expect(
             parseMonsterConfiguration({
                 ...priest,
                 attacks: [{ ...priest!.attacks[0], targetsAlliesOnly: false }, priest!.attacks[1]],
+            }),
+        ).toBeNull();
+        expect(
+            parseMonsterConfiguration({
+                ...priest,
+                attacks: [{ ...priest!.attacks[0], targetsSelf: "true" }, priest!.attacks[1]],
+            }),
+        ).toBeNull();
+        expect(
+            parseMonsterConfiguration({
+                ...priest,
+                attacks: [
+                    { ...priest!.attacks[0], clearsStatusEffects: "true" },
+                    priest!.attacks[1],
+                ],
             }),
         ).toBeNull();
         expect(

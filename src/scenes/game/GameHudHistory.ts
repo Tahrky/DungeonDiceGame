@@ -1,15 +1,14 @@
 import { GameHudBase } from "./GameHudBase";
 import {
-    ACTION_LOG_Y,
+    ACTION_LOG_TOP_OFFSET,
     ACTION_LOG_WIDTH,
     ACTION_LOG_HEIGHT,
-    ACTION_LOG_ROW_HEIGHT,
     ACTION_LOG_TRACK_OFFSET_X,
-    ACTION_LOG_TRACK_Y,
     ACTION_LOG_TRACK_HEIGHT,
     ACTION_LOG_THUMB_MIN_HEIGHT,
     ACTION_LOG_VISIBLE_COUNT,
     ACTION_LOG_TOGGLE_WIDTH,
+    getHudTopY,
     getHudLeftX,
 } from "./GameHudBase";
 import Phaser from "phaser";
@@ -21,8 +20,9 @@ export abstract class GameHudHistory extends GameHudBase {
 
     protected renderActionHistory(state: GameViewState): void {
         const toggleX = getHudLeftX(this.scene);
+        const actionLogY = getHudTopY(this.scene, ACTION_LOG_TOP_OFFSET);
         if (!this.actionHistoryExpanded) {
-            this.renderCollapsedHistoryToggle(toggleX);
+            this.renderCollapsedHistoryToggle(toggleX, actionLogY);
             return;
         }
 
@@ -30,7 +30,7 @@ export abstract class GameHudHistory extends GameHudBase {
         const panel = this.scene.add
             .rectangle(
                 actionLogX,
-                ACTION_LOG_Y,
+                actionLogY,
                 ACTION_LOG_WIDTH,
                 ACTION_LOG_HEIGHT,
                 0x151b25,
@@ -43,9 +43,9 @@ export abstract class GameHudHistory extends GameHudBase {
         const heading = this.addText(
             "HISTORIQUE",
             actionLogX + 12,
-            ACTION_LOG_Y + 10,
+            actionLogY + 10,
             "#f0c974",
-            20,
+            18,
         );
         heading.setInteractive({ useHandCursor: true });
         heading.on("pointerover", () => heading.setStyle({ color: "#fff0c8" }));
@@ -65,11 +65,11 @@ export abstract class GameHudHistory extends GameHudBase {
         if (state.actionHistory.length === 0) {
             const emptyMessage = this.scene.add.text(
                 actionLogX + 12,
-                ACTION_LOG_Y + 42,
+                actionLogY + 42,
                 "Les actions jouées apparaîtront ici.",
                 {
                     fontFamily: "Arial",
-                    fontSize: "16px",
+                    fontSize: "14px",
                     color: "#aab5c2",
                     wordWrap: { width: ACTION_LOG_WIDTH - 24 },
                 },
@@ -79,7 +79,7 @@ export abstract class GameHudHistory extends GameHudBase {
         }
 
         if (state.actionHistory.length > ACTION_LOG_VISIBLE_COUNT) {
-            this.renderActionHistoryScrollbar(state, actionLogX);
+            this.renderActionHistoryScrollbar(state, actionLogX, actionLogY);
         }
         const entries = [...state.actionHistory]
             .reverse()
@@ -87,22 +87,9 @@ export abstract class GameHudHistory extends GameHudBase {
                 state.actionHistoryScrollOffset,
                 state.actionHistoryScrollOffset + ACTION_LOG_VISIBLE_COUNT,
             );
-        entries.forEach((entry, index) => {
-            const y = ACTION_LOG_Y + 38 + index * ACTION_LOG_ROW_HEIGHT;
+        let entryY = actionLogY + 38;
+        entries.forEach((entry) => {
             const color = entry.player === 1 ? 0xff8d78 : 0x70bdff;
-            const background = this.scene.add
-                .rectangle(
-                    actionLogX + 8,
-                    y,
-                    ACTION_LOG_WIDTH - 24,
-                    ACTION_LOG_ROW_HEIGHT - 4,
-                    0x202a36,
-                    1,
-                )
-                .setOrigin(0)
-                .setStrokeStyle(2, color, 0.7);
-            this.container.add(background);
-
             let actionLabel: string;
             switch (entry.type) {
                 case "invocation":
@@ -115,14 +102,6 @@ export abstract class GameHudHistory extends GameHudBase {
                     actionLabel = "ATTAQUE";
                     break;
             }
-            this.addText(
-                `J${entry.player} · ${actionLabel}`,
-                actionLogX + 16,
-                y + 5,
-                entry.player === 1 ? "#ff9d8b" : "#83c6ff",
-                17,
-            );
-
             let description: string;
             switch (entry.type) {
                 case "invocation":
@@ -135,30 +114,72 @@ export abstract class GameHudHistory extends GameHudBase {
                     description = `${entry.attackerName} → ${entry.targetName} · ${entry.effect ?? `${entry.damage} dégât${entry.damage > 1 ? "s" : ""}`}`;
                     break;
             }
-            const details = this.scene.add.text(actionLogX + 16, y + 25, description, {
+            const detailsStyle = {
                 fontFamily: "Arial",
-                fontSize: "17px",
+                fontSize: "12px",
                 color: "#e6edf5",
-                wordWrap: { width: ACTION_LOG_WIDTH - 32 },
+                wordWrap: { width: ACTION_LOG_WIDTH - 40 },
                 maxLines: 2,
+            };
+            const measuredDetails = this.scene.make.text({
+                x: 0,
+                y: 0,
+                text: description,
+                style: detailsStyle,
+                add: false,
             });
+            const rowHeight = Phaser.Math.Clamp(measuredDetails.height + 26, 44, 54);
+            measuredDetails.destroy();
+            const background = this.scene.add
+                .rectangle(
+                    actionLogX + 8,
+                    entryY,
+                    ACTION_LOG_WIDTH - 24,
+                    rowHeight - 2,
+                    0x202a36,
+                    1,
+                )
+                .setOrigin(0)
+                .setStrokeStyle(2, color, 0.7);
+            this.container.add(background);
+
+            this.addText(
+                `J${entry.player} · ${actionLabel}`,
+                actionLogX + 16,
+                entryY + 4,
+                entry.player === 1 ? "#ff9d8b" : "#83c6ff",
+                12,
+            );
+            const details = this.scene.add.text(
+                actionLogX + 16,
+                entryY + 20,
+                description,
+                detailsStyle,
+            );
             this.container.add(details);
+            entryY += rowHeight + 2;
         });
 
         if (state.actionHistory.length > ACTION_LOG_VISIBLE_COUNT) {
-            this.addText(
-                "Molette : parcourir l’historique",
+            const scrollHint = this.scene.add.text(
                 actionLogX + 12,
-                ACTION_LOG_Y + ACTION_LOG_HEIGHT - 20,
-                "#aab5c2",
-                13,
+                actionLogY + ACTION_LOG_HEIGHT - 30,
+                "Molette : parcourir l’historique",
+                {
+                    fontFamily: "Arial",
+                    fontSize: "11px",
+                    color: "#aab5c2",
+                    wordWrap: { width: ACTION_LOG_WIDTH - 24 },
+                    maxLines: 2,
+                },
             );
+            this.container.add(scrollHint);
         }
     }
 
-    private renderCollapsedHistoryToggle(x: number): void {
+    private renderCollapsedHistoryToggle(x: number, actionLogY: number): void {
         const height = 160;
-        const y = ACTION_LOG_Y + (ACTION_LOG_HEIGHT - height) / 2;
+        const y = actionLogY + (ACTION_LOG_HEIGHT - height) / 2;
         const background = this.scene.add
             .rectangle(x, y, ACTION_LOG_TOGGLE_WIDTH, height, 0xa45e39, 1)
             .setOrigin(0)
@@ -204,12 +225,17 @@ export abstract class GameHudHistory extends GameHudBase {
         }
     }
 
-    protected renderActionHistoryScrollbar(state: GameViewState, actionLogX: number): void {
+    protected renderActionHistoryScrollbar(
+        state: GameViewState,
+        actionLogX: number,
+        actionLogY: number,
+    ): void {
         const trackX = actionLogX + ACTION_LOG_TRACK_OFFSET_X;
+        const trackY = actionLogY + 38;
         const track = this.scene.add
             .rectangle(
                 trackX,
-                ACTION_LOG_TRACK_Y,
+                trackY,
                 6,
                 ACTION_LOG_TRACK_HEIGHT,
                 0x354352,
@@ -238,7 +264,7 @@ export abstract class GameHudHistory extends GameHudBase {
             (ACTION_LOG_TRACK_HEIGHT * ACTION_LOG_VISIBLE_COUNT) / state.actionHistory.length,
         );
         const thumbY =
-            ACTION_LOG_TRACK_Y +
+            trackY +
             (maxOffset === 0
                 ? 0
                 : (state.actionHistoryScrollOffset / maxOffset) *
@@ -281,8 +307,9 @@ export abstract class GameHudHistory extends GameHudBase {
         if (maxOffset === 0) return;
 
         const pointerPosition = this.scene.cameras.main.getWorldPoint(pointer.x, pointer.y);
+        const trackY = getHudTopY(this.scene, ACTION_LOG_TOP_OFFSET) + 38;
         const progress = Phaser.Math.Clamp(
-            (pointerPosition.y - ACTION_LOG_TRACK_Y) / ACTION_LOG_TRACK_HEIGHT,
+            (pointerPosition.y - trackY) / ACTION_LOG_TRACK_HEIGHT,
             0,
             1,
         );
@@ -306,8 +333,9 @@ export abstract class GameHudHistory extends GameHudBase {
             !this.lastActions ||
             worldPosition.x < actionLogX ||
             worldPosition.x > actionLogX + ACTION_LOG_WIDTH ||
-            worldPosition.y < ACTION_LOG_Y ||
-            worldPosition.y > ACTION_LOG_Y + ACTION_LOG_HEIGHT
+            worldPosition.y < getHudTopY(this.scene, ACTION_LOG_TOP_OFFSET) ||
+            worldPosition.y >
+                getHudTopY(this.scene, ACTION_LOG_TOP_OFFSET) + ACTION_LOG_HEIGHT
         ) {
             return;
         }

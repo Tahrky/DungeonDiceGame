@@ -57,8 +57,6 @@ export const PATTERN_COLUMN_GAP = 128;
 
 export const PATTERN_ROW_GAP = 48;
 
-export const HUD_BOTTOM = 742;
-
 export const PATTERN_GRID_WIDTH =
     PATTERN_COLUMNS * PATTERN_CARD_WIDTH +
     (PATTERN_COLUMNS - 1) * (PATTERN_COLUMN_GAP - PATTERN_CARD_WIDTH);
@@ -68,6 +66,14 @@ export function getPatternStartX(scene: Phaser.Scene): number {
 }
 
 export const HUD_EDGE_MARGIN = 12;
+
+export function getHudTopY(scene: Phaser.Scene, offset: number): number {
+    return scene.cameras.main.getWorldPoint(0, offset).y;
+}
+
+export function getHudBottomY(scene: Phaser.Scene, offset: number): number {
+    return scene.cameras.main.getWorldPoint(0, scene.scale.height - offset).y;
+}
 
 export function getHudLeftX(scene: Phaser.Scene): number {
     return scene.cameras.main.getWorldPoint(HUD_EDGE_MARGIN, 0).x;
@@ -81,15 +87,11 @@ export const PATTERN_ROW_COUNT = Math.ceil((PLACEMENT_PATTERNS.length + 1) / PAT
 
 export const PATTERN_GRID_HEIGHT = PATTERN_CARD_HEIGHT + (PATTERN_ROW_COUNT - 1) * PATTERN_ROW_GAP;
 
-export const PATTERN_START_Y = HUD_BOTTOM - PATTERN_GRID_HEIGHT;
-
-export const COLLAPSED_PATTERN_Y = HUD_BOTTOM - PATTERN_CARD_HEIGHT;
-
 export const HUD_BUTTON_WIDTH = 190;
 
 export const HUD_BUTTON_HEIGHT = 40;
 
-export const INVOCATION_PANEL_WIDTH = HUD_BUTTON_WIDTH;
+export const INVOCATION_PANEL_WIDTH = 200;
 
 export const INVOCATION_ROW_HEIGHT = 40;
 
@@ -97,19 +99,15 @@ export const INVOCATION_ROW_GAP = 44;
 
 export const ACTION_PANEL_Y = 58;
 
-export const ACTION_LOG_Y = 136;
+export const ACTION_LOG_TOP_OFFSET = 136;
 
-export const ACTION_LOG_WIDTH = 300;
+export const ACTION_LOG_WIDTH = 195;
 
-export const ACTION_LOG_HEIGHT = 460;
-
-export const ACTION_LOG_ROW_HEIGHT = 67;
+export const ACTION_LOG_HEIGHT = 410;
 
 export const ACTION_LOG_TOGGLE_WIDTH = 40;
 
 export const ACTION_LOG_TRACK_OFFSET_X = ACTION_LOG_WIDTH - 10;
-
-export const ACTION_LOG_TRACK_Y = ACTION_LOG_Y + 38;
 
 export const ACTION_LOG_TRACK_HEIGHT = ACTION_LOG_HEIGHT - 68;
 
@@ -117,8 +115,7 @@ export const ACTION_LOG_THUMB_MIN_HEIGHT = 24;
 
 export const ACTION_LOG_VISIBLE_COUNT = 6;
 
-const MENU_BUTTON_WIDTH = 120;
-const MENU_BUTTON_HEIGHT = 36;
+const MENU_BUTTON_WIDTH = 96;
 const RIGHT_INSTRUCTION_WIDTH = 280;
 
 export abstract class GameHudBase {
@@ -150,34 +147,36 @@ export abstract class GameHudBase {
                 : `JOUEUR ${state.currentPlayer}`;
         const statusTextScale = 1 / camera.zoom;
         const compactStatus = camera.zoom < 0.75;
-        const playerLabelPosition = camera.getWorldPoint(70, 8);
-        const turnPosition = camera.getWorldPoint(55, 34);
+        const statusX = getHudLeftX(this.scene);
+        const playerLabelY = getHudTopY(this.scene, 4);
+        const turnY = getHudTopY(this.scene, 36);
         this.addText(
             playerLabel,
-            playerLabelPosition.x,
-            playerLabelPosition.y,
+            statusX,
+            playerLabelY,
             playerColor,
-            (compactStatus ? 16 : 22) * statusTextScale,
-        ).setOrigin(0.5, 0);
+            (compactStatus ? 15 : 18) * 1.5 * statusTextScale,
+        ).setOrigin(0, 0);
         this.addText(
             `TOUR ${state.turnNumber}`,
-            turnPosition.x,
-            turnPosition.y,
+            statusX,
+            turnY,
             "#aab5c2",
-            (compactStatus ? 16 : 22) * statusTextScale,
-        ).setOrigin(0.5, 0);
-        const menuPosition = camera.getWorldPoint(200, 10);
+            (compactStatus ? 15 : 18) * 1.5 * statusTextScale,
+        ).setOrigin(0, 0);
+        const menuX = getHudLeftX(this.scene);
+        const menuY = getHudTopY(this.scene, 70);
         this.addButton(
             "MENU",
-            menuPosition.x - MENU_BUTTON_WIDTH / 2,
-            menuPosition.y,
+            menuX,
+            menuY,
             actions.leaveGame,
             {
                 uniformSize: true,
                 centerVertically: true,
-                fontSize: 18,
+                fontSize: 15,
                 width: MENU_BUTTON_WIDTH,
-                height: MENU_BUTTON_HEIGHT,
+                height: 32,
             },
         );
         this.renderPlayerHealth(state);
@@ -189,18 +188,30 @@ export abstract class GameHudBase {
         }
 
         if (state.onlineGame && !state.isLocalTurn) {
-            this.addButton("TOUR DE L’ADVERSAIRE", getHudRightX(this.scene), 12, actions.rollDice, {
-                rightAligned: true,
-                uniformSize: true,
-                enabled: false,
-                width: 220,
-            });
+            this.addButton(
+                "TOUR DE L’ADVERSAIRE",
+                getHudRightX(this.scene),
+                getHudTopY(this.scene, 12),
+                actions.rollDice,
+                {
+                    rightAligned: true,
+                    uniformSize: true,
+                    enabled: false,
+                    width: 220,
+                },
+            );
         } else if (!state.hasRolled) {
-            this.addButton("LANCER LES DES", getHudRightX(this.scene), 12, actions.rollDice, {
-                rightAligned: true,
-                uniformSize: true,
-                enabled: state.actionMode.type === "idle",
-            });
+            this.addButton(
+                "LANCER LES DES",
+                getHudRightX(this.scene),
+                getHudTopY(this.scene, 12),
+                actions.rollDice,
+                {
+                    rightAligned: true,
+                    uniformSize: true,
+                    enabled: state.actionMode.type === "idle",
+                },
+            );
         } else {
             this.renderMonsterSelection(state, actions);
         }
@@ -213,14 +224,14 @@ export abstract class GameHudBase {
         const camera = this.scene.cameras.main;
         const center = camera.getWorldPoint(this.scene.scale.width / 2, 0);
         ([1, 2] as const).forEach((player) => {
-            const width = 200;
-            const height = 110;
-            const gap = 190;
+            const width = 220;
+            const height = 88;
+            const gap = 16;
             const x =
                 player === 1
                     ? center.x - width - gap / 2
                     : center.x + gap / 2;
-            const y = center.y + 4;
+            const y = getHudTopY(this.scene, 4);
             const color = player === 1 ? "#ff8d78" : "#70bdff";
             const background = this.scene.add
                 .rectangle(x, y, width, height, 0x202a36, 1)
@@ -241,34 +252,37 @@ export abstract class GameHudBase {
             const defeatedOpponentMonsters = state.placedMonsters.filter(
                 (monster) => monster.owner !== player && monster.currentHp <= 0,
             ).length;
-            this.addText(`JOUEUR ${player}`, x + 12, y + 8, color, 20);
             this.addText(
-                `PV : ${currentHealth}/${state.playerMaxHealth}`,
-                x + 12,
-                y + 34,
+                `J${player} - PV ${currentHealth}/${state.playerMaxHealth}`,
+                x + 8,
+                y + 4,
                 color,
-                26,
+                20,
             );
             this.addText(
                 `À invoquer : ${remainingToInvoke}/${state.maxMonstersPerPlayer}`,
-                x + 12,
-                y + 67,
+                x + 8,
+                y + 30,
                 "#cbd2da",
-                17,
+                20,
             );
             this.addText(
                 `Monstres tués : ${defeatedOpponentMonsters}/${state.monstersKilledForVictory}`,
-                x + 12,
-                y + 90,
+                x + 8,
+                y + 56,
                 "#cbd2da",
-                17,
+                20,
             );
         });
     }
 
     protected renderGameOver(winner: PlayerId): void {
-        const x = 510;
-        const y = 590;
+        const center = this.scene.cameras.main.getWorldPoint(
+            this.scene.scale.width / 2,
+            this.scene.scale.height / 2,
+        );
+        const x = center.x - 210;
+        const y = center.y - 50;
         const background = this.scene.add
             .rectangle(x, y, 420, 100, 0x151b25, 0.95)
             .setOrigin(0)

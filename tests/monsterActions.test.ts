@@ -96,7 +96,11 @@ describe("portée des actions de monstre", () => {
         expect(describeMonsterAttack(blackKnight.attacks[0])).toMatch(/^1 ⚔️ Corps à corps :/);
         expect(describeMonsterTraits(blackKnight)).toContain("2 attaques par tour");
         expect(describeMonsterTraits(ghost)).toContain("Fantomatique");
-        expect(describeMonsterTraits(spectre)).toEqual(["Fantomatique", "Volant"]);
+        expect(describeMonsterTraits(spectre)).toEqual([
+            "Fantomatique",
+            "Volant",
+            "Haute altitude",
+        ]);
         expect(describeMonsterMovement(blackKnight)).toMatch(/^1 ➡️ Déplacement :/);
         expect(formatCost(3, "🐍")).toBe("3 🐍");
         expect(formatHitPoints(2)).toBe("2 PV");
@@ -246,7 +250,19 @@ describe("portée des actions de monstre", () => {
         expect(cells).not.toContainEqual({ x: 5, y: 5 });
     });
 
-    it("interdit les attaques de mêlée contre les monstres volants", () => {
+    it("ajoute le lanceur comme cible pour un sort autorisant l'auto-ciblage", () => {
+        const attacker = { x: 5, y: 5 };
+        const options = getAttackZoneOptions(
+            attacker,
+            "east",
+            { type: "radius", range: 4 },
+            true,
+        );
+
+        expect(options).toContainEqual({ target: attacker, cells: [attacker] });
+    });
+
+    it("permet d'attaquer les monstres volants, sauf ceux de haute altitude au corps à corps", () => {
         const flyingMonster = {
             id: "dragon",
             name: "Dragon",
@@ -258,6 +274,7 @@ describe("portée des actions de monstre", () => {
             movementRange: 1,
             flying: true,
         };
+        const highAltitudeMonster = { ...flyingMonster, highAltitude: true };
         const groundMonster = { ...flyingMonster, flying: false };
         const meleeAttack = {
             name: "Mêlée",
@@ -270,9 +287,10 @@ describe("portée des actions de monstre", () => {
             pattern: { type: "radius" as const, range: 5 },
         };
 
-        expect(canAttackMonster(groundMonster, meleeAttack, flyingMonster)).toBe(false);
-        expect(canAttackMonster(flyingMonster, meleeAttack, flyingMonster)).toBe(true);
-        expect(canAttackMonster(groundMonster, rangedAttack, flyingMonster)).toBe(true);
+        expect(canAttackMonster(groundMonster, meleeAttack, flyingMonster)).toBe(true);
+        expect(canAttackMonster(groundMonster, meleeAttack, highAltitudeMonster)).toBe(false);
+        expect(canAttackMonster(flyingMonster, meleeAttack, highAltitudeMonster)).toBe(true);
+        expect(canAttackMonster(groundMonster, rangedAttack, highAltitudeMonster)).toBe(true);
     });
 
     it("crée des lignes de trois cases dont l'ancrage peut être à quatre cases", () => {

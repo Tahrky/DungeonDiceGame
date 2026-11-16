@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { applyStatusEffectsAtTurnStart } from "../src/game/statusEffects";
+import {
+    applyStatusEffectsAtTurnStart,
+    healMonster,
+} from "../src/game/statusEffects";
 import { MONSTERS } from "../src/data/monsters";
 import type { PlacedMonster } from "../src/types/GameTypes";
 
@@ -49,5 +52,26 @@ describe("effets de statut au début du tour", () => {
 
         expect(applyStatusEffectsAtTurnStart(target)).toBe(0);
         expect(target.statusEffects).toEqual([]);
+    });
+
+    it("soigne sans dépasser les PV maximum et ne dissipe que si le sort le demande", () => {
+        const target = createPoisonedMonster("untilDeath");
+        target.currentHp = target.monster.hp - 1;
+
+        expect(healMonster(target, 3)).toEqual({ healed: 1, clearedEffects: 0 });
+        expect(target.currentHp).toBe(target.monster.hp);
+        expect(target.statusEffects).toHaveLength(1);
+
+        expect(healMonster(target, 3, true)).toEqual({ healed: 0, clearedEffects: 1 });
+        expect(target.currentHp).toBe(target.monster.hp);
+        expect(target.statusEffects).toEqual([]);
+
+        const fullHealthTarget = createPoisonedMonster("untilDeath");
+        fullHealthTarget.currentHp = fullHealthTarget.monster.hp;
+        expect(healMonster(fullHealthTarget, 3, true)).toEqual({
+            healed: 0,
+            clearedEffects: 1,
+        });
+        expect(fullHealthTarget.statusEffects).toEqual([]);
     });
 });

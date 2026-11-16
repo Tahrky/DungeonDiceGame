@@ -29,6 +29,7 @@ export function describeMonsterTraits(monster: Monster): string[] {
     const traits: string[] = [];
     if (monster.canPassHostiles) traits.push("Fantomatique");
     if (monster.flying) traits.push("Volant");
+    if (monster.highAltitude) traits.push("Haute altitude");
     const attacksPerTurn = getAttackActionsPerTurn(monster);
     if (attacksPerTurn > 1) traits.push(`${attacksPerTurn} attaques par tour`);
     return traits;
@@ -77,7 +78,10 @@ export function describeMonsterAttack(attack: MonsterAttack): string {
             ? `, ${attack.usesPerTurn} utilisation${attack.usesPerTurn === 1 ? "" : "s"} par tour`
             : "";
     const friendlyFire = attack.hitsAllies ? ", touche aussi les alliés" : "";
-    const targetRestriction = attack.targetsAlliesOnly ? ", cible uniquement les alliés" : "";
+    const statusCleanup = attack.clearsStatusEffects ? ", dissipe les effets de statut" : "";
+    const targetRestriction = attack.targetsAlliesOnly
+        ? `, cible uniquement les alliés${attack.targetsSelf ? " (peut se cibler)" : ""}`
+        : "";
     const effect =
         attack.healAmount !== undefined
             ? `soigne ${attack.healAmount} PV`
@@ -88,7 +92,7 @@ export function describeMonsterAttack(attack: MonsterAttack): string {
                 : `${attack.damage} dégâts`;
     return `${formatCost(attack.cost, DICE_SYMBOL_PRESENTATION.attack.emoji)} ${attack.name} : ${effect} (${getAttackPatternDescription(
         attack.pattern,
-    )}${special}${friendlyFire}${targetRestriction}${usesPerTurn})${cooldown}`;
+    )}${special}${friendlyFire}${statusCleanup}${targetRestriction}${usesPerTurn})${cooldown}`;
 }
 
 export function describeMonsterMovement(monster: Monster): string {

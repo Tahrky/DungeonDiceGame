@@ -182,6 +182,10 @@ function parseAttack(value: unknown): MonsterAttack | null {
         (value.usesPerTurn !== undefined && !isIntegerInRange(value.usesPerTurn, 1, 10)) ||
         (value.hitsAllies !== undefined && typeof value.hitsAllies !== "boolean") ||
         (value.targetsAlliesOnly !== undefined && typeof value.targetsAlliesOnly !== "boolean") ||
+        (value.targetsSelf !== undefined && typeof value.targetsSelf !== "boolean") ||
+        (value.targetsSelf === true && value.targetsAlliesOnly !== true) ||
+        (value.clearsStatusEffects !== undefined &&
+            typeof value.clearsStatusEffects !== "boolean") ||
         (value.healAmount !== undefined && !isIntegerInRange(value.healAmount, 1, 50)) ||
         (value.cooldownReduction !== undefined &&
             !isIntegerInRange(value.cooldownReduction, 1, 50)) ||
@@ -205,6 +209,9 @@ function parseAttack(value: unknown): MonsterAttack | null {
     const hitsAllies = typeof value.hitsAllies === "boolean" ? value.hitsAllies : undefined;
     const targetsAlliesOnly =
         typeof value.targetsAlliesOnly === "boolean" ? value.targetsAlliesOnly : undefined;
+    const targetsSelf = typeof value.targetsSelf === "boolean" ? value.targetsSelf : undefined;
+    const clearsStatusEffects =
+        typeof value.clearsStatusEffects === "boolean" ? value.clearsStatusEffects : undefined;
     const healAmount = typeof value.healAmount === "number" ? value.healAmount : undefined;
     const cooldownReduction =
         typeof value.cooldownReduction === "number" ? value.cooldownReduction : undefined;
@@ -221,6 +228,8 @@ function parseAttack(value: unknown): MonsterAttack | null {
         ...(usesPerTurn === undefined ? {} : { usesPerTurn }),
         ...(hitsAllies === undefined ? {} : { hitsAllies }),
         ...(targetsAlliesOnly === undefined ? {} : { targetsAlliesOnly }),
+        ...(targetsSelf === undefined ? {} : { targetsSelf }),
+        ...(clearsStatusEffects === undefined ? {} : { clearsStatusEffects }),
         ...(healAmount === undefined ? {} : { healAmount }),
         ...(cooldownReduction === undefined ? {} : { cooldownReduction }),
         ...(movesToZone === undefined ? {} : { movesToZone }),
@@ -319,6 +328,7 @@ export function parseMonsterConfiguration(value: unknown, expectedId?: string): 
             !isIntegerInRange(value.movementActionsPerTurn, 1, 10)) ||
         (value.movementCost !== undefined && !isIntegerInRange(value.movementCost, 0, 20)) ||
         (value.flying !== undefined && typeof value.flying !== "boolean") ||
+        (value.highAltitude !== undefined && typeof value.highAltitude !== "boolean") ||
         (value.canPassHostiles !== undefined && typeof value.canPassHostiles !== "boolean") ||
         (value.bonusDamageFromBehind !== undefined &&
             !isIntegerInRange(value.bonusDamageFromBehind, 0, 50))
@@ -332,6 +342,8 @@ export function parseMonsterConfiguration(value: unknown, expectedId?: string): 
         typeof value.movementActionsPerTurn === "number" ? value.movementActionsPerTurn : undefined;
     const movementCost = typeof value.movementCost === "number" ? value.movementCost : undefined;
     const flying = typeof value.flying === "boolean" ? value.flying : undefined;
+    const highAltitude =
+        typeof value.highAltitude === "boolean" ? value.highAltitude : undefined;
     const canPassHostiles =
         typeof value.canPassHostiles === "boolean"
             ? value.canPassHostiles
@@ -352,6 +364,7 @@ export function parseMonsterConfiguration(value: unknown, expectedId?: string): 
         ...(movementActionsPerTurn === undefined ? {} : { movementActionsPerTurn }),
         ...(movementCost === undefined ? {} : { movementCost }),
         ...(flying === undefined ? {} : { flying }),
+        ...(highAltitude === undefined ? {} : { highAltitude }),
         ...(canPassHostiles === undefined ? {} : { canPassHostiles }),
         ...(bonusDamageFromBehind === undefined ? {} : { bonusDamageFromBehind }),
     };

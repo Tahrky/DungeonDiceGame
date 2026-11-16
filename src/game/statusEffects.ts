@@ -17,6 +17,23 @@ export function isStatusEffectColor(value: unknown): value is StatusEffectColor 
     );
 }
 
+export function clearStatusEffects(monster: PlacedMonster): number {
+    const clearedCount = monster.statusEffects.length;
+    monster.statusEffects = [];
+    return clearedCount;
+}
+
+export function healMonster(
+    monster: PlacedMonster,
+    healAmount: number,
+    clearsStatusEffects = false,
+): { healed: number; clearedEffects: number } {
+    const healed = Math.min(healAmount, Math.max(0, monster.monster.hp - monster.currentHp));
+    monster.currentHp += healed;
+    const clearedEffects = clearsStatusEffects ? clearStatusEffects(monster) : 0;
+    return { healed, clearedEffects };
+}
+
 export function applyStatusEffectsAtTurnStart(monster: PlacedMonster): number {
     if (monster.currentHp <= 0) {
         monster.statusEffects = [];

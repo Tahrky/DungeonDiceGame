@@ -110,6 +110,8 @@ export interface MonsterAttack {
     usesPerTurn?: number;
     hitsAllies?: boolean;
     targetsAlliesOnly?: boolean;
+    targetsSelf?: boolean;
+    clearsStatusEffects?: boolean;
     healAmount?: number;
     cooldownReduction?: number;
     movesToZone?: boolean;
@@ -142,6 +144,7 @@ export interface Monster {
     movementActionsPerTurn?: number;
     movementCost?: number;
     flying?: boolean;
+    highAltitude?: boolean;
     canPassHostiles?: boolean;
     bonusDamageFromBehind?: number;
 }

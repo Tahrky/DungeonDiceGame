@@ -2,6 +2,7 @@ import { GameSceneAttackTargeting } from "./GameSceneAttackTargeting";
 import { getAvailableSymbolCount } from "../game/diceResources";
 import { getMonsterEliminationWinner } from "../game/matchRules";
 import { canAttackMonster, getFacingFromMovement, isBehind } from "../game/monsterActions";
+import { clearStatusEffects, healMonster } from "../game/statusEffects";
 
 import type {
     Monster,
@@ -83,13 +84,14 @@ export abstract class GameSceneAttackExecution extends GameSceneAttackTargeting 
     ): void {
         let effect: string;
         if (attack.healAmount !== undefined) {
-            const healed = Math.min(
+            const { healed, clearedEffects } = healMonster(
+                target,
                 attack.healAmount,
-                Math.max(0, target.monster.hp - target.currentHp),
+                attack.clearsStatusEffects,
             );
-            target.currentHp += healed;
-            effect = `+${healed} PV`;
+            effect = `+${healed} PV${clearedEffects > 0 ? ", effets dissipés" : ""}`;
         } else if (attack.cooldownReduction !== undefined) {
+            if (attack.clearsStatusEffects) clearStatusEffects(target);
             const cooldownReduction = attack.cooldownReduction;
             const cooldowns = target.attackCooldowns.map((cooldown) =>
                 Math.max(0, cooldown - cooldownReduction),
@@ -137,7 +139,11 @@ export abstract class GameSceneAttackExecution extends GameSceneAttackTargeting 
                 canAttackMonster(attacker.monster, attack, monster.monster)
             ) {
                 monster.currentHp -= attack.damage;
-                this.applyAttackStatusEffect(monster, attack.statusEffect);
+                this.applyAttackStatusEffect(
+                    monster,
+                    attack.statusEffect,
+                    attack.clearsStatusEffects,
+                );
                 if (attack.damage > 0) {
                     this.monsterSpriteView.takeDamage(
                         monster.id,
@@ -190,7 +196,7 @@ export abstract class GameSceneAttackExecution extends GameSceneAttackTargeting 
         const backstabBonus = attacker.monster.bonusDamageFromBehind ?? 0;
         const damage = attack.damage + (isBackstab ? backstabBonus : 0);
         target.currentHp -= damage;
-        this.applyAttackStatusEffect(target, attack.statusEffect);
+        this.applyAttackStatusEffect(target, attack.statusEffect, attack.clearsStatusEffects);
         if (damage > 0) {
             this.monsterSpriteView.takeDamage(target.id, target.currentHp, target.position);
         }
@@ -201,11 +207,13 @@ export abstract class GameSceneAttackExecution extends GameSceneAttackTargeting 
     protected applyAttackStatusEffect(
         target: PlacedMonster,
         effect: StatusEffectDefinition | undefined,
+        clearsStatusEffects = false,
     ): void {
         if (target.currentHp <= 0) {
-            target.statusEffects = [];
+            clearStatusEffects(target);
             return;
         }
+        if (clearsStatusEffects) clearStatusEffects(target);
         if (!effect) return;
         const appliedEffect = { ...effect, remainingTurns: effect.duration };
         target.statusEffects = [

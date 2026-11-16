@@ -178,12 +178,16 @@ export function getAttackZoneOptions(
     attacker: Position,
     facing: Facing,
     pattern: AttackPattern,
+    targetsSelf = false,
 ): AttackZoneOption[] {
     if (pattern.type === "directionalArea") {
-        return getDirectionalAreaOptions(attacker, pattern);
+        const options = getDirectionalAreaOptions(attacker, pattern);
+        return targetsSelf
+            ? [...options, { target: attacker, cells: [attacker] }]
+            : options;
     }
 
-    return getAttackZones(attacker, facing, pattern).flatMap((cells) => {
+    const options = getAttackZones(attacker, facing, pattern).flatMap((cells) => {
         const targetCells =
             pattern.type === "selfRadius"
                 ? cells
@@ -193,6 +197,7 @@ export function getAttackZoneOptions(
                 : cells;
         return targetCells.map((target) => ({ target, cells }));
     });
+    return targetsSelf ? [...options, { target: attacker, cells: [attacker] }] : options;
 }
 
 function getDirectionalAreaOptions(
@@ -337,7 +342,7 @@ export function canAttackMonster(
     attack: MonsterAttack,
     target: Monster,
 ): boolean {
-    if (!target.flying) return true;
+    if (!target.highAltitude) return true;
     return (
         attacker.flying === true ||
         (attack.pattern.type !== "adjacent" && attack.pattern.type !== "directionalArea")

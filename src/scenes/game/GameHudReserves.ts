@@ -2,7 +2,7 @@ import Phaser from "phaser";
 
 import { DICE_SYMBOLS, DICE_SYMBOL_PRESENTATION } from "../../data/dice";
 import type { PlayerId } from "../../types/GameTypes";
-import { getHudLeftX } from "./GameHudBase";
+import { getHudBottomY, getHudLeftX } from "./GameHudBase";
 import type { GameHudActions } from "./GameHudBase";
 import { GameHudHistory } from "./GameHudHistory";
 import type { GameViewState } from "./GameViewState";
@@ -10,19 +10,26 @@ import type { GameViewState } from "./GameViewState";
 export abstract class GameHudReserves extends GameHudHistory {
     protected renderDiceAndReserves(state: GameViewState, actions: GameHudActions): void {
         const diceStartX = getHudLeftX(this.scene);
-        this.addText("DÉS DU TOUR", diceStartX, 600, "#ffffff", 16);
+        const secondReserveY = getHudBottomY(
+            this.scene,
+            30 * this.scene.cameras.main.zoom + 8,
+        );
+        const firstReserveY = secondReserveY - 36;
+        const diceTitleY = firstReserveY - 105;
+        this.addText("DÉS DU TOUR", diceStartX, diceTitleY, "#ffffff", 16);
 
         state.rolledDice.forEach((die, index) => {
             const x = diceStartX + index * 58;
+            const dieY = diceTitleY + 22;
             const isAvailable =
                 die.status === "available" &&
                 state.hasRolled &&
                 !state.pendingCells &&
                 state.actionMode.type === "idle";
             const background = this.scene.add
-                .rectangle(x, 622, 54, 54, die.status === "stored" ? 0x51482d : 0x2a3644, 1)
+                .rectangle(x, dieY, 54, 54, die.status === "stored" ? 0x354352 : 0x2a3644, 1)
                 .setOrigin(0)
-                .setStrokeStyle(2, die.status === "spent" ? 0x66707b : 0xf1cf65);
+                .setStrokeStyle(2, 0x66707b);
             if (isAvailable) {
                 background.setInteractive({ useHandCursor: true });
                 background.on(
@@ -42,7 +49,7 @@ export abstract class GameHudReserves extends GameHudHistory {
 
             const { emoji } = DICE_SYMBOL_PRESENTATION[die.symbol];
             const face = this.scene.add
-                .text(x + 27, 649, emoji, {
+                .text(x + 27, dieY + 27, emoji, {
                     fontFamily: "Arial",
                     fontSize: "31px",
                     color: "#ffffff",
@@ -52,12 +59,18 @@ export abstract class GameHudReserves extends GameHudHistory {
             this.container.add(face);
         });
 
-        this.addText("RÉSERVES · 2 → 1", diceStartX, 678, "#ffffff", 16);
+        this.addText("RÉSERVES · 2 → 1", diceStartX, firstReserveY - 22, "#ffffff", 16);
         for (const player of [1, 2] as PlayerId[]) {
             const reserve = state.diceReserves[player];
             const color = player === state.currentPlayer ? "#f1cf65" : "#aab5c2";
-            const y = 700 + (player - 1) * 28;
-            this.addText(`J${player}`, diceStartX, y + 2, color, 16);
+            const y = firstReserveY + (player - 1) * 36;
+            const playerColor = player === 1 ? 0xff8d78 : 0x70bdff;
+            const rowBackground = this.scene.add
+                .rectangle(diceStartX, y - 1, 300, 30, player === 1 ? 0x914d49 : 0x416e9a, 0.3)
+                .setOrigin(0)
+                .setStrokeStyle(1, playerColor, 0.65);
+            this.container.add(rowBackground);
+            this.addText(`J${player}`, diceStartX + 20, y + 6, color, 16).setOrigin(0.5, 0);
             for (const [index, symbol] of DICE_SYMBOLS.entries()) {
                 const selectedCount =
                     state.actionMode.type === "convertSymbols"
@@ -99,19 +112,19 @@ export abstract class GameHudReserves extends GameHudHistory {
                 );
             }
         }
-        this.renderReserveConversion(state, actions, diceStartX);
+        this.renderReserveConversion(state, actions, diceStartX, firstReserveY);
     }
 
     protected renderReserveConversion(
         state: GameViewState,
         actions: GameHudActions,
         diceStartX: number,
+        reserveTopY: number,
     ): void {
         if (state.actionMode.type !== "convertSymbols") return;
 
         const selectedSymbols = state.actionMode.selectedSymbols;
         const hasTwoSymbols = selectedSymbols.length === 2;
-        const reserveTopY = 700;
         const controlsX = diceStartX + 40 + DICE_SYMBOLS.length * 86 + 8;
         this.addText(
             hasTwoSymbols ? "CHOISIS LE RÉSULTAT" : "CHOISIS UN 2E SYMBOLE",

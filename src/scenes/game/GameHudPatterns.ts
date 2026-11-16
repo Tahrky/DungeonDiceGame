@@ -5,9 +5,9 @@ import {
     PATTERN_CARD_HEIGHT,
     PATTERN_COLUMN_GAP,
     PATTERN_ROW_GAP,
-    PATTERN_START_Y,
-    COLLAPSED_PATTERN_Y,
+    PATTERN_GRID_HEIGHT,
     getHudRightX,
+    getHudBottomY,
     getPatternStartX,
 } from "./GameHudBase";
 import type { GameHudActions, IconButtonOptions } from "./GameHudBase";
@@ -17,7 +17,10 @@ import type { GameViewState } from "./GameViewState";
 
 export class GameHudPatterns extends GameHudActionsPanel {
     protected renderPatternSelector(state: GameViewState, actions: GameHudActions): void {
-        const patternStartY = state.patternSelectorExpanded ? PATTERN_START_Y : COLLAPSED_PATTERN_Y;
+        const patternBottomY = getHudBottomY(this.scene, 8);
+        const patternStartY = state.patternSelectorExpanded
+            ? patternBottomY - PATTERN_GRID_HEIGHT
+            : patternBottomY - PATTERN_CARD_HEIGHT;
         const rightX = getHudRightX(this.scene);
         const patternStartX = getPatternStartX(this.scene);
         this.addButton(

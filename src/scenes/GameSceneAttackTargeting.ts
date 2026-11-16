@@ -53,6 +53,7 @@ export abstract class GameSceneAttackTargeting extends GameSceneInvocation {
             attacker.position,
             attacker.facing,
             attack.pattern,
+            attack.targetsSelf,
         ).filter(
             (option) =>
                 (this.canAttackBase(attacker) || !this.isOpponentStartingPosition(option.target)) &&
@@ -67,7 +68,12 @@ export abstract class GameSceneAttackTargeting extends GameSceneInvocation {
         const attack = attacker?.monster.attacks[attackIndex];
         if (!attacker || !attack || !this.canUseMonsterAttack(attacker, attackIndex)) return [];
 
-        return getAttackZoneOptions(attacker.position, attacker.facing, attack.pattern)
+        return getAttackZoneOptions(
+            attacker.position,
+            attacker.facing,
+            attack.pattern,
+            attack.targetsSelf,
+        )
             .map((option) => option.target)
             .filter(
                 (cell) =>
@@ -132,9 +138,13 @@ export abstract class GameSceneAttackTargeting extends GameSceneInvocation {
                 return !attack.targetsAlliesOnly && this.canAttackBase(attacker);
             }
             const target = this.getLivingMonsterAt(cell);
-            if (!target || target.id === attacker.id) return false;
+            if (!target || (target.id === attacker.id && !attack.targetsSelf)) return false;
             if (!canTargetMonsterOwner(attack, target.owner, this.currentPlayer)) return false;
-            if (attack.healAmount !== undefined && target.currentHp >= target.monster.hp) {
+            if (
+                attack.healAmount !== undefined &&
+                target.currentHp >= target.monster.hp &&
+                (!attack.clearsStatusEffects || target.statusEffects.length === 0)
+            ) {
                 return false;
             }
             if (
@@ -173,7 +183,12 @@ export abstract class GameSceneAttackTargeting extends GameSceneInvocation {
         attack: Monster["attacks"][number],
         target: Position,
     ): { target: Position; cells: Position[] } | undefined {
-        return getAttackZoneOptions(attacker.position, attacker.facing, attack.pattern).find(
+        return getAttackZoneOptions(
+            attacker.position,
+            attacker.facing,
+            attack.pattern,
+            attack.targetsSelf,
+        ).find(
             (option) =>
                 option.target.x === target.x &&
                 option.target.y === target.y &&
