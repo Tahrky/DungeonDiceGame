@@ -162,7 +162,11 @@ export abstract class GameSceneAttackTargeting extends GameSceneInvocation {
     }
 
     protected canAttackBase(attacker: PlacedMonster): boolean {
-        return canAttackBaseThisTurn(attacker.summonedOnTurn, this.turnNumber);
+        return canAttackBaseThisTurn(
+            attacker.summonedOnTurn,
+            this.turnNumber,
+            this.gameConfiguration.allowBaseAttackOnSummonTurn,
+        );
     }
 
     protected isOpponentStartingPosition(position: Position): boolean {

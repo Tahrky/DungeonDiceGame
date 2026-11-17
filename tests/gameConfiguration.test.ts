@@ -19,6 +19,7 @@ describe("configuration des règles de partie", () => {
         configuration.randomBoard = true;
         configuration.testBoard = true;
         configuration.initialPlayerHealth = 7;
+        configuration.allowBaseAttackOnSummonTurn = false;
         configuration.maxMonstersPerPlayer = 4;
         configuration.monstersKilledForVictory = 6;
 
@@ -30,6 +31,30 @@ describe("configuration des règles de partie", () => {
         expect(configuration.monsters.find((monster) => monster.id === "spectre")?.canPassHostiles)
             .toBe(true);
         expect(MONSTERS.find((monster) => monster.id === "frost-mage")?.hp).toBe(5);
+    });
+
+    it("autorise par défaut une attaque immédiate et migre les anciennes configurations", () => {
+        const configuration = getDefaultGameConfiguration();
+        expect(configuration.allowBaseAttackOnSummonTurn).toBe(true);
+
+        configuration.allowBaseAttackOnSummonTurn = false;
+        expect(
+            parseGameConfiguration(JSON.parse(serializeGameConfiguration(configuration)))
+                ?.allowBaseAttackOnSummonTurn,
+        ).toBe(false);
+        expect(
+            parseGameConfiguration({
+                ...configuration,
+                allowBaseAttackOnSummonTurn: "false",
+            }),
+        ).toBeNull();
+
+        const legacyConfiguration: Record<string, unknown> = JSON.parse(
+            serializeGameConfiguration(configuration),
+        );
+        legacyConfiguration.version = 5;
+        delete legacyConfiguration.allowBaseAttackOnSummonTurn;
+        expect(parseGameConfiguration(legacyConfiguration)?.allowBaseAttackOnSummonTurn).toBe(true);
     });
 
     it("valide et préserve l'attribut de haute altitude", () => {
@@ -122,7 +147,7 @@ describe("configuration des règles de partie", () => {
 
         const migrated = parseGameConfiguration(legacyConfiguration);
 
-        expect(migrated?.version).toBe(5);
+        expect(migrated?.version).toBe(6);
         expect(migrated?.deckSize).toBe(DEFAULT_DECK_SIZE);
         expect(migrated?.diceCount).toBe(3);
         expect(migrated?.monstersKilledForVictory).toBe(8);
@@ -167,7 +192,7 @@ describe("configuration des règles de partie", () => {
 
         const migrated = parseGameConfiguration(legacyConfiguration);
 
-        expect(migrated?.version).toBe(5);
+        expect(migrated?.version).toBe(6);
         expect(migrated?.monsters.find((monster) => monster.id === "priestBuffer")?.attacks).toMatchObject([
             { name: "Foulée bénie", movementRangeBonus: 1, movementCostReduction: 1 },
             { name: "Force sacrée", attackDamageBonus: 1, attackCostReduction: 1 },
@@ -183,7 +208,7 @@ describe("configuration des règles de partie", () => {
         delete legacyConfiguration.deckSize;
 
         expect(parseGameConfiguration(legacyConfiguration)).toMatchObject({
-            version: 5,
+            version: 6,
             deckSize: DEFAULT_DECK_SIZE,
             monstersKilledForVictory: 8,
         });
@@ -197,7 +222,7 @@ describe("configuration des règles de partie", () => {
         delete legacyConfiguration.deckSize;
 
         expect(parseGameConfiguration(legacyConfiguration)).toMatchObject({
-            version: 5,
+            version: 6,
             deckSize: DEFAULT_DECK_SIZE,
         });
     });
@@ -380,7 +405,7 @@ describe("configuration des règles de partie", () => {
 
     it("refuse les configurations de version ou de limites invalides", () => {
         const configuration = getDefaultGameConfiguration();
-        expect(parseGameConfiguration({ ...configuration, version: 6 })).toBeNull();
+        expect(parseGameConfiguration({ ...configuration, version: 7 })).toBeNull();
         expect(parseGameConfiguration({ ...configuration, deckSize: MIN_DECK_SIZE - 1 })).toBeNull();
         expect(
             parseGameConfiguration({ ...configuration, deckSize: MAX_AVAILABLE_DECK_SIZE + 1 }),

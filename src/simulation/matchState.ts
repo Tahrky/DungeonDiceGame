@@ -17,11 +17,15 @@ import type {
     Position,
 } from "../types/GameTypes";
 import {
+    canDeployMonsterForProfile,
     chooseBotObjective,
+    createDefensivePlacementScorer,
     describeDeploymentChoice,
     scoreMonsterForProfile,
     scoreTerritoryExpansion,
+    type BotTactic,
 } from "../game/botStrategy";
+import { getMonsterSymbol } from "../game/monsterSymbols";
 import type {
     BotProfile,
     FinalBoard,
@@ -34,6 +38,8 @@ export interface MatchState {
     turn: number;
     currentPlayer: PlayerId;
     profiles: Record<PlayerId, BotProfile>;
+    tactics: Record<PlayerId, BotTactic>;
+    allowBaseAttackOnSummonTurn: boolean;
     winner: PlayerId | null;
     finishReason: MatchResult["finishReason"];
     health: Record<PlayerId, number>;
@@ -78,7 +84,12 @@ export function getPlayerMonsters(state: MatchState, player: PlayerId): PlacedMo
     );
 }
 
-export function buildMatchBoard(board: BoardDefinition, state: MatchState): FinalBoard {
+export function buildMatchBoard(
+    board: BoardDefinition,
+    state: MatchState,
+    monsterSymbols: ReadonlyMap<string, string>,
+    monsterDefinitions: readonly { id: string; name: string }[],
+): FinalBoard {
     const starts = getStartingPositions(board);
     const rows = Array.from({ length: board.height }, (_, y) =>
         Array.from({ length: board.width }, (_, x) => {
@@ -88,7 +99,7 @@ export function buildMatchBoard(board: BoardDefinition, state: MatchState): Fina
                     monster.position.x === x &&
                     monster.position.y === y,
             );
-            if (placed) return placed.owner === 1 ? "A" : "B";
+            if (placed) return getMonsterSymbol(monsterSymbols, placed.monster.id);
             if (board.blockedCells.some((cell) => cell.x === x && cell.y === y)) return "#";
             if (starts[1].x === x && starts[1].y === y) return "1";
             if (starts[2].x === x && starts[2].y === y) return "2";
@@ -109,8 +120,10 @@ export function buildMatchBoard(board: BoardDefinition, state: MatchState): Fina
             { symbol: "2", meaning: "Départ joueur 2" },
             { symbol: "a", meaning: "Territoire déployé joueur 1" },
             { symbol: "b", meaning: "Territoire déployé joueur 2" },
-            { symbol: "A", meaning: "Monstre vivant joueur 1" },
-            { symbol: "B", meaning: "Monstre vivant joueur 2" },
+            ...monsterDefinitions.map((monster) => ({
+                symbol: getMonsterSymbol(monsterSymbols, monster.id),
+                meaning: monster.name,
+            })),
         ],
     };
 }
@@ -119,7 +132,6 @@ function findPlacement(
     state: MatchState,
     board: BoardDefinition,
     player: PlayerId,
-    profile: BotProfile,
 ): { position: Position; cells: Position[] } | null {
     const starts = getStartingPositions(board);
     const occupiedCells = [...Object.values(starts), ...state.monsters.flatMap((m) => m.cells)];
@@ -132,11 +144,26 @@ function findPlacement(
     const enemyPositions = state.monsters
         .filter((monster) => monster.owner !== player && monster.currentHp > 0)
         .map((monster) => monster.position);
-    const expansionObjective = chooseBotObjective(
-        profile,
+    const expansionObjective =
+        state.tactics[player] === "hunt"
+            ? starts[player]
+            : chooseBotObjective(
+                  state.tactics[player],
+                  starts[player],
+                  starts[opposingPlayer(player)],
+                  enemyPositions,
+                  starts[player],
+              );
+    const blockingCells = [
+        ...board.blockedCells,
+        ...state.monsters
+            .filter((monster) => monster.currentHp > 0)
+            .map((monster) => monster.position),
+    ];
+    const defensivePlacementScore = createDefensivePlacementScorer(
         starts[player],
-        starts[opposingPlayer(player)],
         enemyPositions,
+        blockingCells,
     );
     const ownKeys = new Set([starts[player], ...ownCells].map(({ x, y }) => `${x},${y}`));
     const enemyKeys = new Set(
@@ -167,14 +194,17 @@ function findPlacement(
                 !cells.some((cell) => enemyKeys.has(`${cell.x},${cell.y}`))
             );
         },
-        scorePlacement: (_position, cells) =>
+        scorePlacement: (position, cells) =>
             scoreTerritoryExpansion(
                 player,
                 cells,
                 ownCells,
                 starts[player],
                 expansionObjective,
-            ),
+            ) +
+            (state.tactics[player] === "defense" || state.tactics[player] === "hunt"
+                ? defensivePlacementScore(position)
+                : 0),
     });
 }
 
@@ -211,9 +241,12 @@ export function deployMonsters(
             configuration.maxMonstersPerPlayer &&
         state.winner === null
     ) {
-        const placement = findPlacement(state, board, state.currentPlayer, profile);
+        const placement = findPlacement(state, board, state.currentPlayer);
         if (!placement) return;
         const summonedByMonster = state.statistics[state.currentPlayer].summonedByMonster;
+        const deployedCosts = state.monsters
+            .filter((monster) => monster.owner === state.currentPlayer)
+            .map((monster) => monster.monster.cost);
         const choices = deck
             .map((id) => {
                 const monster = configuration.monsters.find((candidate) => candidate.id === id);
@@ -223,14 +256,15 @@ export function deployMonsters(
             .filter((monster) =>
                 canSpend(state, state.currentPlayer, "invocation", monster.cost),
             )
+            .filter((monster) => canDeployMonsterForProfile(monster, profile, deployedCosts))
             .sort(
                 (first, second) => {
                     return (
                         (summonedByMonster[first.id] ?? 0) -
                             (summonedByMonster[second.id] ?? 0) ||
                         scoreMonsterForProfile(second, profile) -
-                        scoreMonsterForProfile(first, profile) ||
-                        first.cost - second.cost
+                            scoreMonsterForProfile(first, profile) ||
+                            first.cost - second.cost
                     );
                 },
             );

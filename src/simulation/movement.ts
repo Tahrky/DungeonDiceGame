@@ -54,20 +54,24 @@ export function performMovements(state: MatchState, board: BoardDefinition): voi
                 movement,
                 ownedCells,
                 chooseBotObjective(
-                    state.profiles[player],
+                    state.tactics[player],
                     monster.position,
                     enemyStart,
                     enemyPositions,
+                    getStartingPositions(board)[player],
                 ),
                 enemyPositions,
+                state.tactics[player],
             );
             if (!best || !spend(state, player, "movement", cost)) break;
 
             const from = monster.position;
             const movementGoal =
-                state.profiles[player] === "defensive" && enemyPositions.length > 0
-                    ? "les monstres adverses"
-                    : "le départ ennemi";
+                state.tactics[player] === "defense"
+                    ? "le périmètre de sa base"
+                    : state.tactics[player] === "hunt" && enemyPositions.length > 0
+                      ? "les monstres adverses"
+                      : "le départ ennemi";
             monster.facing = getFacingFromMovement(from, best.position, monster.facing);
             monster.position = best.position;
             monster.movementsUsedThisTurn++;

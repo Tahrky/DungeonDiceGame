@@ -206,6 +206,7 @@ export function ResultsAnalysisPanel({ generatedResult }: ResultsAnalysisPanelPr
 
                     <MatchInspector
                         matches={data.matches}
+                        configuration={data.configuration}
                         selectedMatchId={selectedMatchId}
                         onMatchChange={setSelectedMatchId}
                     />

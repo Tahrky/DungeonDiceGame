@@ -1,18 +1,24 @@
 import type { AnalyzableMatch } from "../../simulation/analysis";
+import type { GameConfiguration } from "../../game/gameConfiguration";
+import { getMonsterSymbol, getUniqueMonsterSymbols } from "../../game/monsterSymbols";
+import { SimulationBoard } from "./SimulationBoard";
 
 interface MatchInspectorProps {
     readonly matches: readonly AnalyzableMatch[];
+    readonly configuration: GameConfiguration;
     readonly selectedMatchId: string;
     readonly onMatchChange: (id: string) => void;
 }
 
 export function MatchInspector({
     matches,
+    configuration,
     selectedMatchId,
     onMatchChange,
 }: MatchInspectorProps) {
     const match = matches.find((candidate) => candidate.id === Number(selectedMatchId));
     const visibleHistory = match?.history.slice(-500) ?? [];
+    const monsterSymbols = getUniqueMonsterSymbols(configuration.monsters);
 
     return (
         <section className="simulation-match-inspector">
@@ -51,22 +57,14 @@ export function MatchInspector({
                             {match.winner ? `Vainqueur : J${match.winner}` : "Résultat : égalité"}
                         </span>
                     </div>
-                    <div className="simulation-board-view">
-                        <pre aria-label="Plateau final">{match.finalBoard.rows.join("\n")}</pre>
-                        <ul>
-                            {match.finalBoard.legend.map((item) => (
-                                <li key={item.symbol}>
-                                    <code>{item.symbol}</code> {item.meaning}
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
+                    <SimulationBoard match={match} configuration={configuration} />
                     {match.finalMonsters.length > 0 && (
                         <div className="simulation-table-wrap">
                             <h4>Monstres en fin de match</h4>
                             <table className="simulation-table">
                                 <thead>
                                     <tr>
+                                        <th>Symbole</th>
                                         <th>Monstre</th>
                                         <th>Joueur</th>
                                         <th>PV</th>
@@ -76,6 +74,13 @@ export function MatchInspector({
                                 <tbody>
                                     {match.finalMonsters.map((monster) => (
                                         <tr key={monster.id}>
+                                            <td>
+                                                {monster.symbol ??
+                                                    getMonsterSymbol(
+                                                        monsterSymbols,
+                                                        monster.monsterId,
+                                                    )}
+                                            </td>
                                             <th scope="row">{monster.name}</th>
                                             <td>J{monster.owner}</td>
                                             <td>

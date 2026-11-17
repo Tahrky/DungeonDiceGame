@@ -13,6 +13,8 @@ import {
 import type { DiceSymbol, PlacedMonster, Position } from "../types/GameTypes";
 import { getInvokedMonsterCount } from "../game/matchRules";
 import {
+    canDeployMonsterForProfile,
+    chooseBotTactic,
     chooseBotObjective,
     chooseSymbolConversion,
     findObjectiveMovement,
@@ -32,6 +34,10 @@ export abstract class GameSceneComputerConversion extends GameSceneMovement {
         cells: readonly Position[],
         cost: number,
     ): number;
+
+    protected getComputerTactic() {
+        return chooseBotTactic(this.opponentProfile, "balanced").tactic;
+    }
 
     protected convertComputerSymbols(): void {
         const reserve = this.diceReserves[2];
@@ -85,10 +91,16 @@ export abstract class GameSceneComputerConversion extends GameSceneMovement {
             this.rolledDice,
             this.diceReserves[2],
         );
+        const deployedCosts = this.placedMonsters
+            .filter((placed) => placed.owner === 2)
+            .map((placed) => placed.monster.cost);
         return Math.max(
             0,
             ...this.getDeckMonsters(2)
                 .filter((monster) => monster.cost === availableInvocation)
+                .filter((monster) =>
+                    canDeployMonsterForProfile(monster, this.opponentProfile, deployedCosts),
+                )
                 .map((monster) =>
                     Math.max(1, scoreMonsterForProfile(monster, this.opponentProfile) + 1),
                 ),
@@ -162,16 +174,19 @@ export abstract class GameSceneComputerConversion extends GameSceneMovement {
             const enemyPositions = this.placedMonsters
                 .filter((placed) => placed.owner === 1 && placed.currentHp > 0)
                 .map((placed) => placed.position);
-            const enemyProgress = enemyPositions.length
-                ? Math.min(
-                      ...enemyPositions.map((enemy) => getGridDistance(monster.position, enemy)),
-                  ) -
-                  Math.min(
-                      ...enemyPositions.map((enemy) =>
-                          getGridDistance(movement.position, enemy),
-                      ),
-                  )
-                : 0;
+            const enemyProgress =
+                this.getComputerTactic() === "hunt" && enemyPositions.length
+                    ? Math.min(
+                          ...enemyPositions.map((enemy) =>
+                              getGridDistance(monster.position, enemy),
+                          ),
+                      ) -
+                      Math.min(
+                          ...enemyPositions.map((enemy) =>
+                              getGridDistance(movement.position, enemy),
+                          ),
+                      )
+                    : 0;
             bestScore = Math.max(
                 bestScore,
                 movement.routeProgress * 100 +
@@ -204,6 +219,15 @@ export abstract class GameSceneComputerConversion extends GameSceneMovement {
             );
             const nextAffordable = this.getDeckMonsters(2)
                 .filter((monster) => monster.cost <= invocationCount)
+                .filter((monster) =>
+                    canDeployMonsterForProfile(
+                        monster,
+                        this.opponentProfile,
+                        this.placedMonsters
+                            .filter((placed) => placed.owner === 2)
+                            .map((placed) => placed.monster.cost),
+                    ),
+                )
                 .reduce((lowest, monster) => Math.min(lowest, monster.cost), Infinity);
             if (Number.isFinite(nextAffordable)) protectedCounts.invocation = nextAffordable;
         }
@@ -269,12 +293,14 @@ export abstract class GameSceneComputerConversion extends GameSceneMovement {
             this.getMovementOptions(monster, monster.position),
             ownedCells,
             chooseBotObjective(
-                this.opponentProfile,
+                this.getComputerTactic(),
                 monster.position,
                 this.startingPositions[1],
                 enemyPositions,
+                this.startingPositions[2],
             ),
             enemyPositions,
+            this.getComputerTactic(),
         );
     }
 }

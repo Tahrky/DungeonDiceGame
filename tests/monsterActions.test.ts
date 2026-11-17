@@ -41,8 +41,10 @@ describe("portée des actions de monstre", () => {
         expect(canTargetMonsterOwner({ hitsAllies: true }, 2, 1)).toBe(true);
     });
 
-    it("interdit à un monstre invoqué ce tour d'attaquer la base", () => {
-        expect(canAttackBaseThisTurn(3, 3)).toBe(false);
+    it("applique l’option d’attaque de la base au tour d’apparition", () => {
+        expect(canAttackBaseThisTurn(3, 3)).toBe(true);
+        expect(canAttackBaseThisTurn(3, 3, false)).toBe(false);
+        expect(canAttackBaseThisTurn(3, 3, true)).toBe(true);
         expect(canAttackBaseThisTurn(2, 3)).toBe(true);
         expect(canAttackBaseThisTurn(undefined, 3)).toBe(true);
     });

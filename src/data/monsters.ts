@@ -50,7 +50,7 @@ export const MONSTERS: Monster[] = [
     {
         id: "swamp-thing",
         name: "Créature des Marais",
-        symbol: "PM",
+        symbol: "C",
         color: 0x415d10,
         cost: 4,
         hp: 5,
@@ -120,7 +120,7 @@ export const MONSTERS: Monster[] = [
     {
         id: "spectre",
         name: "Spectre",
-        symbol: "Sp",
+        symbol: "S",
         color: 0x8E10DE,
         cost: 2,
         hp: 3,
@@ -143,14 +143,14 @@ export const MONSTERS: Monster[] = [
         movementRange: 2,
         movementCost: 0,
         flying: true,
-        highAltitude: true,
+        //highAltitude: true,
         canPassHostiles: true,
     },
 
     {
         id: "black-knight",
         name: "Chevalier Noir",
-        symbol: "BK",
+        symbol: "K",
         color: 0x111111,
         cost: 4,
         hp: 8,
@@ -227,7 +227,7 @@ export const MONSTERS: Monster[] = [
     {
         id: "priestBuffer",
         name: "Prêtre Buffer",
-        symbol: "PB",
+        symbol: "B",
         color: 0x54b8e8,
         cost: 4,
         hp: 5,
@@ -250,7 +250,6 @@ export const MONSTERS: Monster[] = [
                 pattern: { type: "radius", range: 3 },
                 animation: "alternativeAttack1",
                 targetsAlliesOnly: true,
-                targetsSelf: true,
                 attackDamageBonus: 1,
                 attackCostReduction: 1,
                 usesPerTurn: 1,
@@ -263,7 +262,7 @@ export const MONSTERS: Monster[] = [
     {
         id: "priest",
         name: "Prêtre",
-        symbol: "P",
+        symbol: "R",
         color: 0x54b8e8,
         cost: 4,
         hp: 5,

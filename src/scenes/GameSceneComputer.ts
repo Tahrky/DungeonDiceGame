@@ -15,7 +15,9 @@ import { isBoardCell } from "../game/boards";
 import type { Monster, PlacedMonster, Position } from "../types/GameTypes";
 import { getInvokedMonsterCount } from "../game/matchRules";
 import {
+    canDeployMonsterForProfile,
     chooseBotObjective,
+    createDefensivePlacementScorer,
     findObjectiveMovement,
     scoreMonsterForProfile,
     scoreTacticalAttack,
@@ -92,14 +94,20 @@ export abstract class GameSceneComputer extends GameSceneComputerConversion {
                     (deploymentCounts.get(placed.monster.id) ?? 0) + 1,
                 );
             }
+            const deployedCosts = this.placedMonsters
+                .filter((placed) => placed.owner === 2)
+                .map((placed) => placed.monster.cost);
             const candidates = this.getDeckMonsters(2)
                 .filter((monster) => monster.cost <= availableInvocation)
+                .filter((monster) =>
+                    canDeployMonsterForProfile(monster, this.opponentProfile, deployedCosts),
+                )
                 .sort(
                     (first, second) => {
                         return (
-                        (deploymentCounts.get(first.id) ?? 0) -
+                            (deploymentCounts.get(first.id) ?? 0) -
                             (deploymentCounts.get(second.id) ?? 0) ||
-                        scoreMonsterForProfile(second, this.opponentProfile) -
+                            scoreMonsterForProfile(second, this.opponentProfile) -
                             scoreMonsterForProfile(first, this.opponentProfile)
                         );
                     },
@@ -167,11 +175,28 @@ export abstract class GameSceneComputer extends GameSceneComputerConversion {
         const enemyPositions = this.placedMonsters
             .filter((placed) => placed.owner === 1 && placed.currentHp > 0)
             .map((placed) => placed.position);
-        const expansionObjective = chooseBotObjective(
-            this.opponentProfile,
+        const tactic = this.getComputerTactic();
+        const expansionObjective =
+            tactic === "hunt"
+                ? this.startingPositions[2]
+                : chooseBotObjective(
+                      tactic,
+                      this.startingPositions[2],
+                      this.startingPositions[1],
+                      enemyPositions,
+                      this.startingPositions[2],
+                  );
+        const blockingCells = [
+            ...this.board.blockedCells,
+            ...this.obstacles.map(({ position }) => position),
+            ...this.placedMonsters
+                .filter((placed) => placed.currentHp > 0)
+                .map((placed) => placed.position),
+        ];
+        const defensivePlacementScore = createDefensivePlacementScorer(
             this.startingPositions[2],
-            this.startingPositions[1],
             enemyPositions,
+            blockingCells,
         );
         return findValidPlacement({
             patterns: PLACEMENT_PATTERNS,
@@ -207,14 +232,15 @@ export abstract class GameSceneComputer extends GameSceneComputerConversion {
                     !crossesEnemyTerritory
                 );
             },
-            scorePlacement: (_position, cells) =>
+            scorePlacement: (position, cells) =>
                 scoreTerritoryExpansion(
                     2,
                     cells,
                     computerPathCells,
                     this.startingPositions[2],
                     expansionObjective,
-                ),
+                ) +
+                (tactic === "defense" || tactic === "hunt" ? defensivePlacementScore(position) : 0),
         });
     }
 
@@ -363,7 +389,7 @@ export abstract class GameSceneComputer extends GameSceneComputerConversion {
         return scoreTacticalAttack(
             value,
             cost,
-            this.opponentProfile,
+            this.getComputerTactic(),
             this.playerHealth[1],
         );
     }
@@ -382,16 +408,18 @@ export abstract class GameSceneComputer extends GameSceneComputerConversion {
                     .filter((placed) => placed.owner === 1 && placed.currentHp > 0)
                     .map((placed) => placed.position);
                 const objective = chooseBotObjective(
-                    this.opponentProfile,
+                    this.getComputerTactic(),
                     monster.position,
                     this.startingPositions[1],
                     enemyPositions,
+                    this.startingPositions[2],
                 );
                 const movement = findObjectiveMovement(
                     options,
                     ownedCells,
                     objective,
                     enemyPositions,
+                    this.getComputerTactic(),
                 );
                 if (!movement) break;
 

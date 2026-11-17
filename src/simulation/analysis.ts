@@ -27,6 +27,7 @@ export interface AnalyzableMatch {
         id: string;
         monsterId: string;
         name: string;
+        symbol?: string;
         owner: PlayerId;
         hp: number;
         maxHp: number;
@@ -131,6 +132,8 @@ function isFinalMonster(value: unknown): value is AnalyzableMatch["finalMonsters
         typeof value.id === "string" &&
         typeof value.monsterId === "string" &&
         typeof value.name === "string" &&
+        (value.symbol === undefined ||
+            (typeof value.symbol === "string" && /^[A-Z]$/.test(value.symbol))) &&
         isPlayerId(value.owner) &&
         isNumber(value.hp) &&
         isNumber(value.maxHp) &&

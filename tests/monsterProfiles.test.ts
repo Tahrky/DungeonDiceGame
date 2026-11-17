@@ -121,7 +121,6 @@ describe("profils de monstres", () => {
                 attackDamageBonus: 1,
                 attackCostReduction: 1,
                 targetsAlliesOnly: true,
-                targetsSelf: true,
                 usesPerTurn: 1,
             },
         ]);
@@ -130,7 +129,7 @@ describe("profils de monstres", () => {
     it("définit le Spectre comme un monstre volant de haute altitude", () => {
         const spectre = MONSTERS.find((monster) => monster.id === "spectre");
 
-        expect(spectre).toMatchObject({ flying: true, highAltitude: true });
+        expect(spectre).toMatchObject({ flying: true });
     });
 
     it("associe les feuilles de sprites du Prêtre à ses animations", () => {

@@ -61,6 +61,7 @@ export interface FinalMonster {
     id: string;
     monsterId: string;
     name: string;
+    symbol: string;
     owner: PlayerId;
     hp: number;
     maxHp: number;
@@ -106,4 +107,3 @@ export interface SimulationBatchResult {
     };
     matches: MatchResult[];
 }
-

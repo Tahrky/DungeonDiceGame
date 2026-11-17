@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { getDefaultGameConfiguration } from "../src/game/gameConfiguration";
+import { getUniqueMonsterSymbols } from "../src/game/monsterSymbols";
 import { chooseDeck } from "../src/simulation/strategies";
 import { runSimulations } from "../src/simulation/simulator";
+import { parseSimulationData } from "../src/simulation/analysis";
 import type { SimulationOptions } from "../src/simulation/types";
 
 function createRandom(seed: number): () => number {
@@ -36,7 +38,52 @@ describe("simulation de matchs", () => {
         expect(match?.finalBoard.rows.every((row) => row.length === match?.finalBoard.width)).toBe(
             true,
         );
+        const monsterLegend = match?.finalBoard.legend.filter(({ symbol }) =>
+            /^[A-Z]$/.test(symbol),
+        );
+        expect(new Set(monsterLegend?.map(({ symbol }) => symbol)).size).toBe(
+            monsterLegend?.length,
+        );
+        expect(match?.finalMonsters.every((monster) => /^[A-Z]$/.test(monster.symbol))).toBe(true);
         expect(first.matches).toEqual(second.matches);
+    });
+
+    it("attribue une lettre unique même aux symboles de configuration dupliqués", () => {
+        const symbols = getUniqueMonsterSymbols([
+            { id: "first", symbol: "Q" },
+            { id: "duplicate", symbol: "Q" },
+            { id: "multi-letter", symbol: "XY" },
+        ]);
+
+        expect([...symbols.values()]).toEqual(["Q", "A", "B"]);
+    });
+
+    it("définit une seule lettre distincte par monstre dans la configuration par défaut", () => {
+        const symbols = getDefaultGameConfiguration().monsters.map((monster) => monster.symbol);
+
+        expect(symbols.every((symbol) => /^[A-Z]$/.test(symbol))).toBe(true);
+        expect(new Set(symbols).size).toBe(symbols.length);
+    });
+
+    it("importe les rapports historiques dont les monstres n'ont pas encore de symbole", () => {
+        const result = runSimulations({
+            games: 1,
+            seed: 42,
+            maxTurns: 1,
+            profile1: "cheap",
+            profile2: "offensive",
+        });
+        const legacyResult = {
+            ...result,
+            matches: result.matches.map((match) => ({
+                ...match,
+                finalMonsters: match.finalMonsters.map(
+                    ({ symbol: _symbol, ...monster }) => monster,
+                ),
+            })),
+        };
+
+        expect(parseSimulationData(legacyResult)).not.toBeNull();
     });
 
     it("sélectionne des decks distincts selon les profils économiques et de soutien", () => {
@@ -66,5 +113,24 @@ describe("simulation de matchs", () => {
 
         expect(events.some((event) => event.type === "movement")).toBe(true);
         expect(events.some((event) => event.type === "attack")).toBe(true);
+    });
+
+    it("consigne la posture stratégique et l’adaptation au profil adverse", () => {
+        const result = runSimulations({
+            games: 1,
+            seed: 193,
+            maxTurns: 1,
+            profile1: "balanced",
+            profile2: "offensive",
+        });
+        const decisions = result.matches[0]?.history.filter(
+            (event) =>
+                event.type === "strategy" && event.description.startsWith("Décision stratégique"),
+        );
+
+        expect(decisions).toHaveLength(2);
+        expect(decisions?.[0]?.description).toContain("s’adapte au profil « offensive »");
+        expect(decisions?.[0]?.description).toContain("renforce son périmètre");
+        expect(decisions?.[1]?.description).toContain("vise uniquement les PV de la base");
     });
 });

@@ -14,6 +14,8 @@ import {
 import { beginTurn, finishPlayerTurn, performAttacks } from "./combat";
 import { performMovements } from "./movement";
 import { chooseDeck } from "./strategies";
+import { chooseBotTactic } from "../game/botStrategy";
+import { getMonsterSymbol, getUniqueMonsterSymbols } from "../game/monsterSymbols";
 import type {
     BotProfile,
     MatchResult,
@@ -66,10 +68,16 @@ function createMatch(
                 deckRandom[2],
             ),
     };
+    const monsterSymbols = getUniqueMonsterSymbols(configuration.monsters);
     const state: MatchState = {
         turn: 1,
         currentPlayer: startingPlayer,
         profiles,
+        tactics: {
+            1: chooseBotTactic(profiles[1], profiles[2]).tactic,
+            2: chooseBotTactic(profiles[2], profiles[1]).tactic,
+        },
+        allowBaseAttackOnSummonTurn: configuration.allowBaseAttackOnSummonTurn,
         winner: null,
         finishReason: "turnLimit",
         health: {
@@ -114,6 +122,14 @@ function createMatch(
                 description:
                     `Profil « ${profiles[player]} » ; deck : ${decks[player].join(", ")}.`,
             });
+            const decision = chooseBotTactic(profiles[player], profiles[player === 1 ? 2 : 1]);
+            state.tactics[player] = decision.tactic;
+            state.history.push({
+                turn,
+                player,
+                type: "strategy",
+                description: `Décision stratégique : ${decision.description}.`,
+            });
 
             deployMonsters(state, configuration, board, profiles[player], decks[player]);
             performAttacks(state, board);
@@ -134,11 +150,12 @@ function createMatch(
         turns: state.turn,
         playerHealth: state.health,
         statistics: state.statistics,
-        finalBoard: buildMatchBoard(board, state),
+        finalBoard: buildMatchBoard(board, state, monsterSymbols, configuration.monsters),
         finalMonsters: state.monsters.map((monster) => ({
             id: monster.id,
             monsterId: monster.monster.id,
             name: monster.monster.name,
+            symbol: getMonsterSymbol(monsterSymbols, monster.monster.id),
             owner: monster.owner,
             hp: monster.currentHp,
             maxHp: monster.monster.hp,

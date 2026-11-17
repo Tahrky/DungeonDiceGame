@@ -184,8 +184,9 @@ export function canUseActionThisTurn(actionsUsed: number, actionLimit: number): 
 export function canAttackBaseThisTurn(
     summonedOnTurn: number | undefined,
     currentTurn: number,
+    allowAttackOnSummonTurn = true,
 ): boolean {
-    return summonedOnTurn !== currentTurn;
+    return allowAttackOnSummonTurn || summonedOnTurn !== currentTurn;
 }
 
 export function canUseMonsterAttackThisTurn(

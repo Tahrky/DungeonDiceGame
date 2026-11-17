@@ -14,7 +14,7 @@ import type {
 } from "../types/GameTypes";
 
 export const GAME_CONFIGURATION_STORAGE_KEY = "dungeon-dice.configuration";
-export const GAME_CONFIGURATION_VERSION = 5;
+export const GAME_CONFIGURATION_VERSION = 6;
 export const MIN_DICE_COUNT = 2;
 export const MAX_DICE_COUNT = DICE.length;
 export const DEFAULT_DICE_COUNT = 5;
@@ -22,7 +22,7 @@ export const MIN_DECK_SIZE = 3;
 export const MAX_DECK_SIZE = 15;
 export const DEFAULT_DECK_SIZE = 5;
 export const MAX_AVAILABLE_DECK_SIZE = Math.min(MAX_DECK_SIZE, MONSTERS.length);
-export const DEFAULT_PLAYER_LIFE = 8;
+export const DEFAULT_PLAYER_LIFE = 3;
 
 export interface GameConfiguration {
     version: typeof GAME_CONFIGURATION_VERSION;
@@ -31,6 +31,7 @@ export interface GameConfiguration {
     randomBoard: boolean;
     testBoard: boolean;
     initialPlayerHealth: number;
+    allowBaseAttackOnSummonTurn: boolean;
     maxMonstersPerPlayer: number;
     monstersKilledForVictory: number;
     monsters: Monster[];
@@ -76,6 +77,7 @@ export function getDefaultGameConfiguration(): GameConfiguration {
         randomBoard: false,
         testBoard: false,
         initialPlayerHealth: DEFAULT_PLAYER_LIFE,
+        allowBaseAttackOnSummonTurn: true,
         maxMonstersPerPlayer: MAX_MONSTERS_PER_PLAYER,
         monstersKilledForVictory: DEFAULT_MONSTERS_KILLED_FOR_VICTORY,
         monsters: MONSTERS.map(cloneMonster),
@@ -266,7 +268,8 @@ function migrateGameConfiguration(value: unknown): unknown {
         (value.version !== 1 &&
             value.version !== 2 &&
             value.version !== 3 &&
-            value.version !== 4) ||
+            value.version !== 4 &&
+            value.version !== 5) ||
         !Array.isArray(value.monsters)
     ) {
         return value;
@@ -327,6 +330,10 @@ function migrateGameConfiguration(value: unknown): unknown {
             value.monstersKilledForVictory === undefined
                 ? DEFAULT_MONSTERS_KILLED_FOR_VICTORY
                 : value.monstersKilledForVictory,
+        allowBaseAttackOnSummonTurn:
+            value.allowBaseAttackOnSummonTurn === undefined
+                ? true
+                : value.allowBaseAttackOnSummonTurn,
         monsters,
     };
 }
@@ -456,6 +463,7 @@ export function parseGameConfiguration(value: unknown): GameConfiguration | null
         typeof migratedValue.randomBoard !== "boolean" ||
         (migratedValue.testBoard !== undefined && typeof migratedValue.testBoard !== "boolean") ||
         !isIntegerInRange(migratedValue.initialPlayerHealth, 1, 20) ||
+        typeof migratedValue.allowBaseAttackOnSummonTurn !== "boolean" ||
         !isIntegerInRange(migratedValue.maxMonstersPerPlayer, 1, 20) ||
         !isIntegerInRange(migratedValue.monstersKilledForVictory, 1, 20) ||
         !Array.isArray(migratedValue.monsters) ||
@@ -482,6 +490,7 @@ export function parseGameConfiguration(value: unknown): GameConfiguration | null
         randomBoard: migratedValue.randomBoard,
         testBoard: migratedValue.testBoard === true,
         initialPlayerHealth: migratedValue.initialPlayerHealth,
+        allowBaseAttackOnSummonTurn: migratedValue.allowBaseAttackOnSummonTurn,
         maxMonstersPerPlayer: migratedValue.maxMonstersPerPlayer,
         monstersKilledForVictory: migratedValue.monstersKilledForVictory,
         monsters,

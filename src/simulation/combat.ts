@@ -105,7 +105,11 @@ function isValidAttackCell(
     if (cell.x === enemyStart.x && cell.y === enemyStart.y) {
         return (
             !attack.targetsAlliesOnly &&
-            canAttackBaseThisTurn(attacker.summonedOnTurn, state.turn)
+            canAttackBaseThisTurn(
+                attacker.summonedOnTurn,
+                state.turn,
+                state.allowBaseAttackOnSummonTurn,
+            )
         );
     }
 
@@ -178,7 +182,11 @@ function evaluateAttack(
     }
 
     const enemyStart = getStartingPositions(board)[opposingPlayer(state.currentPlayer)];
-    const canHitBase = canAttackBaseThisTurn(attacker.summonedOnTurn, state.turn);
+    const canHitBase = canAttackBaseThisTurn(
+        attacker.summonedOnTurn,
+        state.turn,
+        state.allowBaseAttackOnSummonTurn,
+    );
     const affectedCells = isAreaAttack(attack) ? cells : [target];
     for (const cell of affectedCells) {
         if (!isBoardCell(board, cell)) continue;
@@ -229,7 +237,11 @@ function getAttackChoices(
     const attack = attacker.monster.attacks[attackIndex];
     if (!attack) return [];
     const enemyStart = getStartingPositions(board)[opposingPlayer(state.currentPlayer)];
-    const canHitBase = canAttackBaseThisTurn(attacker.summonedOnTurn, state.turn);
+    const canHitBase = canAttackBaseThisTurn(
+        attacker.summonedOnTurn,
+        state.turn,
+        state.allowBaseAttackOnSummonTurn,
+    );
     const blockers = state.monsters
         .filter((monster) => monster.currentHp > 0 && monster.id !== attacker.id)
         .map((monster) => monster.position);
@@ -271,7 +283,7 @@ function getAttackChoices(
                     option.cells,
                 ),
                 getAttackCost(attack, attacker.turnBuffs?.attackCostReduction ?? 0),
-                state.profiles[state.currentPlayer],
+                state.tactics[state.currentPlayer],
                 state.health[opposingPlayer(state.currentPlayer)],
             ),
         }))
@@ -448,7 +460,11 @@ function executeAttack(state: MatchState, board: BoardDefinition, choice: Attack
             }
         }
         if (
-            canAttackBaseThisTurn(attacker.summonedOnTurn, state.turn) &&
+            canAttackBaseThisTurn(
+                attacker.summonedOnTurn,
+                state.turn,
+                state.allowBaseAttackOnSummonTurn,
+            ) &&
             cells.some((cell) => cell.x === enemyStart.x && cell.y === enemyStart.y)
         ) {
             damageBase(state, player);
@@ -476,7 +492,11 @@ function executeAttack(state: MatchState, board: BoardDefinition, choice: Attack
         if (
             target.x === enemyStart.x &&
             target.y === enemyStart.y &&
-            canAttackBaseThisTurn(attacker.summonedOnTurn, state.turn)
+            canAttackBaseThisTurn(
+                attacker.summonedOnTurn,
+                state.turn,
+                state.allowBaseAttackOnSummonTurn,
+            )
         ) {
             damageBase(state, player);
             actionTarget = `base J${opposingPlayer(player)}`;

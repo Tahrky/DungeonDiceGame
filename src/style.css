@@ -880,40 +880,153 @@ canvas {
 .simulation-board-view {
     display: flex;
     flex-wrap: wrap;
-    align-items: flex-start;
-    gap: 18px;
+    align-items: center;
+    justify-content: center;
+    gap: 28px;
+    overflow: auto;
     border: 1px solid #3d4b5a;
     border-radius: 8px;
-    padding: 14px;
-    background: #111922;
+    padding: 24px;
+    background: radial-gradient(ellipse at center, #1d2b2c 0%, #111922 75%), #111922;
 }
 
-.simulation-board-view pre {
-    max-width: 100%;
-    overflow: auto;
-    margin: 0;
-    color: #f0c974;
+.simulation-isometric-board {
+    position: relative;
+    flex: 0 0 auto;
+    margin: 8px;
+    filter: drop-shadow(0 10px 12px rgb(0 0 0 / 35%));
+}
+
+.simulation-board-cell {
+    position: absolute;
+    width: 40px;
+    height: 22px;
+}
+
+.simulation-board-tile {
+    position: absolute;
+    inset: 0;
+    border: 1px solid rgb(193 211 187 / 35%);
+    clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+}
+
+.simulation-board-tile--ground {
+    background: linear-gradient(145deg, #627f4c, #3e593c 60%, #344a37);
+}
+
+.simulation-board-tile--blocked {
+    background: linear-gradient(145deg, #77796f, #4c504d 60%, #343a39);
+}
+
+.simulation-board-tile--player-one {
+    background: linear-gradient(145deg, #855454, #664246 60%, #4f3d40);
+}
+
+.simulation-board-tile--player-two {
+    background: linear-gradient(145deg, #4e7189, #3d5d75 60%, #354d63);
+}
+
+.simulation-board-sprite {
+    position: absolute;
+    z-index: 1;
+    top: -30px;
+    left: -4px;
+    width: 48px;
+    height: 48px;
+    background-repeat: no-repeat;
+    background-size: cover;
+    image-rendering: pixelated;
+    pointer-events: none;
+}
+
+.simulation-board-symbol {
+    position: absolute;
+    z-index: 2;
+    bottom: -11px;
+    left: 50%;
+    min-width: 18px;
+    border: 1px solid #f4e3b2;
+    border-radius: 50%;
+    padding: 1px 3px;
+    color: #fff;
     font:
-        14px/1.5 Consolas,
+        700 11px/14px Consolas,
         monospace;
-    letter-spacing: 1.5px;
+    text-align: center;
+    transform: translateX(-50%);
+    box-shadow: 0 1px 4px #000;
 }
 
-.simulation-board-view ul {
+.simulation-board-symbol--player-1 {
+    background: #a53d49;
+}
+
+.simulation-board-symbol--player-2 {
+    background: #2879a5;
+}
+
+.simulation-board-base {
+    position: absolute;
+    z-index: 2;
+    top: -8px;
+    left: 50%;
+    border: 1px solid #f4d28a;
+    border-radius: 5px;
+    padding: 1px 4px;
+    background: #242323;
+    color: #ffe4a3;
+    font-size: 9px;
+    font-weight: 800;
+    transform: translateX(-50%);
+}
+
+.simulation-board-legend {
     display: grid;
-    gap: 5px;
+    grid-template-columns: repeat(2, minmax(125px, 1fr));
+    gap: 7px 14px;
+    min-width: 270px;
     margin: 0;
     padding: 0;
-    color: #aab5c2;
+    color: #c4ced8;
     font-size: 12px;
     list-style: none;
 }
 
-.simulation-board-view code {
+.simulation-board-legend li {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}
+
+.simulation-board-legend code {
     display: inline-block;
-    min-width: 20px;
+    min-width: 19px;
     color: var(--accent-gold);
     font-weight: 700;
+    text-align: center;
+}
+
+.simulation-board-legend code.simulation-board-owner-1 {
+    color: #ff9aa2;
+}
+
+.simulation-board-legend code.simulation-board-owner-2 {
+    color: #83caff;
+}
+
+.simulation-board-view + .simulation-table-wrap {
+    margin-top: 20px;
+}
+
+@media (max-width: 680px) {
+    .simulation-board-view {
+        justify-content: flex-start;
+        padding: 14px;
+    }
+
+    .simulation-board-legend {
+        min-width: 100%;
+    }
 }
 
 .simulation-history {

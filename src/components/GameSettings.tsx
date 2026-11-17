@@ -236,6 +236,20 @@ export function GameSettings({
                     <label className="settings-toggle">
                         <input
                             type="checkbox"
+                            checked={configuration.allowBaseAttackOnSummonTurn}
+                            onChange={(event) => {
+                                const checked = event.currentTarget.checked;
+                                setConfiguration((current) => ({
+                                    ...current,
+                                    allowBaseAttackOnSummonTurn: checked,
+                                }));
+                            }}
+                        />
+                        Autoriser l’attaque de la base au tour d’apparition
+                    </label>
+                    <label className="settings-toggle">
+                        <input
+                            type="checkbox"
                             checked={configuration.randomBoard}
                             onChange={(event) => {
                                 const checked = event.currentTarget.checked;

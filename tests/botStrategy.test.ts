@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+    canDeployMonsterForProfile,
+    chooseBotTactic,
     chooseBotObjective,
     chooseSymbolConversion,
     chooseDeck,
     findObjectiveMovement,
+    scoreDefensivePlacement,
     scoreTacticalAttack,
     scoreTerritoryExpansion,
 } from "../src/game/botStrategy";
@@ -62,7 +65,7 @@ describe("stratégie des bots", () => {
         };
 
         expect(
-            findObjectiveMovement(options, cells, { x: 0, y: 0 }, [{ x: 4, y: 1 }]),
+            findObjectiveMovement(options, cells, { x: 0, y: 0 }, [{ x: 4, y: 1 }], "hunt"),
         ).toMatchObject({
             position: { x: 3, y: 1 },
             routeProgress: 0,
@@ -73,25 +76,13 @@ describe("stratégie des bots", () => {
         const owned = [{ x: 7, y: 1 }];
         const start = { x: 7, y: 1 };
         const enemyBase = { x: 1, y: 1 };
-        const towardBase = scoreTerritoryExpansion(
-            2,
-            [{ x: 5, y: 2 }],
-            owned,
-            start,
-            enemyBase,
-        );
-        const awayFromBase = scoreTerritoryExpansion(
-            2,
-            [{ x: 5, y: 5 }],
-            owned,
-            start,
-            enemyBase,
-        );
+        const towardBase = scoreTerritoryExpansion(2, [{ x: 5, y: 2 }], owned, start, enemyBase);
+        const awayFromBase = scoreTerritoryExpansion(2, [{ x: 5, y: 5 }], owned, start, enemyBase);
 
         expect(towardBase).toBeGreaterThan(awayFromBase);
     });
 
-    it("valorise les attaques décisives et respecte les profils", () => {
+    it("applique les priorités de victoire et respecte les profils", () => {
         const damage: TacticalAttackValue = {
             damage: 2,
             kills: 0,
@@ -106,13 +97,16 @@ describe("stratégie des bots", () => {
         const finishingBlow = { ...damage, kills: 1 };
         const support: TacticalAttackValue = { ...damage, healing: 2 };
 
-        expect(scoreTacticalAttack(finishingBlow, 1, "offensive", 3)).toBeGreaterThan(
+        expect(scoreTacticalAttack(finishingBlow, 1, "offensive", 3)).toBe(
             scoreTacticalAttack(damage, 1, "offensive", 3),
+        );
+        expect(scoreTacticalAttack(finishingBlow, 1, "tracker", 3)).toBeGreaterThan(
+            scoreTacticalAttack({ ...damage, baseDamage: 1 }, 1, "tracker", 3),
         );
         expect(scoreTacticalAttack(support, 1, "support", 3)).toBeGreaterThan(
             scoreTacticalAttack(support, 1, "balanced", 3),
         );
-        expect(scoreTacticalAttack(finishingBlow, 1, "defensive", 3)).toBeGreaterThan(
+        expect(scoreTacticalAttack(finishingBlow, 1, "defensive", 3)).toBe(
             scoreTacticalAttack({ ...damage, baseDamage: 1 }, 1, "defensive", 3),
         );
     });
@@ -125,14 +119,56 @@ describe("stratégie des bots", () => {
         expect(offensive).not.toEqual(support);
     });
 
-    it("le profil défensif cible les monstres adverses plutôt que la base", () => {
+    it("adapte les profils flexibles sans modifier les stratégies de référence", () => {
+        expect(chooseBotTactic("balanced", "offensive").tactic).toBe("defense");
+        expect(chooseBotTactic("support", "tracker").tactic).toBe("offense");
+        expect(chooseBotTactic("expensive", "defensive").tactic).toBe("balanced");
+        expect(chooseBotTactic("offensive", "tracker").tactic).toBe("offense");
+        expect(chooseBotTactic("tracker", "offensive").tactic).toBe("hunt");
+        expect(chooseBotTactic("defensive", "tracker").tactic).toBe("defense");
+    });
+
+    it("impose une progression de coût au profil coûteux", () => {
+        const monsters = getDefaultGameConfiguration().monsters;
+        const costOne = monsters.find((monster) => monster.cost === 1)!;
+        const costThree = monsters.find((monster) => monster.cost === 3)!;
+        const costFour = monsters.find((monster) => monster.cost === 4)!;
+
+        expect(canDeployMonsterForProfile(costOne, "expensive", [])).toBe(false);
+        expect(canDeployMonsterForProfile(costThree, "expensive", [])).toBe(true);
+        expect(canDeployMonsterForProfile(costFour, "expensive", [3])).toBe(true);
+        expect(canDeployMonsterForProfile(costThree, "expensive", [3])).toBe(false);
+        const deck = chooseDeck(monsters, "expensive", 5, createRandom(42)).map(
+            (id) => monsters.find((monster) => monster.id === id)!.cost,
+        );
+        expect(deck[0]).toBeGreaterThanOrEqual(2);
+        expect(deck[0]).toBeLessThanOrEqual(3);
+        expect(deck.every((cost, index) => index === 0 || cost > deck[index - 1]!)).toBe(true);
+    });
+
+    it("place le périmètre défensif sur une ligne de vue ennemie vers la base", () => {
+        expect(
+            scoreDefensivePlacement({ x: 2, y: 0 }, { x: 4, y: 0 }, [{ x: 0, y: 0 }], []),
+        ).toBeGreaterThan(0);
+    });
+
+    it("distingue la traque du périmètre défensif", () => {
         const source = { x: 5, y: 5 };
         const enemyBase = { x: 0, y: 5 };
-        const enemies = [{ x: 4, y: 5 }, { x: 8, y: 5 }];
+        const ownBase = { x: 9, y: 5 };
+        const enemies = [
+            { x: 4, y: 5 },
+            { x: 8, y: 5 },
+        ];
 
-        expect(chooseBotObjective("defensive", source, enemyBase, enemies)).toEqual(enemies[0]);
+        expect(chooseBotObjective("tracker", source, enemyBase, enemies, ownBase)).toEqual(
+            enemies[0],
+        );
         expect(chooseBotObjective("offensive", source, enemyBase, enemies)).toEqual(enemyBase);
-        expect(chooseBotObjective("defensive", source, enemyBase, [])).toEqual(enemyBase);
+        expect(chooseBotObjective("defensive", source, enemyBase, enemies, ownBase)).toEqual(
+            ownBase,
+        );
+        expect(chooseBotObjective("tracker", source, enemyBase, [], ownBase)).toEqual(enemyBase);
     });
 
     it("varie les decks entre les simulations tout en gardant un biais de profil", () => {
