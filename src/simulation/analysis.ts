@@ -1,6 +1,6 @@
 import { parseBoardDefinition, type BoardDefinition } from "../game/boards";
 import { parseGameConfiguration, type GameConfiguration } from "../game/gameConfiguration";
-import type { PlayerId } from "../types/GameTypes";
+import type { DiceReserve, PlayerId } from "../types/GameTypes";
 import { BOT_PROFILES, type BotProfile, type FinalBoard, type SimulationEvent } from "./types";
 
 export interface AnalyzablePlayerStats {
@@ -9,8 +9,16 @@ export interface AnalyzablePlayerStats {
     attacks: number;
     damageDealt: number;
     monstersKilled: number;
+    monstersLost?: number;
+    damageReceived?: number;
     baseDamage: number;
     movements: number;
+    unusedResources?: DiceReserve;
+    ineffectiveActions?: number;
+    decisionsWithoutImpact?: number;
+    decisionTimeMs?: number;
+    positionsExplored?: number;
+    branchesExplored?: number;
 }
 
 export interface AnalyzableMatch {
@@ -60,6 +68,11 @@ export interface SimulationAnalytics {
     draws: number;
     turnDistribution: Array<{ turns: number; matches: number }>;
     winsByProfile: Partial<Record<BotProfile, number>>;
+    averageMonstersLost: Record<PlayerId, number>;
+    averageDamageReceived: Record<PlayerId, number>;
+    averageUnusedResources: Record<PlayerId, number>;
+    averageDecisionTimeMs: Record<PlayerId, number>;
+    averagePositionsExplored: Record<PlayerId, number>;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -200,6 +213,11 @@ export function analyzeSimulationData(data: SimulationData): SimulationAnalytics
     const turns = new Map<number, number>();
     const winsByProfile: Partial<Record<BotProfile, number>> = {};
     let deployments: Record<PlayerId, number> = { 1: 0, 2: 0 };
+    let monstersLost: Record<PlayerId, number> = { 1: 0, 2: 0 };
+    let damageReceived: Record<PlayerId, number> = { 1: 0, 2: 0 };
+    let unusedResources: Record<PlayerId, number> = { 1: 0, 2: 0 };
+    let decisionTimeMs: Record<PlayerId, number> = { 1: 0, 2: 0 };
+    let positionsExplored: Record<PlayerId, number> = { 1: 0, 2: 0 };
     const winsByPlayer: Record<PlayerId, number> = { 1: 0, 2: 0 };
     const winsByFinishReason = { baseDestroyed: 0, monstersEliminated: 0 };
     let draws = 0;
@@ -211,6 +229,19 @@ export function analyzeSimulationData(data: SimulationData): SimulationAnalytics
             1: deployments[1] + match.statistics[1].summoned,
             2: deployments[2] + match.statistics[2].summoned,
         };
+        for (const player of [1, 2] as const) {
+            const stats = match.statistics[player];
+            monstersLost[player] += stats.monstersLost ?? 0;
+            damageReceived[player] += stats.damageReceived ?? 0;
+            unusedResources[player] += stats.unusedResources
+                ? Object.values(stats.unusedResources).reduce(
+                      (total, amount) => total + amount,
+                      0,
+                  )
+                : 0;
+            decisionTimeMs[player] += stats.decisionTimeMs ?? 0;
+            positionsExplored[player] += stats.positionsExplored ?? 0;
+        }
         if (match.winner !== null) {
             winsByPlayer[match.winner]++;
             const profile = match.profiles[match.winner];
@@ -280,5 +311,25 @@ export function analyzeSimulationData(data: SimulationData): SimulationAnalytics
             .sort(([first], [second]) => first - second)
             .map(([turnCount, count]) => ({ turns: turnCount, matches: count })),
         winsByProfile,
+        averageMonstersLost: {
+            1: monstersLost[1] / matchCount,
+            2: monstersLost[2] / matchCount,
+        },
+        averageDamageReceived: {
+            1: damageReceived[1] / matchCount,
+            2: damageReceived[2] / matchCount,
+        },
+        averageUnusedResources: {
+            1: unusedResources[1] / matchCount,
+            2: unusedResources[2] / matchCount,
+        },
+        averageDecisionTimeMs: {
+            1: decisionTimeMs[1] / matchCount,
+            2: decisionTimeMs[2] / matchCount,
+        },
+        averagePositionsExplored: {
+            1: positionsExplored[1] / matchCount,
+            2: positionsExplored[2] / matchCount,
+        },
     };
 }

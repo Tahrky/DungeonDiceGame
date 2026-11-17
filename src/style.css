@@ -894,90 +894,66 @@ canvas {
     position: relative;
     flex: 0 0 auto;
     margin: 8px;
-    filter: drop-shadow(0 10px 12px rgb(0 0 0 / 35%));
 }
 
 .simulation-board-cell {
     position: absolute;
-    width: 40px;
-    height: 22px;
+    width: 54px;
+    height: 27px;
 }
 
 .simulation-board-tile {
     position: absolute;
     inset: 0;
-    border: 1px solid rgb(193 211 187 / 35%);
     clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+    filter: drop-shadow(0 0 1px rgb(53 68 58 / 90%));
 }
 
-.simulation-board-tile--ground {
-    background: linear-gradient(145deg, #627f4c, #3e593c 60%, #344a37);
+.simulation-board-tile--ground-even {
+    background: #667b61;
+}
+
+.simulation-board-tile--ground-odd {
+    background: #71866a;
 }
 
 .simulation-board-tile--blocked {
-    background: linear-gradient(145deg, #77796f, #4c504d 60%, #343a39);
+    display: none;
 }
 
 .simulation-board-tile--player-one {
-    background: linear-gradient(145deg, #855454, #664246 60%, #4f3d40);
+    background: #914d49;
 }
 
 .simulation-board-tile--player-two {
-    background: linear-gradient(145deg, #4e7189, #3d5d75 60%, #354d63);
+    background: #416e9a;
 }
 
 .simulation-board-sprite {
     position: absolute;
     z-index: 1;
-    top: -30px;
-    left: -4px;
-    width: 48px;
-    height: 48px;
     background-repeat: no-repeat;
     background-size: cover;
     image-rendering: pixelated;
     pointer-events: none;
 }
 
-.simulation-board-symbol {
-    position: absolute;
-    z-index: 2;
-    bottom: -11px;
-    left: 50%;
-    min-width: 18px;
-    border: 1px solid #f4e3b2;
-    border-radius: 50%;
-    padding: 1px 3px;
-    color: #fff;
-    font:
-        700 11px/14px Consolas,
-        monospace;
-    text-align: center;
-    transform: translateX(-50%);
-    box-shadow: 0 1px 4px #000;
-}
-
-.simulation-board-symbol--player-1 {
-    background: #a53d49;
-}
-
-.simulation-board-symbol--player-2 {
-    background: #2879a5;
-}
-
 .simulation-board-base {
     position: absolute;
     z-index: 2;
-    top: -8px;
+    top: 50%;
     left: 50%;
-    border: 1px solid #f4d28a;
-    border-radius: 5px;
-    padding: 1px 4px;
-    background: #242323;
-    color: #ffe4a3;
-    font-size: 9px;
-    font-weight: 800;
-    transform: translateX(-50%);
+    width: 20px;
+    height: 20px;
+    border: 2.5px solid #000;
+    border-radius: 50%;
+    background: #ff6655;
+    transform: translate(-50%, -50%);
+}
+
+.simulation-board-base--player-2 {
+    border-color: #fff;
+    background: #55aaff;
 }
 
 .simulation-board-legend {

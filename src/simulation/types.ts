@@ -19,6 +19,7 @@ export interface SimulationOptions {
     maxTurns: number;
     profile1: BotProfile;
     profile2: BotProfile;
+    debug?: boolean;
     configurationFile?: string;
     deck1?: string[];
     deck2?: string[];
@@ -37,6 +38,13 @@ export interface SimulationEvent {
     damage?: number;
     from?: Position;
     to?: Position;
+    debug?: {
+        situation: string;
+        candidates: number;
+        depth: number;
+        positionsExplored: number;
+        selectedAction: string;
+    };
 }
 
 export interface PlayerSimulationStats {
@@ -45,9 +53,17 @@ export interface PlayerSimulationStats {
     attacks: number;
     damageDealt: number;
     monstersKilled: number;
+    monstersLost: number;
+    damageReceived: number;
     baseDamage: number;
     movements: number;
     symbolsSpent: DiceReserve;
+    unusedResources: DiceReserve;
+    ineffectiveActions: number;
+    decisionsWithoutImpact: number;
+    decisionTimeMs: number;
+    positionsExplored: number;
+    branchesExplored: number;
 }
 
 export interface FinalBoard {

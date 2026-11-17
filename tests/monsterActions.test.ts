@@ -78,7 +78,7 @@ describe("portée des actions de monstre", () => {
             cost: 1,
             cooldownTurns: 2,
             initialCooldownTurns: 1,
-            pattern: { type: "radius", range: 5 },
+            pattern: { type: "radius", range: 4 },
         });
         const chargedAttack = archer?.attacks[1];
         if (!thief || !chargedAttack) throw new Error("Profils de test indisponibles.");
@@ -134,11 +134,7 @@ describe("portée des actions de monstre", () => {
         expect(describeMonsterAttack(blackKnight.attacks[0])).toMatch(/^1 ⚔️ Corps à corps :/);
         expect(describeMonsterTraits(blackKnight)).toContain("2 attaques par tour");
         expect(describeMonsterTraits(ghost)).toContain("Fantomatique");
-        expect(describeMonsterTraits(spectre)).toEqual([
-            "Fantomatique",
-            "Volant",
-            "Haute altitude",
-        ]);
+        expect(describeMonsterTraits(spectre)).toEqual(["Fantomatique", "Volant"]);
         expect(describeMonsterMovement(blackKnight)).toMatch(/^1 ➡️ Déplacement :/);
         expect(formatCost(3, "🐍")).toBe("3 🐍");
         expect(formatHitPoints(2)).toBe("2 PV");

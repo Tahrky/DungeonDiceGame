@@ -21,45 +21,73 @@ import {
     type MatchState,
 } from "./matchState";
 import { chooseBotObjective, findObjectiveMovement } from "../game/botStrategy";
+import { assignMonsterRoles, type StrategicSnapshot } from "../game/ai";
 
 export function performMovements(state: MatchState, board: BoardDefinition): void {
     if (state.winner !== null) return;
 
-    for (const monster of getPlayerMonsters(state, state.currentPlayer)) {
+    const player = state.currentPlayer;
+    const starts = getStartingPositions(board);
+    const ownMonsters = getPlayerMonsters(state, player);
+    const ownedCells = state.monsters
+        .filter((placed) => placed.owner === player)
+        .flatMap((placed) => placed.cells);
+    const enemyPositions = state.monsters
+        .filter((placed) => placed.owner !== player && placed.currentHp > 0)
+        .map((placed) => placed.position);
+    const strategicSnapshot: StrategicSnapshot = {
+        board,
+        health: { ...state.health },
+        initialHealth: Math.max(state.health[1], state.health[2], 1),
+        monsters: state.monsters,
+        reserves: {
+            1: { ...state.reserves[1] },
+            2: { ...state.reserves[2] },
+        },
+        profile: state.profiles[player],
+        tactics: { ...state.tactics },
+        currentPlayer: player,
+        turn: state.turn,
+    };
+    const roles = new Map(
+        assignMonsterRoles(strategicSnapshot, player).map((assignment) => [
+            assignment.monsterId,
+            assignment,
+        ]),
+    );
+
+    for (const monster of ownMonsters) {
         while (
             canUseActionThisTurn(
                 monster.movementsUsedThisTurn,
                 getMovementActionsPerTurn(monster.monster),
             )
         ) {
-            const player = state.currentPlayer;
             const cost = getMovementCost(
                 monster.monster,
                 monster.turnBuffs?.movementCostReduction ?? 0,
             );
             if (!canSpend(state, player, "movement", cost)) break;
 
-            const enemyStart = getStartingPositions(board)[opposingPlayer(player)];
+            const enemyStart = starts[opposingPlayer(player)];
             const movement: MovementOptions = {
                 ...createMovementOptions(state, board, monster),
                 destination: monster.position,
             };
-            const ownedCells = state.monsters
-                .filter((placed) => placed.owner === player)
-                .flatMap((placed) => placed.cells);
-            const enemyPositions = state.monsters
-                .filter((placed) => placed.owner !== player && placed.currentHp > 0)
-                .map((placed) => placed.position);
-            const best = findObjectiveMovement(
-                movement,
-                ownedCells,
+            const role = roles.get(monster.id);
+            const roleObjective =
+                role?.target ??
                 chooseBotObjective(
                     state.tactics[player],
                     monster.position,
                     enemyStart,
                     enemyPositions,
-                    getStartingPositions(board)[player],
-                ),
+                    starts[player],
+                );
+            const best = findObjectiveMovement(
+                movement,
+                ownedCells,
+                roleObjective,
                 enemyPositions,
                 state.tactics[player],
             );

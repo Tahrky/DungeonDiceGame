@@ -32,5 +32,11 @@ export default defineConfig(({ mode }) => {
         process.env.ABLY_API_KEY = env.ABLY_API_KEY;
     }
 
-    return { plugins: [localAblyTokenApi()] };
+    return {
+        plugins: [localAblyTokenApi()],
+        build: {
+            // Phaser is deferred until play starts, so its larger chunk is intentional.
+            chunkSizeWarningLimit: 1536,
+        },
+    };
 });

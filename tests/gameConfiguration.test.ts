@@ -61,10 +61,17 @@ describe("configuration des règles de partie", () => {
         const spectre = getDefaultGameConfiguration().monsters.find(
             (monster) => monster.id === "spectre",
         );
-        expect(spectre?.highAltitude).toBe(true);
-        expect(parseMonsterConfiguration(spectre, "spectre")?.highAltitude).toBe(true);
+        if (!spectre) throw new Error("Profil du spectre introuvable.");
+        expect(spectre.highAltitude).toBeUndefined();
+        const highAltitudeSpectre = { ...spectre, highAltitude: true };
         expect(
-            parseMonsterConfiguration({ ...spectre, highAltitude: "true" }, "spectre"),
+            parseMonsterConfiguration(highAltitudeSpectre, "spectre")?.highAltitude,
+        ).toBe(true);
+        expect(
+            parseMonsterConfiguration(
+                { ...highAltitudeSpectre, highAltitude: "true" },
+                "spectre",
+            ),
         ).toBeNull();
     });
 
@@ -305,7 +312,7 @@ describe("configuration des règles de partie", () => {
 
         expect(parseMonsterConfiguration(priest, "priest")?.attacks).toEqual(priest?.attacks);
         expect(priest?.attacks[0].targetsSelf).toBe(true);
-        expect(priest?.attacks[1].targetsSelf).toBe(true);
+        expect(priest?.attacks[1].targetsSelf).toBeUndefined();
         expect(priest?.attacks[0].clearsStatusEffects).toBe(true);
         expect(
             parseMonsterConfiguration({

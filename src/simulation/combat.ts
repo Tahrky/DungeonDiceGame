@@ -246,7 +246,7 @@ function getAttackChoices(
         .filter((monster) => monster.currentHp > 0 && monster.id !== attacker.id)
         .map((monster) => monster.position);
 
-    return getAttackZoneOptions(
+    const choices = getAttackZoneOptions(
         attacker.position,
         attacker.facing,
         attack.pattern,
@@ -288,9 +288,13 @@ function getAttackChoices(
             ),
         }))
         .filter((choice) => choice.score > 0);
+    return choices;
 }
 
-function chooseAttack(state: MatchState, board: BoardDefinition): AttackChoice | null {
+function chooseAttack(
+    state: MatchState,
+    board: BoardDefinition,
+): AttackChoice | null {
     const choices: AttackChoice[] = [];
     for (const attacker of getPlayerMonsters(state, state.currentPlayer)) {
         if (
@@ -319,6 +323,8 @@ function chooseAttack(state: MatchState, board: BoardDefinition): AttackChoice |
             choices.push(...getAttackChoices(state, board, attacker, attackIndex));
         }
     }
+    state.statistics[state.currentPlayer].positionsExplored += choices.length;
+    state.statistics[state.currentPlayer].branchesExplored += choices.length;
     choices.sort((first, second) => second.score - first.score);
     return choices[0] ?? null;
 }
@@ -452,10 +458,12 @@ function executeAttack(state: MatchState, board: BoardDefinition, choice: Attack
             victim.currentHp -= damage;
             actualDamage += damage;
             stats.damageDealt += damage;
+            state.statistics[victim.owner].damageReceived += damage;
             applyStatusEffect(victim, attack.statusEffect);
             actionTarget = `${victim.monster.name} (J${victim.owner})`;
             if (victim.currentHp <= 0 && victim.owner !== player) {
                 stats.monstersKilled++;
+                state.statistics[victim.owner].monstersLost++;
                 actionTarget += " éliminé";
             }
         }
@@ -481,10 +489,12 @@ function executeAttack(state: MatchState, board: BoardDefinition, choice: Attack
         targetMonster.currentHp -= damage;
         actualDamage = damage;
         stats.damageDealt += damage;
+        state.statistics[targetMonster.owner].damageReceived += damage;
         actionTarget = `${targetMonster.monster.name} (J${targetMonster.owner})`;
         applyStatusEffect(targetMonster, attack.statusEffect);
         if (targetMonster.currentHp <= 0) {
             stats.monstersKilled++;
+            state.statistics[targetMonster.owner].monstersLost++;
             actionTarget += " éliminé";
         }
     } else {
@@ -508,11 +518,26 @@ function executeAttack(state: MatchState, board: BoardDefinition, choice: Attack
         ? `${attacker.monster.name} ${supportEffect} sur ${actionTarget}.`
         : `${attacker.monster.name} utilise « ${attack.name} » sur ${actionTarget}` +
           `${actualDamage ? ` (${actualDamage} dégât(s))` : ""}.`;
+    if (actualDamage === 0 && !supportEffect) {
+        stats.ineffectiveActions++;
+    }
     addEvent(state, player, "strategy", `Priorité d'action : score tactique ${choice.score}.`, {
         monsterId: attacker.id,
         monsterTypeId: attacker.monster.id,
         monsterName: attacker.monster.name,
         target: actionTarget,
+        ...(state.debug
+            ? {
+                  debug: {
+                      situation:
+                          `base J${player}=${state.health[player]}, base adverse=${state.health[opposingPlayer(player)]}`,
+                      candidates: 1,
+                      depth: 1,
+                      positionsExplored: state.monsters.length,
+                      selectedAction: actionDescription,
+                  },
+              }
+            : {}),
     });
     addEvent(state, player, "attack", actionDescription, {
         monsterId: attacker.id,
@@ -574,6 +599,9 @@ export function beginTurn(
 export function finishPlayerTurn(state: MatchState, player: PlayerId): void {
     for (const monster of state.monsters) {
         if (monster.owner === player) clearMonsterTurnBuff(monster);
+    }
+    for (const symbol of ["invocation", "attack", "movement"] as const) {
+        state.statistics[player].unusedResources[symbol] += state.reserves[player][symbol];
     }
     addEvent(state, player, "turnEnd", `Fin du tour ${state.turn}.`);
 }

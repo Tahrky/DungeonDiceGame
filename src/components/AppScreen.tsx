@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import type { RefObject, Dispatch, SetStateAction } from "react";
 import type Phaser from "phaser";
 
@@ -8,9 +9,12 @@ import { MonsterSettings } from "./MonsterSettings";
 import { OptionsMenu } from "./OptionsMenu";
 import { PlayMenu } from "./PlayMenu";
 import { RoomScreen } from "./RoomScreen";
-import { SimulationLab } from "./SimulationLab";
 import type { GameConfiguration } from "../game/gameConfiguration";
 import type { BotProfile } from "../game/botStrategy";
+
+const SimulationLab = lazy(() =>
+    import("./SimulationLab").then(({ SimulationLab: component }) => ({ default: component })),
+);
 
 export type AppScreenName =
     | "menu"
@@ -26,6 +30,8 @@ export type AppScreenName =
 interface AppScreenProps {
     screen: AppScreenName;
     game: Phaser.Game | null;
+    gameLoading: boolean;
+    gameLoadError: string;
     gameContainerRef: RefObject<HTMLDivElement | null>;
     gameConfiguration: GameConfiguration;
     showOnlineOptions: boolean;
@@ -36,6 +42,7 @@ interface AppScreenProps {
     roomError: string;
     opponentProfile: BotProfile;
     onScreenChange: (screen: AppScreenName) => void;
+    onOpenPlay: () => void;
     onPlay: (profile: BotProfile) => void;
     onOpponentProfileChange: (profile: BotProfile) => void;
     onLocalPlay: () => void;
@@ -49,6 +56,8 @@ interface AppScreenProps {
 export function AppScreen({
     screen,
     game,
+    gameLoading,
+    gameLoadError,
     gameContainerRef,
     gameConfiguration,
     showOnlineOptions,
@@ -59,6 +68,7 @@ export function AppScreen({
     roomError,
     opponentProfile,
     onScreenChange,
+    onOpenPlay,
     onPlay,
     onOpponentProfileChange,
     onLocalPlay,
@@ -77,28 +87,48 @@ export function AppScreen({
             <main>
                 {screen === "menu" && (
                     <MainMenu
-                        onOpenPlay={() => onScreenChange("play-menu")}
+                        onOpenPlay={onOpenPlay}
                         onEditDeck={() => onScreenChange("deck")}
                         onOpenOptions={() => onScreenChange("options-menu")}
                     />
                 )}
                 {screen === "simulation" && (
-                    <SimulationLab
-                        configuration={gameConfiguration}
-                        onBack={() => onScreenChange("menu")}
-                    />
+                    <Suspense
+                        fallback={
+                            <output className="notice" role="status">
+                                Chargement du laboratoire…
+                            </output>
+                        }
+                    >
+                        <SimulationLab
+                            configuration={gameConfiguration}
+                            onBack={() => onScreenChange("menu")}
+                        />
+                    </Suspense>
                 )}
                 {screen === "play-menu" && (
-                    <PlayMenu
-                        canPlay={game !== null}
-                        showOnlineOptions={showOnlineOptions}
-                        opponentProfile={opponentProfile}
-                        onBack={() => onScreenChange("menu")}
-                        onPlay={onPlay}
-                        onOpponentProfileChange={onOpponentProfileChange}
-                        onLocalPlay={onLocalPlay}
-                        onOnline={onCreateRoom}
-                    />
+                    <>
+                        {gameLoading && (
+                            <output className="notice" role="status">
+                                Chargement du moteur de jeu…
+                            </output>
+                        )}
+                        {gameLoadError && (
+                            <output className="notice" role="alert">
+                                {gameLoadError}
+                            </output>
+                        )}
+                        <PlayMenu
+                            canPlay={game !== null}
+                            showOnlineOptions={showOnlineOptions}
+                            opponentProfile={opponentProfile}
+                            onBack={() => onScreenChange("menu")}
+                            onPlay={onPlay}
+                            onOpponentProfileChange={onOpponentProfileChange}
+                            onLocalPlay={onLocalPlay}
+                            onOnline={onCreateRoom}
+                        />
+                    </>
                 )}
                 {screen === "options-menu" && (
                     <OptionsMenu

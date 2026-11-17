@@ -11,14 +11,14 @@ describe("profils de monstres", () => {
         const frostMage = MONSTERS.find((monster) => monster.id === "frost-mage");
 
         expect(frostMage?.attacks[0]).toMatchObject({
-            cost: 2,
+            cost: 1,
             damage: 3,
             hitsAllies: true,
             pattern: { type: "line", range: 4, length: 3, allDirections: true },
         });
         expect(frostMage?.attacks[1]).toMatchObject({
             name: "Explosion de Givre",
-            cost: 3,
+            cost: 2,
             damage: 3,
             hitsAllies: true,
             pattern: { type: "selfRadius", range: 3 },
@@ -35,13 +35,13 @@ describe("profils de monstres", () => {
         });
         expect(archer?.attacks[0]).toMatchObject({
             damage: 1,
-            pattern: { type: "radius", range: 5 },
+            pattern: { type: "radius", range: 4 },
         });
         expect(archer?.attacks[1]).toMatchObject({
             damage: 3,
             cooldownTurns: 2,
             initialCooldownTurns: 1,
-            pattern: { type: "radius", range: 5 },
+            pattern: { type: "radius", range: 4 },
             animation: "alternativeAttack1",
         });
     });
@@ -99,7 +99,7 @@ describe("profils de monstres", () => {
                 cooldownReduction: 1,
                 targetsAlliesOnly: true,
                 usesPerTurn: 1,
-                pattern: { type: "radius", range: 3 },
+                pattern: { type: "radius", range: 4 },
             },
         ]);
     });
@@ -126,10 +126,11 @@ describe("profils de monstres", () => {
         ]);
     });
 
-    it("définit le Spectre comme un monstre volant de haute altitude", () => {
+    it("définit le Spectre comme volant sans haute altitude", () => {
         const spectre = MONSTERS.find((monster) => monster.id === "spectre");
 
         expect(spectre).toMatchObject({ flying: true });
+        expect(spectre?.highAltitude).toBeUndefined();
     });
 
     it("associe les feuilles de sprites du Prêtre à ses animations", () => {

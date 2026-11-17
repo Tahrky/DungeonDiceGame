@@ -7,7 +7,7 @@ import {
     type GameConfiguration,
 } from "../game/gameConfiguration";
 import { parseDeck } from "../game/decks";
-import { runSimulations } from "./simulator";
+import { runCrossProfileTournament, runSimulations } from "./simulator";
 import { BOT_PROFILES, type BotProfile, type SimulationOptions } from "./types";
 
 const HELP = `Simulateur Dungeon Dice (sans interface)
@@ -25,6 +25,8 @@ Options :
   --deck2 <ids>        Deck J2 (ids séparés par des virgules)
   --config <fichier>   Configuration de jeu JSON à simuler
   --output <fichier>   Chemin du JSON de sortie
+  --debug              Ajoute les détails des décisions IA
+  --cross-profile      Lance les confrontations croisées des sept profils
   --help               Afficher cette aide
 
 Profils disponibles : ${BOT_PROFILES.join(", ")}
@@ -90,6 +92,8 @@ function parseArguments(
         "--deck2",
         "--config",
         "--output",
+        "--debug",
+        "--cross-profile",
     ]);
     for (const argument of args.filter((value) => value.startsWith("--"))) {
         const name = argument.split("=")[0]!;
@@ -104,6 +108,7 @@ function parseArguments(
         maxTurns: parseInteger(readOption(args, "--max-turns", "100"), "--max-turns", 1, 10000),
         profile1,
         profile2,
+        debug: args.includes("--debug"),
         ...(configurationFile === undefined ? {} : { configurationFile }),
         deck1: parseOptionalDeck(getOptionalValue(args, "--deck1"), configuration.deckSize, "--deck1"),
         deck2: parseOptionalDeck(getOptionalValue(args, "--deck2"), configuration.deckSize, "--deck2"),
@@ -141,6 +146,29 @@ async function main(): Promise<void> {
         const configurationFile = getOptionalValue(args, "--config");
         const configuration = await loadConfiguration(configurationFile);
         const { options, output } = parseArguments(args, configuration, configurationFile);
+        if (args.includes("--cross-profile")) {
+            const tournament = runCrossProfileTournament(options, configuration);
+            const outputPath = resolve(
+                output ?? `simulation-results/cross-profile-seed-${options.seed}.json`,
+            );
+            await mkdir(dirname(outputPath), { recursive: true });
+            await writeFile(outputPath, `${JSON.stringify(tournament, null, 2)}\n`, "utf8");
+            const wins = tournament.reduce(
+                (total, match) => {
+                    const winner = match.result.summary.wins[1] >= match.result.summary.wins[2]
+                        ? 1
+                        : 2;
+                    total[winner]++;
+                    return total;
+                },
+                { 1: 0, 2: 0 },
+            );
+            console.log(
+                `Confrontations croisées : ${tournament.length} | scores J1/J2 : ${wins[1]}/${wins[2]}`,
+            );
+            console.log(`Résultats JSON : ${outputPath}`);
+            return;
+        }
         const result = runSimulations(options, configuration);
         const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
         const outputPath = resolve(

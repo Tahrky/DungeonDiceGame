@@ -138,6 +138,34 @@ export function ResultsAnalysisPanel({ generatedResult }: ResultsAnalysisPanelPr
                             value={String(analytics.winsByFinishReason.monstersEliminated)}
                         />
                         <MetricCard label="Matchs nuls" value={String(analytics.draws)} />
+                        <MetricCard
+                            label="Monstres perdus / match · J1"
+                            value={analytics.averageMonstersLost[1].toFixed(1)}
+                        />
+                        <MetricCard
+                            label="Monstres perdus / match · J2"
+                            value={analytics.averageMonstersLost[2].toFixed(1)}
+                        />
+                        <MetricCard
+                            label="Dégâts reçus / match · J1"
+                            value={analytics.averageDamageReceived[1].toFixed(1)}
+                        />
+                        <MetricCard
+                            label="Dégâts reçus / match · J2"
+                            value={analytics.averageDamageReceived[2].toFixed(1)}
+                        />
+                        <MetricCard
+                            label="Symboles inutilisés / match · J1"
+                            value={analytics.averageUnusedResources[1].toFixed(1)}
+                        />
+                        <MetricCard
+                            label="Symboles inutilisés / match · J2"
+                            value={analytics.averageUnusedResources[2].toFixed(1)}
+                        />
+                        <MetricCard
+                            label="Positions explorées / match · J1"
+                            value={analytics.averagePositionsExplored[1].toFixed(1)}
+                        />
                     </div>
 
                     <div className="simulation-chart-grid">

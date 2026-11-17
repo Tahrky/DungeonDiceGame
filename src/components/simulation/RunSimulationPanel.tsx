@@ -1,13 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import type { GameConfiguration } from "../../game/gameConfiguration";
 import { BOT_PROFILE_LABELS, type BotProfile } from "../../game/botStrategy";
-import { BOT_PROFILES, type SimulationBatchResult } from "../../simulation/types";
-
-interface SimulationResponse {
-    type: "complete" | "error";
-    result?: SimulationBatchResult;
-    message?: string;
-}
+import {
+    createSimulationChunks,
+    getSimulationWorkerCount,
+    mergeSimulationResults,
+    type SimulationWorkerRequest,
+    type SimulationWorkerResponse,
+} from "../../simulation/workerPool";
+import {
+    BOT_PROFILES,
+    type SimulationBatchResult,
+    type SimulationOptions,
+} from "../../simulation/types";
 
 interface RunSimulationPanelProps {
     readonly configuration: GameConfiguration;
@@ -20,20 +25,23 @@ export function RunSimulationPanel({
     onRunningChange,
     onResult,
 }: RunSimulationPanelProps) {
-    const workerRef = useRef<Worker | null>(null);
+    const workersRef = useRef<Worker[]>([]);
+    const cancelRunRef = useRef<(() => void) | null>(null);
     const [profile1, setProfile1] = useState<BotProfile>("cheap");
     const [profile2, setProfile2] = useState<BotProfile>("offensive");
     const [gameCount, setGameCount] = useState("100");
     const [seed, setSeed] = useState(() => String(Date.now() >>> 0));
     const [maxTurns, setMaxTurns] = useState("100");
+    const [debug, setDebug] = useState(false);
     const [isRunning, setIsRunning] = useState(false);
     const [notice, setNotice] = useState("");
     const [error, setError] = useState("");
 
     useEffect(
         () => () => {
-            workerRef.current?.terminate();
-            workerRef.current = null;
+            cancelRunRef.current?.();
+            workersRef.current.forEach((worker) => worker.terminate());
+            workersRef.current = [];
         },
         [],
     );
@@ -55,57 +63,155 @@ export function RunSimulationPanel({
             return;
         }
 
-        workerRef.current?.terminate();
+        cancelRunRef.current?.();
+        cancelRunRef.current = null;
+        workersRef.current.forEach((worker) => worker.terminate());
+        workersRef.current = [];
         setError("");
-        setNotice("Simulation en cours… Le jeu reste utilisable pendant le calcul.");
         setIsRunning(true);
         onRunningChange(true);
 
         try {
-            const worker = new Worker(
-                new URL("../../simulation/simulation.worker.ts", import.meta.url),
-                { type: "module" },
-            );
-            workerRef.current = worker;
-            worker.onmessage = (event: MessageEvent<SimulationResponse>) => {
-                worker.terminate();
-                workerRef.current = null;
+            const workerCount = getSimulationWorkerCount(games, navigator.hardwareConcurrency ?? 2);
+            const chunks = createSimulationChunks(games, workerCount);
+            const options: SimulationOptions = {
+                games,
+                seed: seedValue,
+                maxTurns: turnLimit,
+                profile1,
+                profile2,
+                debug,
+            };
+            const workers: Worker[] = [];
+            try {
+                for (let index = 0; index < workerCount; index++) {
+                    workers.push(
+                        new Worker(
+                            new URL("../../simulation/simulation.worker.ts", import.meta.url),
+                            { type: "module" },
+                        ),
+                    );
+                }
+            } catch (workerError) {
+                workers.forEach((worker) => worker.terminate());
+                throw workerError;
+            }
+
+            workersRef.current = workers;
+            const results: SimulationBatchResult[] = [];
+            let completedGames = 0;
+            let remainingWorkers = workers.length;
+            let active = true;
+
+            function terminateWorkers(): void {
+                workersRef.current.forEach((worker) => worker.terminate());
+                workersRef.current = [];
+            }
+
+            cancelRunRef.current = () => {
+                active = false;
+                terminateWorkers();
+            };
+
+            function fail(message: string): void {
+                if (!active) return;
+                active = false;
+                cancelRunRef.current = null;
+                terminateWorkers();
                 setIsRunning(false);
                 onRunningChange(false);
-                if (event.data.type === "error" || !event.data.result) {
-                    setError(event.data.message ?? "La simulation n’a pas abouti.");
+                setError(message);
+                setNotice("");
+            }
+
+            function finish(): void {
+                if (!active) return;
+                active = false;
+                cancelRunRef.current = null;
+                terminateWorkers();
+                setIsRunning(false);
+                onRunningChange(false);
+                try {
+                    const result = mergeSimulationResults(results, options);
+                    setNotice(
+                        `${result.summary.matches} matchs terminés avec la seed ${seedValue}.`,
+                    );
+                    onResult(result);
+                } catch (mergeError) {
+                    setError(
+                        mergeError instanceof Error
+                            ? mergeError.message
+                            : "Impossible de regrouper les résultats des workers.",
+                    );
                     setNotice("");
+                }
+            }
+
+            function runNextChunk(worker: Worker): void {
+                if (!active) return;
+                const chunk = chunks.shift();
+                if (!chunk) {
+                    worker.terminate();
+                    remainingWorkers--;
+                    if (remainingWorkers === 0) finish();
                     return;
                 }
-                setNotice(
-                    `${event.data.result.summary.matches} matchs terminés avec la seed ${seedValue}.`,
-                );
-                onResult(event.data.result);
-            };
-            worker.onerror = (event) => {
-                worker.terminate();
-                workerRef.current = null;
-                setIsRunning(false);
-                onRunningChange(false);
-                setError(event.message || "Le worker de simulation a rencontré une erreur.");
-                setNotice("");
-            };
-            worker.postMessage({
-                options: {
-                    games,
-                    seed: seedValue,
-                    maxTurns: turnLimit,
-                    profile1,
-                    profile2,
-                },
-                configuration,
-            });
+
+                worker.onmessage = (event: MessageEvent<SimulationWorkerResponse>) => {
+                    if (!active) return;
+                    if (event.data.startIndex !== chunk.startIndex) {
+                        fail("Le worker a renvoyé un lot inattendu.");
+                        return;
+                    }
+                    if (event.data.type === "error") {
+                        fail(event.data.message);
+                        return;
+                    }
+                    if (event.data.result.matches.length !== chunk.games) {
+                        fail("Un worker n’a pas renvoyé tous les matchs de son lot.");
+                        return;
+                    }
+
+                    results.push(event.data.result);
+                    completedGames += chunk.games;
+                    setNotice(
+                        `Simulation en cours… ${completedGames}/${games} matchs terminés (${workerCount} workers).`,
+                    );
+                    runNextChunk(worker);
+                };
+                worker.onerror = (event: ErrorEvent) => {
+                    event.preventDefault();
+                    fail(event.message || "Un worker de simulation a rencontré une erreur.");
+                };
+                worker.onmessageerror = () => fail("Une réponse de worker est illisible.");
+
+                const request: SimulationWorkerRequest = {
+                    options: { ...options, games: chunk.games },
+                    configuration,
+                    startIndex: chunk.startIndex,
+                };
+                try {
+                    worker.postMessage(request);
+                } catch (postError) {
+                    fail(
+                        postError instanceof Error
+                            ? postError.message
+                            : "Impossible d’envoyer un lot au worker.",
+                    );
+                }
+            }
+
+            setNotice(`Simulation en cours… 0/${games} matchs (${workerCount} workers).`);
+            workers.forEach(runNextChunk);
         } catch (caught) {
-            workerRef.current?.terminate();
-            workerRef.current = null;
+            cancelRunRef.current = null;
+            workersRef.current.forEach((worker) => worker.terminate());
+            workersRef.current = [];
             setIsRunning(false);
             onRunningChange(false);
-            setError(caught instanceof Error ? caught.message : "Impossible de démarrer le worker.");
+            setError(
+                caught instanceof Error ? caught.message : "Impossible de démarrer le worker.",
+            );
             setNotice("");
         }
     }
@@ -174,12 +280,16 @@ export function RunSimulationPanel({
                     />
                 </label>
             </div>
+            <label className="settings-field">
+                <input
+                    type="checkbox"
+                    checked={debug}
+                    onChange={(event) => setDebug(event.currentTarget.checked)}
+                />
+                Activer les détails IA dans l’historique
+            </label>
             <div className="deck-actions">
-                <button
-                    className="primary-button"
-                    onClick={startSimulation}
-                    disabled={isRunning}
-                >
+                <button className="primary-button" onClick={startSimulation} disabled={isRunning}>
                     {isRunning ? "Simulation en cours…" : "Lancer les simulations"}
                 </button>
             </div>
@@ -187,8 +297,8 @@ export function RunSimulationPanel({
                 {error || notice}
             </output>
             <p className="simulation-footnote">
-                Les decks et la configuration actuelle sont utilisés. Les matchs alternent le
-                joueur qui commence ; les résultats complets peuvent être exportés en JSON.
+                Les decks et la configuration actuelle sont utilisés. Les matchs alternent le joueur
+                qui commence ; les résultats complets peuvent être exportés en JSON.
             </p>
         </section>
     );

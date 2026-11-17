@@ -1,24 +1,20 @@
 import { runSimulations } from "./simulator";
-import type { GameConfiguration } from "../game/gameConfiguration";
-import type { SimulationOptions, SimulationBatchResult } from "./types";
+import type { SimulationWorkerRequest, SimulationWorkerResponse } from "./workerPool";
 
-interface SimulationRequest {
-    options: SimulationOptions;
-    configuration: GameConfiguration;
-}
-
-type SimulationResponse =
-    | { type: "complete"; result: SimulationBatchResult }
-    | { type: "error"; message: string };
-
-self.addEventListener("message", (event: MessageEvent<SimulationRequest>) => {
+self.addEventListener("message", (event: MessageEvent<SimulationWorkerRequest>) => {
+    const { options, configuration, startIndex } = event.data;
     try {
-        const result = runSimulations(event.data.options, event.data.configuration);
-        self.postMessage({ type: "complete", result } satisfies SimulationResponse);
+        const result = runSimulations(options, configuration, undefined, startIndex);
+        self.postMessage({
+            type: "complete",
+            startIndex,
+            result,
+        } satisfies SimulationWorkerResponse);
     } catch (error) {
         self.postMessage({
             type: "error",
+            startIndex,
             message: error instanceof Error ? error.message : "Erreur inattendue de simulation.",
-        } satisfies SimulationResponse);
+        } satisfies SimulationWorkerResponse);
     }
 });

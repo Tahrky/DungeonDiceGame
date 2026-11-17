@@ -5,7 +5,7 @@ import {
     type PresenceMessage,
     type RealtimeChannel,
 } from "@ably/pubsub-device";
-import Phaser from "phaser";
+import type Phaser from "phaser";
 
 import { AppScreen } from "./components/AppScreen";
 import type { AppScreenName } from "./components/AppScreen";
@@ -18,7 +18,6 @@ import {
     parseGameConfiguration,
     type GameConfiguration,
 } from "./game/gameConfiguration";
-import { GameScene } from "./scenes/GameScene";
 
 import type { GameSnapshot, PlayerId, RemoteGameCommand } from "./types/GameTypes";
 
@@ -82,11 +81,15 @@ function startOnlineGame(
 export function App() {
     const gameContainerRef = useRef<HTMLDivElement>(null);
     const gameRef = useRef<Phaser.Game | null>(null);
+    const gameInitializationRef = useRef<Promise<void> | null>(null);
+    const isMountedRef = useRef(false);
     const channelRef = useRef<RealtimeChannel | null>(null);
     const hostClientIdRef = useRef<string | null>(null);
     const guestClientIdRef = useRef<string | null>(null);
     const roomStartRequestedRef = useRef(false);
     const [game, setGame] = useState<Phaser.Game | null>(null);
+    const [isGameLoading, setIsGameLoading] = useState(false);
+    const [gameLoadError, setGameLoadError] = useState("");
     const [screen, setScreen] = useState<AppScreenName>("menu");
     const [gameConfiguration, setGameConfiguration] = useState(getSavedGameConfiguration);
     const [opponentProfile, setOpponentProfile] = useState<BotProfile>("balanced");
@@ -100,43 +103,75 @@ export function App() {
         !["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
 
     useEffect(() => {
-        const parent = gameContainerRef.current;
-        if (!parent) throw new Error("Conteneur du jeu manquant.");
-
-        const instance = new Phaser.Game({
-            type: Phaser.AUTO,
-            width: GAME_CONFIG.screenWidth,
-            height: GAME_CONFIG.screenHeight,
-            parent,
-            backgroundColor: "#202a36",
-            scene: [GameScene],
-            scale: {
-                mode: Phaser.Scale.RESIZE,
-            },
-            render: {
-                antialias: true,
-            },
-        });
-        gameRef.current = instance;
-        setGame(instance);
-
-        const handleLeaveGame = (): void => {
-            instance.scene.stop("GameScene");
-            roomStartRequestedRef.current = false;
-            setRoomRole(null);
-            setRoomCode("");
-            setRoomPlayers([]);
-            setRoomError("");
-            setScreen("menu");
-        };
-        instance.events.on("leave-game", handleLeaveGame);
-
+        isMountedRef.current = true;
         return () => {
-            instance.events.off("leave-game", handleLeaveGame);
+            isMountedRef.current = false;
+            gameRef.current?.destroy(true);
             gameRef.current = null;
-            instance.destroy(true);
         };
     }, []);
+
+    function initializeGame(): Promise<void> {
+        if (gameRef.current) return Promise.resolve();
+        if (gameInitializationRef.current) return gameInitializationRef.current;
+
+        setIsGameLoading(true);
+        setGameLoadError("");
+        const initialization = (async (): Promise<void> => {
+            try {
+                const [{ default: PhaserRuntime }, { GameScene }] = await Promise.all([
+                    import("phaser"),
+                    import("./scenes/GameScene"),
+                ]);
+                if (!isMountedRef.current) return;
+
+                const parent = gameContainerRef.current;
+                if (!parent) throw new Error("Conteneur du jeu manquant.");
+
+                const instance = new PhaserRuntime.Game({
+                    type: PhaserRuntime.AUTO,
+                    width: GAME_CONFIG.screenWidth,
+                    height: GAME_CONFIG.screenHeight,
+                    parent,
+                    backgroundColor: "#202a36",
+                    scene: [GameScene],
+                    scale: {
+                        mode: PhaserRuntime.Scale.RESIZE,
+                    },
+                    render: {
+                        antialias: true,
+                    },
+                });
+                gameRef.current = instance;
+                setGame(instance);
+
+                const handleLeaveGame = (): void => {
+                    instance.scene.stop("GameScene");
+                    roomStartRequestedRef.current = false;
+                    setRoomRole(null);
+                    setRoomCode("");
+                    setRoomPlayers([]);
+                    setRoomError("");
+                    setScreen("menu");
+                };
+                instance.events.on("leave-game", handleLeaveGame);
+            } catch (error) {
+                if (isMountedRef.current) {
+                    setGameLoadError(`Chargement du jeu impossible : ${getErrorMessage(error)}`);
+                }
+            } finally {
+                gameInitializationRef.current = null;
+                if (isMountedRef.current) setIsGameLoading(false);
+            }
+        })();
+        gameInitializationRef.current = initialization;
+        return initialization;
+    }
+
+    function openPlayMenu(): void {
+        setScreen("play-menu");
+        void initializeGame();
+    }
 
     useEffect(() => {
         if (screen !== "game" || !game) return;
@@ -401,8 +436,7 @@ export function App() {
 
     const startRoomGame = useCallback(async (): Promise<void> => {
         const hostDeck =
-            getSavedDeck(gameConfiguration.deckSize) ??
-            getDefaultDeck(gameConfiguration.deckSize);
+            getSavedDeck(gameConfiguration.deckSize) ?? getDefaultDeck(gameConfiguration.deckSize);
         const guestDeck = roomPlayers.find((player) => player.role === "guest")?.deck;
         const channel = channelRef.current;
         if (roomStartRequestedRef.current) return;
@@ -469,6 +503,8 @@ export function App() {
         <AppScreen
             screen={screen}
             game={game}
+            gameLoading={isGameLoading}
+            gameLoadError={gameLoadError}
             gameContainerRef={gameContainerRef}
             gameConfiguration={gameConfiguration}
             showOnlineOptions={showOnlineOptions}
@@ -479,6 +515,7 @@ export function App() {
             roomError={roomError}
             opponentProfile={opponentProfile}
             onScreenChange={setScreen}
+            onOpenPlay={openPlayMenu}
             onPlay={startComputerGame}
             onOpponentProfileChange={setOpponentProfile}
             onLocalPlay={startLocalGame}

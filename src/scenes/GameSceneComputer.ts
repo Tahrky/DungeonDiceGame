@@ -11,7 +11,6 @@ import {
     isBehind,
 } from "../game/monsterActions";
 import { findValidPlacement } from "../game/placement";
-import { isBoardCell } from "../game/boards";
 import type { Monster, PlacedMonster, Position } from "../types/GameTypes";
 import { getInvokedMonsterCount } from "../game/matchRules";
 import {
@@ -24,6 +23,11 @@ import {
     scoreTerritoryExpansion,
     type TacticalAttackValue,
 } from "../game/botStrategy";
+import {
+    assignMonsterRoles,
+    createStrategicCellScorer,
+    type StrategicSnapshot,
+} from "../game/ai";
 
 interface ComputerAttackChoice {
     attacker: PlacedMonster;
@@ -198,6 +202,30 @@ export abstract class GameSceneComputer extends GameSceneComputerConversion {
             enemyPositions,
             blockingCells,
         );
+        const blockedCells = [
+            ...this.board.blockedCells,
+            ...this.obstacles.map(({ position }) => position),
+        ];
+        const livingMonsterKeys = new Set(
+            this.placedMonsters
+                .filter((monster) => monster.currentHp > 0)
+                .map(({ position }) => `${position.x},${position.y}`),
+        );
+        const strategicSnapshot: StrategicSnapshot = {
+            board: this.board,
+            health: { ...this.playerHealth },
+            initialHealth: this.gameConfiguration.initialPlayerHealth,
+            monsters: this.placedMonsters,
+            reserves: {
+                1: { ...this.diceReserves[1] },
+                2: { ...this.diceReserves[2] },
+            },
+            profile: this.opponentProfile,
+            tactics: { 1: "balanced", 2: tactic },
+            currentPlayer: 2,
+            turn: this.turnNumber,
+        };
+        const strategicCellScore = createStrategicCellScorer(strategicSnapshot, 2);
         return findValidPlacement({
             patterns: PLACEMENT_PATTERNS,
             boardWidth: this.board.width,
@@ -206,21 +234,12 @@ export abstract class GameSceneComputer extends GameSceneComputerConversion {
             occupiedCells,
             connectedCells: computerTerritory,
             overlappingCells: computerPathCells,
-            blockedCells: [
-                ...this.board.blockedCells,
-                ...this.obstacles.map(({ position }) => position),
-            ],
+            blockedCells,
             isPlacementAllowed: (position, cells) => {
                 const positionKey = `${position.x},${position.y}`;
                 const isStartingCell = opponentTerritoryKeys.has(positionKey);
-                const isMonsterOccupied = this.placedMonsters.some(
-                    (monster) =>
-                        monster.currentHp > 0 &&
-                        monster.position.x === position.x &&
-                        monster.position.y === position.y,
-                );
+                const isMonsterOccupied = livingMonsterKeys.has(positionKey);
                 const addsTerritory = !computerTerritoryKeys.has(positionKey);
-                const staysOnBoard = cells.every((cell) => isBoardCell(this.board, cell));
                 const crossesEnemyTerritory = cells.some((cell) =>
                     opponentTerritoryKeys.has(`${cell.x},${cell.y}`),
                 );
@@ -228,7 +247,6 @@ export abstract class GameSceneComputer extends GameSceneComputerConversion {
                     !isStartingCell &&
                     !isMonsterOccupied &&
                     addsTerritory &&
-                    staysOnBoard &&
                     !crossesEnemyTerritory
                 );
             },
@@ -240,7 +258,8 @@ export abstract class GameSceneComputer extends GameSceneComputerConversion {
                     this.startingPositions[2],
                     expansionObjective,
                 ) +
-                (tactic === "defense" || tactic === "hunt" ? defensivePlacementScore(position) : 0),
+                (tactic === "defense" || tactic === "hunt" ? defensivePlacementScore(position) : 0) +
+                strategicCellScore(position) * 0.5,
         });
     }
 
@@ -386,12 +405,39 @@ export abstract class GameSceneComputer extends GameSceneComputerConversion {
             }
         }
 
-        return scoreTacticalAttack(
+        const tacticalScore = scoreTacticalAttack(
             value,
             cost,
             this.getComputerTactic(),
             this.playerHealth[1],
         );
+        const tactic = this.getComputerTactic();
+        const strategicSnapshot: StrategicSnapshot = {
+            board: this.board,
+            health: { ...this.playerHealth },
+            initialHealth: this.gameConfiguration.initialPlayerHealth,
+            monsters: this.placedMonsters,
+            reserves: {
+                1: { ...this.diceReserves[1] },
+                2: { ...this.diceReserves[2] },
+            },
+            profile: this.opponentProfile,
+            tactics: { 1: "balanced", 2: tactic },
+            currentPlayer: 2,
+            turn: this.turnNumber,
+        };
+        const role = assignMonsterRoles(strategicSnapshot, 2).find(
+            (assignment) => assignment.monsterId === attacker.id,
+        );
+        const roleBonus =
+            role?.role === "base"
+                ? value.baseDamage * 8
+                : role?.role === "hunt"
+                  ? value.kills * 6
+                  : role?.role === "support"
+                    ? (value.healing + value.buffs) * 6
+                    : value.damage;
+        return tacticalScore * 10 + roleBonus;
     }
 
     protected playComputerMovements(): void {
@@ -407,13 +453,33 @@ export abstract class GameSceneComputer extends GameSceneComputerConversion {
                 const enemyPositions = this.placedMonsters
                     .filter((placed) => placed.owner === 1 && placed.currentHp > 0)
                     .map((placed) => placed.position);
-                const objective = chooseBotObjective(
-                    this.getComputerTactic(),
-                    monster.position,
-                    this.startingPositions[1],
-                    enemyPositions,
-                    this.startingPositions[2],
+                const tactic = this.getComputerTactic();
+                const strategicSnapshot: StrategicSnapshot = {
+                    board: this.board,
+                    health: { ...this.playerHealth },
+                    initialHealth: this.gameConfiguration.initialPlayerHealth,
+                    monsters: this.placedMonsters,
+                    reserves: {
+                        1: { ...this.diceReserves[1] },
+                        2: { ...this.diceReserves[2] },
+                    },
+                    profile: this.opponentProfile,
+                    tactics: { 1: "balanced", 2: tactic },
+                    currentPlayer: 2,
+                    turn: this.turnNumber,
+                };
+                const role = assignMonsterRoles(strategicSnapshot, 2).find(
+                    (assignment) => assignment.monsterId === monster.id,
                 );
+                const objective =
+                    role?.target ??
+                    chooseBotObjective(
+                        tactic,
+                        monster.position,
+                        this.startingPositions[1],
+                        enemyPositions,
+                        this.startingPositions[2],
+                    );
                 const movement = findObjectiveMovement(
                     options,
                     ownedCells,

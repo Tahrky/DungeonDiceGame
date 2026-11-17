@@ -6,7 +6,6 @@ import {
 import type { GameConfiguration } from "../game/gameConfiguration";
 import {
     getStartingPositions,
-    isBoardCell,
     type BoardDefinition,
 } from "../game/boards";
 import { getInvokedMonsterCount } from "../game/matchRules";
@@ -33,10 +32,12 @@ import type {
     PlayerSimulationStats,
     SimulationEvent,
 } from "./types";
+import { createStrategicCellScorer, type StrategicSnapshot } from "../game/ai";
 
 export interface MatchState {
     turn: number;
     currentPlayer: PlayerId;
+    debug?: boolean;
     profiles: Record<PlayerId, BotProfile>;
     tactics: Record<PlayerId, BotTactic>;
     allowBaseAttackOnSummonTurn: boolean;
@@ -58,9 +59,17 @@ export function createStats(): PlayerSimulationStats {
         attacks: 0,
         damageDealt: 0,
         monstersKilled: 0,
+        monstersLost: 0,
+        damageReceived: 0,
         baseDamage: 0,
         movements: 0,
         symbolsSpent: { invocation: 0, attack: 0, movement: 0 },
+        unusedResources: { invocation: 0, attack: 0, movement: 0 },
+        ineffectiveActions: 0,
+        decisionsWithoutImpact: 0,
+        decisionTimeMs: 0,
+        positionsExplored: 0,
+        branchesExplored: 0,
     };
 }
 
@@ -169,6 +178,26 @@ function findPlacement(
     const enemyKeys = new Set(
         [starts[opposingPlayer(player)], ...opponentCells].map(({ x, y }) => `${x},${y}`),
     );
+    const livingMonsterKeys = new Set(
+        state.monsters
+            .filter((monster) => monster.currentHp > 0)
+            .map(({ position }) => `${position.x},${position.y}`),
+    );
+    const snapshot: StrategicSnapshot = {
+        board,
+        health: { ...state.health },
+        initialHealth: Math.max(state.health[1], state.health[2], 1),
+        monsters: state.monsters,
+        reserves: {
+            1: { ...state.reserves[1] },
+            2: { ...state.reserves[2] },
+        },
+        profile: state.profiles[player],
+        tactics: { ...state.tactics },
+        currentPlayer: player,
+        turn: state.turn,
+    };
+    const strategicCellScore = createStrategicCellScorer(snapshot, player);
     return findValidPlacement({
         patterns: PLACEMENT_PATTERNS,
         boardWidth: board.width,
@@ -180,22 +209,15 @@ function findPlacement(
         blockedCells: [...board.blockedCells],
         isPlacementAllowed: (position, cells) => {
             const key = `${position.x},${position.y}`;
-            const occupiedByLiving = state.monsters.some(
-                (monster) =>
-                    monster.currentHp > 0 &&
-                    monster.position.x === position.x &&
-                    monster.position.y === position.y,
-            );
             return (
                 !enemyKeys.has(key) &&
-                !occupiedByLiving &&
+                !livingMonsterKeys.has(key) &&
                 cells.some((cell) => !ownKeys.has(`${cell.x},${cell.y}`)) &&
-                cells.every((cell) => isBoardCell(board, cell)) &&
                 !cells.some((cell) => enemyKeys.has(`${cell.x},${cell.y}`))
             );
         },
-        scorePlacement: (position, cells) =>
-            scoreTerritoryExpansion(
+        scorePlacement: (position, cells) => {
+            return scoreTerritoryExpansion(
                 player,
                 cells,
                 ownCells,
@@ -204,7 +226,9 @@ function findPlacement(
             ) +
             (state.tactics[player] === "defense" || state.tactics[player] === "hunt"
                 ? defensivePlacementScore(position)
-                : 0),
+                : 0) +
+            strategicCellScore(position) * 0.5;
+        },
     });
 }
 
@@ -236,6 +260,15 @@ export function deployMonsters(
     profile: BotProfile,
     deck: readonly string[],
 ): void {
+    const deckMonsters = deck.map((id) => {
+        const monster = configuration.monsters.find((candidate) => candidate.id === id);
+        if (!monster) throw new Error(`Monstre inconnu dans le deck : ${id}`);
+        return monster;
+    });
+    const profileScores = new Map(
+        deckMonsters.map((monster) => [monster.id, scoreMonsterForProfile(monster, profile)]),
+    );
+
     while (
         getInvokedMonsterCount(state.monsters, state.currentPlayer) <
             configuration.maxMonstersPerPlayer &&
@@ -247,12 +280,7 @@ export function deployMonsters(
         const deployedCosts = state.monsters
             .filter((monster) => monster.owner === state.currentPlayer)
             .map((monster) => monster.monster.cost);
-        const choices = deck
-            .map((id) => {
-                const monster = configuration.monsters.find((candidate) => candidate.id === id);
-                if (!monster) throw new Error(`Monstre inconnu dans le deck : ${id}`);
-                return monster;
-            })
+        const choices = deckMonsters
             .filter((monster) =>
                 canSpend(state, state.currentPlayer, "invocation", monster.cost),
             )
@@ -262,8 +290,8 @@ export function deployMonsters(
                     return (
                         (summonedByMonster[first.id] ?? 0) -
                             (summonedByMonster[second.id] ?? 0) ||
-                        scoreMonsterForProfile(second, profile) -
-                            scoreMonsterForProfile(first, profile) ||
+                        (profileScores.get(second.id) ?? 0) -
+                            (profileScores.get(first.id) ?? 0) ||
                             first.cost - second.cost
                     );
                 },
@@ -295,7 +323,22 @@ export function deployMonsters(
             state.currentPlayer,
             "strategy",
             describeDeploymentChoice(monster, profile),
-            { monsterId: placed.id, monsterName: monster.name },
+            {
+                monsterId: placed.id,
+                monsterName: monster.name,
+                ...(state.debug
+                    ? {
+                          debug: {
+                              situation:
+                                  `invoquer J${state.currentPlayer}, réservation=${state.reserves[state.currentPlayer].invocation}`,
+                              candidates: choices.length,
+                              depth: 1,
+                              positionsExplored: state.monsters.length,
+                              selectedAction: monster.name,
+                          },
+                      }
+                    : {}),
+            },
         );
         addEvent(
             state,
