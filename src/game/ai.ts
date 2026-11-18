@@ -1,14 +1,8 @@
 import type { BoardDefinition } from "./boards";
 import { getStartingPositions } from "./boards";
 import { getGridDistance, hasLineOfSight } from "./monsterActions";
-import type {
-    DiceReserve,
-    Monster,
-    PlacedMonster,
-    PlayerId,
-    Position,
-} from "../types/GameTypes";
-import type { BotProfile, BotTactic } from "./botStrategy";
+import type { DiceReserve, Monster, PlacedMonster, PlayerId, Position } from "../types/GameTypes";
+import { chooseBotObjective, type BotProfile, type BotTactic } from "./botStrategy";
 
 export interface StrategicSnapshot {
     board: BoardDefinition;
@@ -59,9 +53,7 @@ export function clearAiCaches(): void {
 }
 
 function livingMonsters(snapshot: StrategicSnapshot, player: PlayerId): PlacedMonster[] {
-    return snapshot.monsters.filter(
-        (monster) => monster.owner === player && monster.currentHp > 0,
-    );
+    return snapshot.monsters.filter((monster) => monster.owner === player && monster.currentHp > 0);
 }
 
 function getSupportValue(monster: Monster): number {
@@ -84,8 +76,7 @@ function getOffenseValue(monster: Monster): number {
     return monster.attacks.reduce(
         (total, attack) =>
             total +
-            (attack.damage + (attack.statusEffect?.damagePerTurn ?? 0)) /
-                Math.max(1, attack.cost),
+            (attack.damage + (attack.statusEffect?.damagePerTurn ?? 0)) / Math.max(1, attack.cost),
         0,
     );
 }
@@ -109,46 +100,64 @@ export function assignMonsterRoles(
             const secondSupport = getSupportValue(second.monster);
             return secondSupport - firstSupport;
         })
-        .map((monster) => {
+        .map((monster): RoleAssignment => {
             const support = getSupportValue(monster.monster);
-            let role: RoleAssignment["role"] = "territory";
-            let target: Position | undefined;
 
             if (support > 0) {
-                role = "support";
-                target = allies
-                    .filter((ally) => ally.id !== monster.id)
+                const target = allies
+                    .filter(
+                        (ally) =>
+                            ally.id !== monster.id && ally.currentHp < ally.monster.hp,
+                    )
                     .sort(
                         (first, second) =>
                             first.currentHp / first.monster.hp -
                             second.currentHp / second.monster.hp,
                     )[0]?.position;
-            } else if (tactic === "defense") {
-                role = "defense";
-                target = ownStart;
-            } else if (tactic === "hunt") {
-                role = "hunt";
-                target = enemies
-                    .filter((enemy) => !occupiedTargets.has(`${enemy.position.x},${enemy.position.y}`))
+                if (target) {
+                    occupiedTargets.add(`${target.x},${target.y}`);
+                    return { monsterId: monster.id, role: "support", target };
+                }
+            }
+
+            if (tactic === "defense") {
+                const target = chooseBotObjective(
+                    tactic,
+                    monster.position,
+                    enemyStart,
+                    enemies.map((enemy) => enemy.position),
+                    ownStart,
+                );
+                if (target) occupiedTargets.add(`${target.x},${target.y}`);
+                return { monsterId: monster.id, role: "defense", target };
+            }
+
+            if (tactic === "hunt") {
+                const target = enemies
+                    .filter(
+                        (enemy) => !occupiedTargets.has(`${enemy.position.x},${enemy.position.y}`),
+                    )
                     .sort(
                         (first, second) =>
                             getCachedDistance(monster.position, first.position) -
                             getCachedDistance(monster.position, second.position),
                     )[0]?.position;
-            } else {
-                role =
-                    tactic === "offense" ||
-                    (snapshot.profile === "offensive" && getOffenseValue(monster.monster) > 2)
-                        ? "base"
-                        : "territory";
-                target =
-                    role === "base"
-                        ? enemyStart
-                        : allies.length === 1
-                          ? enemyStart
-                          : monster.position;
+                if (target) occupiedTargets.add(`${target.x},${target.y}`);
+                return { monsterId: monster.id, role: "hunt", target };
             }
 
+            const role =
+                tactic === "offense" ||
+                support > 0 ||
+                (snapshot.profile === "offensive" && getOffenseValue(monster.monster) > 2)
+                    ? "base"
+                    : "territory";
+            const target =
+                role === "base"
+                    ? enemyStart
+                    : allies.length === 1
+                      ? enemyStart
+                      : monster.position;
             if (target) occupiedTargets.add(`${target.x},${target.y}`);
             return { monsterId: monster.id, role, target };
         });
@@ -185,11 +194,7 @@ export function createStrategicCellScorer(
         const enemyDistance =
             Math.abs(position.x - enemyStart.x) + Math.abs(position.y - enemyStart.y);
         const centrality = -Math.abs(position.x - centerX) - Math.abs(position.y - centerY);
-        let score =
-            enemyDistance * 2 -
-            ownDistance +
-            centrality * 0.25 -
-            visibleThreat * 3;
+        let score = enemyDistance * 2 - ownDistance + centrality * 0.25 - visibleThreat * 3;
 
         if (snapshot.tactics[player] === "defense") {
             score += -Math.abs(ownDistance - 3) * 4;
@@ -285,18 +290,13 @@ export function evaluateStrategicState(snapshot: StrategicSnapshot): number {
         for (const enemy of enemies) {
             const distance = getCachedDistance(monster.position, enemy.position);
             if (distance <= 3) {
-                tacticalScore += (tactic === "hunt" ? 3 : 1) * (enemy.currentHp < monster.currentHp ? 2 : 1);
+                tacticalScore +=
+                    (tactic === "hunt" ? 3 : 1) * (enemy.currentHp < monster.currentHp ? 2 : 1);
             }
         }
     }
 
-    return (
-        baseScore +
-        armyScore * weight +
-        territoryScore * weight +
-        resourceScore +
-        tacticalScore
-    );
+    return baseScore + armyScore * weight + territoryScore * weight + resourceScore + tacticalScore;
 }
 
 export function createDecisionDebug(

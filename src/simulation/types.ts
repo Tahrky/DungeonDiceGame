@@ -34,7 +34,8 @@ export interface SimulationOptions {
 export interface SimulationEvent {
     turn: number;
     player: PlayerId;
-    type: "turn" | "dice" | "strategy" | "invocation" | "movement" | "attack" | "status" | "turnEnd";
+    type:
+        "turn" | "dice" | "strategy" | "invocation" | "movement" | "attack" | "status" | "turnEnd";
     description: string;
     monsterId?: string;
     monsterTypeId?: string;
@@ -64,7 +65,7 @@ export interface PlayerSimulationStats {
     baseDamage: number;
     movements: number;
     symbolsSpent: DiceReserve;
-    unusedResources: DiceReserve;
+    conversionLosses: number;
     ineffectiveActions: number;
     decisionsWithoutImpact: number;
     decisionTimeMs: number;

@@ -81,20 +81,27 @@ describe("configuration des règles de partie", () => {
         );
 
         expect(parseMonsterConfiguration(priestBuffer, "priestBuffer")?.attacks).toMatchObject([
-            { movementRangeBonus: 1, movementCostReduction: 1 },
-            { attackDamageBonus: 1, attackCostReduction: 1 },
+            { name: "Coup de baton", pattern: { type: "adjacent" } },
+            {
+                name: "Foulée bénie",
+                movementRangeBonus: 1,
+                movementCostReduction: 1,
+            },
+            {
+                name: "Force sacrée",
+                attackDamageBonus: 1,
+                attackCostReduction: 1,
+            },
         ]);
         expect(
             parseMonsterConfiguration(
                 {
                     ...priestBuffer,
-                    attacks: [
-                        {
-                            ...priestBuffer!.attacks[0],
-                            movementCostReduction: 0,
-                        },
-                        priestBuffer!.attacks[1],
-                    ],
+                    attacks: priestBuffer!.attacks.map((attack) =>
+                        attack.name === "Foulée bénie"
+                            ? { ...attack, movementCostReduction: 0 }
+                            : attack,
+                    ),
                 },
                 "priestBuffer",
             ),
@@ -140,11 +147,15 @@ describe("configuration des règles de partie", () => {
         configuration.diceCount = 3;
         const priest = configuration.monsters.find((monster) => monster.id === "priest");
         expect(priest).toBeDefined();
-        priest!.attacks[0].pattern = {
+        const legacySupportAttacks = priest!.attacks.filter((attack) =>
+            ["Soin", "Récupération de sorts"].includes(attack.name),
+        );
+        legacySupportAttacks[0]!.pattern = {
             type: "line",
             range: 4,
             allDirections: true,
         };
+        priest!.attacks = legacySupportAttacks;
         const legacyConfiguration: Record<string, unknown> = {
             ...configuration,
             version: 1,
@@ -201,6 +212,7 @@ describe("configuration des règles de partie", () => {
 
         expect(migrated?.version).toBe(6);
         expect(migrated?.monsters.find((monster) => monster.id === "priestBuffer")?.attacks).toMatchObject([
+            { name: "Coup de baton", pattern: { type: "adjacent" } },
             { name: "Foulée bénie", movementRangeBonus: 1, movementCostReduction: 1 },
             { name: "Force sacrée", attackDamageBonus: 1, attackCostReduction: 1 },
         ]);
@@ -311,34 +323,43 @@ describe("configuration des règles de partie", () => {
         expect(priest).toBeDefined();
 
         expect(parseMonsterConfiguration(priest, "priest")?.attacks).toEqual(priest?.attacks);
-        expect(priest?.attacks[0].targetsSelf).toBe(true);
-        expect(priest?.attacks[1].targetsSelf).toBeUndefined();
-        expect(priest?.attacks[0].clearsStatusEffects).toBe(true);
+        const healAttack = priest!.attacks.find((attack) => attack.name === "Soin");
+        const cooldownAttack = priest!.attacks.find(
+            (attack) => attack.name === "Récupération de sorts",
+        );
+        expect(healAttack?.targetsSelf).toBe(true);
+        expect(cooldownAttack?.targetsSelf).toBeUndefined();
+        expect(healAttack?.clearsStatusEffects).toBe(true);
         expect(
             parseMonsterConfiguration({
                 ...priest,
-                attacks: [{ ...priest!.attacks[0], targetsAlliesOnly: false }, priest!.attacks[1]],
+                attacks: priest!.attacks.map((attack) =>
+                    attack.name === "Soin" ? { ...attack, targetsAlliesOnly: false } : attack,
+                ),
             }),
         ).toBeNull();
         expect(
             parseMonsterConfiguration({
                 ...priest,
-                attacks: [{ ...priest!.attacks[0], targetsSelf: "true" }, priest!.attacks[1]],
+                attacks: priest!.attacks.map((attack) =>
+                    attack.name === "Soin" ? { ...attack, targetsSelf: "true" } : attack,
+                ),
             }),
         ).toBeNull();
         expect(
             parseMonsterConfiguration({
                 ...priest,
-                attacks: [
-                    { ...priest!.attacks[0], clearsStatusEffects: "true" },
-                    priest!.attacks[1],
-                ],
+                attacks: priest!.attacks.map((attack) =>
+                    attack.name === "Soin" ? { ...attack, clearsStatusEffects: "true" } : attack,
+                ),
             }),
         ).toBeNull();
         expect(
             parseMonsterConfiguration({
                 ...priest,
-                attacks: [{ ...priest!.attacks[0], usesPerTurn: 0 }, priest!.attacks[1]],
+                attacks: priest!.attacks.map((attack) =>
+                    attack.name === "Soin" ? { ...attack, usesPerTurn: 0 } : attack,
+                ),
             }),
         ).toBeNull();
     });

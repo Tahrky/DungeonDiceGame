@@ -97,18 +97,28 @@ describe("stratégie des bots", () => {
         const finishingBlow = { ...damage, kills: 1 };
         const support: TacticalAttackValue = { ...damage, healing: 2 };
 
-        expect(scoreTacticalAttack(finishingBlow, 1, "offensive", 3)).toBe(
-            scoreTacticalAttack(damage, 1, "offensive", 3),
+        expect(scoreTacticalAttack(finishingBlow, 1, "offensive", 3, "offensive")).toBeGreaterThan(
+            scoreTacticalAttack(damage, 1, "offensive", 3, "offensive"),
         );
+        expect(scoreTacticalAttack(damage, 1, "offensive", 3, "offensive")).toBeGreaterThan(0);
+        expect(
+            scoreTacticalAttack({ ...damage, baseDamage: 1 }, 1, "offensive", 3, "offensive"),
+        ).toBeGreaterThan(scoreTacticalAttack(finishingBlow, 1, "offensive", 3, "offensive"));
         expect(scoreTacticalAttack(finishingBlow, 1, "tracker", 3)).toBeGreaterThan(
             scoreTacticalAttack({ ...damage, baseDamage: 1 }, 1, "tracker", 3),
         );
         expect(scoreTacticalAttack(support, 1, "support", 3)).toBeGreaterThan(
             scoreTacticalAttack(support, 1, "balanced", 3),
         );
-        expect(scoreTacticalAttack(finishingBlow, 1, "defensive", 3)).toBe(
-            scoreTacticalAttack({ ...damage, baseDamage: 1 }, 1, "defensive", 3),
+        expect(scoreTacticalAttack({ ...damage, baseDamage: 1 }, 1, "tracker", 3)).toBeGreaterThan(
+            0,
         );
+        expect(scoreTacticalAttack(support, 1, "balanced", 3, "support")).toBeGreaterThan(
+            scoreTacticalAttack(support, 1, "balanced", 3, "balanced"),
+        );
+        expect(
+            scoreTacticalAttack({ ...damage, baseDamage: 1 }, 1, "defensive", 3),
+        ).toBeGreaterThan(0);
     });
 
     it("sélectionne des decks distincts selon les profils", () => {
@@ -168,6 +178,9 @@ describe("stratégie des bots", () => {
         expect(chooseBotObjective("defensive", source, enemyBase, enemies, ownBase)).toEqual(
             ownBase,
         );
+        expect(
+            chooseBotObjective("defensive", source, enemyBase, [{ x: 3, y: 5 }], ownBase),
+        ).toEqual(enemyBase);
         expect(chooseBotObjective("tracker", source, enemyBase, [], ownBase)).toEqual(enemyBase);
     });
 

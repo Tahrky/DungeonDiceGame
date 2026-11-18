@@ -2,15 +2,12 @@ import { describe, expect, it } from "vitest";
 import { getStartingPositions, createCustomBoard } from "../src/game/boards";
 import { getDefaultGameConfiguration } from "../src/game/gameConfiguration";
 import { getInitialAttackCooldowns, getInitialAttackUses } from "../src/game/monsterActions";
-import { evaluateStrategicState, getStrategicCellScore } from "../src/game/ai";
+import { assignMonsterRoles, evaluateStrategicState, getStrategicCellScore } from "../src/game/ai";
 import { runCrossProfileTournament, runSimulations } from "../src/simulation/simulator";
 import { createStats, type MatchState } from "../src/simulation/matchState";
 import type { StrategicSnapshot } from "../src/game/ai";
 
-function createSnapshot(
-    health1: number,
-    health2: number,
-): StrategicSnapshot {
+function createSnapshot(health1: number, health2: number): StrategicSnapshot {
     const board = createCustomBoard(7, 7);
     return {
         board,
@@ -40,9 +37,97 @@ describe("noyau de décision tactique", () => {
         const starts = getStartingPositions(snapshot.board);
         const perimeter = { x: starts[1].x + 3, y: starts[1].y };
         const farCorner = { x: snapshot.board.width - 1, y: snapshot.board.height - 1 };
-        expect(
-            getStrategicCellScore(snapshot, 1, perimeter),
-        ).toBeGreaterThan(getStrategicCellScore(snapshot, 1, farCorner));
+        expect(getStrategicCellScore(snapshot, 1, perimeter)).toBeGreaterThan(
+            getStrategicCellScore(snapshot, 1, farCorner),
+        );
+    });
+
+    it("fait avancer les défenseurs lorsque leur base n’est pas menacée", () => {
+        const configuration = getDefaultGameConfiguration();
+        const monster = configuration.monsters.find((candidate) => candidate.id === "ghost");
+        if (!monster) throw new Error("Monstre de test introuvable.");
+        const snapshot = createSnapshot(3, 3);
+        const starts = getStartingPositions(snapshot.board);
+        const defender = {
+            id: "defender",
+            monster,
+            owner: 1 as const,
+            position: { x: starts[1].x + 1, y: starts[1].y },
+            facing: "east" as const,
+            currentHp: monster.hp,
+            cells: [{ x: starts[1].x + 1, y: starts[1].y }],
+            summonedOnTurn: 1,
+            attacksUsedThisTurn: 0,
+            attackUsesThisTurn: getInitialAttackUses(monster),
+            movementsUsedThisTurn: 0,
+            attackCooldowns: getInitialAttackCooldowns(monster),
+            statusEffects: [],
+        };
+        const safeSnapshot = { ...snapshot, monsters: [defender] };
+        const threatenedSnapshot = {
+            ...safeSnapshot,
+            monsters: [
+                ...safeSnapshot.monsters,
+                {
+                    ...defender,
+                    id: "threat",
+                    owner: 2 as const,
+                    position: { x: starts[1].x + 2, y: starts[1].y },
+                },
+            ],
+        };
+
+        expect(assignMonsterRoles(safeSnapshot, 1)[0]?.target).toEqual(starts[2]);
+        expect(assignMonsterRoles(threatenedSnapshot, 1)[0]?.target).toEqual(starts[1]);
+    });
+
+    it("fait avancer les monstres de soutien si aucun allié n’est blessé", () => {
+        const configuration = getDefaultGameConfiguration();
+        const monster = configuration.monsters.find((candidate) =>
+            candidate.attacks.some((attack) => attack.targetsAlliesOnly),
+        );
+        if (!monster) throw new Error("Monstre de soutien de test introuvable.");
+        const snapshot = createSnapshot(3, 3);
+        const starts = getStartingPositions(snapshot.board);
+        const supporter = {
+            id: "supporter",
+            monster,
+            owner: 1 as const,
+            position: { x: starts[1].x + 1, y: starts[1].y },
+            facing: "east" as const,
+            currentHp: monster.hp,
+            cells: [{ x: starts[1].x + 1, y: starts[1].y }],
+            summonedOnTurn: 1,
+            attacksUsedThisTurn: 0,
+            attackUsesThisTurn: getInitialAttackUses(monster),
+            movementsUsedThisTurn: 0,
+            attackCooldowns: getInitialAttackCooldowns(monster),
+            statusEffects: [],
+        };
+        const allyMonster = configuration.monsters.find((candidate) => candidate.id === "ghost");
+        if (!allyMonster) throw new Error("Monstre allié de test introuvable.");
+        const ally = {
+            ...supporter,
+            id: "ally",
+            monster: allyMonster,
+            position: { x: starts[1].x + 2, y: starts[1].y },
+            cells: [{ x: starts[1].x + 2, y: starts[1].y }],
+            currentHp: allyMonster.hp,
+            attackUsesThisTurn: getInitialAttackUses(allyMonster),
+            attackCooldowns: getInitialAttackCooldowns(allyMonster),
+        };
+        const supportSnapshot = {
+            ...snapshot,
+            profile: "support" as const,
+            tactics: { 1: "balanced" as const, 2: "balanced" as const },
+            monsters: [supporter, ally],
+        };
+
+        expect(assignMonsterRoles(supportSnapshot, 1)).toContainEqual({
+            monsterId: "supporter",
+            role: "base",
+            target: starts[2],
+        });
     });
 
     it("active les détails de debug uniquement sur demande", () => {
@@ -73,12 +158,17 @@ describe("noyau de décision tactique", () => {
             maxTurns: 1,
         });
         expect(tournament).toHaveLength(49);
-        expect(new Set(tournament.map((match) =>
-            `${match.profile1}-${match.profile2}-${match.result.matches[0]?.seed}`,
-        )).size).toBe(49);
+        expect(
+            new Set(
+                tournament.map(
+                    (match) =>
+                        `${match.profile1}-${match.profile2}-${match.result.matches[0]?.seed}`,
+                ),
+            ).size,
+        ).toBe(49);
     }, 600_000);
 
-    it("conserve les nouvelles statistiques lorsqu’elles sont absentes des anciens exports", () => {
+    it("initialise les statistiques de ressources sans confondre réserves et dépenses", () => {
         const configuration = getDefaultGameConfiguration();
         const monster = configuration.monsters[0];
         if (!monster) throw new Error("Monstre attendu.");
@@ -118,7 +208,7 @@ describe("noyau de décision tactique", () => {
             monstersKilledForVictory: configuration.monstersKilledForVictory,
         };
         expect(state.statistics[1].monstersLost).toBe(0);
-        expect(state.statistics[1].unusedResources).toEqual({
+        expect(state.statistics[1].symbolsSpent).toEqual({
             invocation: 0,
             attack: 0,
             movement: 0,

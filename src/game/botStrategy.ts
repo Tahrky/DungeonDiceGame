@@ -63,7 +63,10 @@ export function chooseBotTactic(
     opponentProfile: BotProfile,
 ): BotTacticDecision {
     if (profile === "offensive") {
-        return { tactic: "offense", description: "vise uniquement les PV de la base adverse" };
+        return {
+            tactic: "offense",
+            description: "priorise les PV de la base adverse sans ignorer les menaces",
+        };
     }
     if (profile === "tracker") {
         return { tactic: "hunt", description: "traque les monstres et protège sa base" };
@@ -71,7 +74,7 @@ export function chooseBotTactic(
     if (profile === "defensive") {
         return {
             tactic: "defense",
-            description: "protège son périmètre et traite les deux victoires à égalité",
+            description: "protège son périmètre et avance quand il est sûr",
         };
     }
 
@@ -341,7 +344,12 @@ export function chooseBotObjective(
     enemyPositions: readonly Position[],
     ownBase: Position = source,
 ): Position {
-    if (tactic === "defense" || tactic === "defensive") return ownBase;
+    if (tactic === "defense" || tactic === "defensive") {
+        const baseIsThreatened = enemyPositions.some(
+            (enemy) => getGridDistance(enemy, ownBase) <= 4,
+        );
+        return baseIsThreatened ? ownBase : enemyBase;
+    }
     if (tactic !== "hunt" && tactic !== "tracker") return enemyBase;
     if (enemyPositions.length === 0) return enemyBase;
 
@@ -355,26 +363,29 @@ export function scoreTacticalAttack(
     cost: number,
     tactic: BotTactic | BotProfile,
     enemyBaseHealth: number,
+    profile?: BotProfile,
 ): number {
-    const isOffense = tactic === "offense" || tactic === "offensive";
-    const isHunt = tactic === "hunt" || tactic === "tracker";
-    const supportMultiplier = tactic === "support" ? 1.5 : 1;
-    const baseMultiplier = isOffense ? (enemyBaseHealth <= 1 ? 14 : 8) : 2;
-    const score = isOffense
-        ? value.baseDamage * baseMultiplier
-        : isHunt
-          ? value.damage * 2 + value.statusDamage + value.kills * 30 + value.healing * 2
-          : value.damage * 2 +
-            value.statusDamage +
-            value.kills * 2 +
-            value.baseDamage * baseMultiplier +
-            supportMultiplier *
-                (value.healing * 2 +
-                    value.clearedEffects * 2 +
-                    value.buffs * 2 +
-                    value.cooldownsReduced * 2) -
-            value.friendlyDamage * 3;
-    const costBias = tactic === "cheap" ? 1.5 : tactic === "expensive" ? 0.25 : 0.5;
+    const isOffense = tactic === "offense" || tactic === "offensive" || profile === "offensive";
+    const isHunt = tactic === "hunt" || tactic === "tracker" || profile === "tracker";
+    const isSupport = tactic === "support" || profile === "support";
+    const baseUrgency = enemyBaseHealth <= 1 ? 14 : enemyBaseHealth <= 2 ? 10 : 8;
+    const basePreference = isOffense ? 1.5 : isHunt ? 0.9 : 1;
+    const damagePreference = isHunt ? 3 : isOffense ? 1.5 : 2;
+    const killPreference = isHunt ? 24 : isOffense ? 10 : 8;
+    const supportPreference = isSupport ? 2 : 1;
+    const supportValue =
+        value.healing * 2 + value.clearedEffects * 2 + value.buffs * 2 + value.cooldownsReduced * 2;
+    const score =
+        value.baseDamage * baseUrgency * basePreference +
+        value.damage * damagePreference +
+        value.statusDamage * 1.5 +
+        value.kills * killPreference +
+        supportValue * supportPreference -
+        value.friendlyDamage * 4;
+    const effectiveProfile =
+        profile ?? (tactic === "cheap" || tactic === "expensive" ? tactic : undefined);
+    const costBias =
+        effectiveProfile === "cheap" ? 1.5 : effectiveProfile === "expensive" ? 0.25 : 0.5;
 
     return Math.max(0, score) / (Math.max(0, cost) + costBias);
 }

@@ -1,20 +1,10 @@
 import { PLACEMENT_PATTERNS } from "../data/placementPatterns";
-import {
-    getInitialAttackCooldowns,
-    getInitialAttackUses,
-} from "../game/monsterActions";
+import { getInitialAttackCooldowns, getInitialAttackUses } from "../game/monsterActions";
 import type { GameConfiguration } from "../game/gameConfiguration";
-import {
-    getStartingPositions,
-    type BoardDefinition,
-} from "../game/boards";
+import { getStartingPositions, type BoardDefinition } from "../game/boards";
 import { getInvokedMonsterCount } from "../game/matchRules";
 import { findValidPlacement } from "../game/placement";
-import type {
-    PlayerId,
-    PlacedMonster,
-    Position,
-} from "../types/GameTypes";
+import type { PlayerId, PlacedMonster, Position } from "../types/GameTypes";
 import {
     canDeployMonsterForProfile,
     chooseBotObjective,
@@ -64,7 +54,7 @@ export function createStats(): PlayerSimulationStats {
         baseDamage: 0,
         movements: 0,
         symbolsSpent: { invocation: 0, attack: 0, movement: 0 },
-        unusedResources: { invocation: 0, attack: 0, movement: 0 },
+        conversionLosses: 0,
         ineffectiveActions: 0,
         decisionsWithoutImpact: 0,
         decisionTimeMs: 0,
@@ -88,9 +78,7 @@ export function opposingPlayer(player: PlayerId): PlayerId {
 }
 
 export function getPlayerMonsters(state: MatchState, player: PlayerId): PlacedMonster[] {
-    return state.monsters.filter(
-        (monster) => monster.owner === player && monster.currentHp > 0,
-    );
+    return state.monsters.filter((monster) => monster.owner === player && monster.currentHp > 0);
 }
 
 export function buildMatchBoard(
@@ -104,9 +92,7 @@ export function buildMatchBoard(
         Array.from({ length: board.width }, (_, x) => {
             const placed = state.monsters.find(
                 (monster) =>
-                    monster.currentHp > 0 &&
-                    monster.position.x === x &&
-                    monster.position.y === y,
+                    monster.currentHp > 0 && monster.position.x === x && monster.position.y === y,
             );
             if (placed) return getMonsterSymbol(monsterSymbols, placed.monster.id);
             if (board.blockedCells.some((cell) => cell.x === x && cell.y === y)) return "#";
@@ -153,16 +139,13 @@ function findPlacement(
     const enemyPositions = state.monsters
         .filter((monster) => monster.owner !== player && monster.currentHp > 0)
         .map((monster) => monster.position);
-    const expansionObjective =
-        state.tactics[player] === "hunt"
-            ? starts[player]
-            : chooseBotObjective(
-                  state.tactics[player],
-                  starts[player],
-                  starts[opposingPlayer(player)],
-                  enemyPositions,
-                  starts[player],
-              );
+    const expansionObjective = chooseBotObjective(
+        state.tactics[player],
+        starts[player],
+        starts[opposingPlayer(player)],
+        enemyPositions,
+        starts[player],
+    );
     const blockingCells = [
         ...board.blockedCells,
         ...state.monsters
@@ -217,19 +200,29 @@ function findPlacement(
             );
         },
         scorePlacement: (position, cells) => {
-            return scoreTerritoryExpansion(
-                player,
-                cells,
-                ownCells,
-                starts[player],
-                expansionObjective,
-            ) +
-            (state.tactics[player] === "defense" || state.tactics[player] === "hunt"
-                ? defensivePlacementScore(position)
-                : 0) +
-            strategicCellScore(position) * 0.5;
+            return (
+                scoreTerritoryExpansion(
+                    player,
+                    cells,
+                    ownCells,
+                    starts[player],
+                    expansionObjective,
+                ) +
+                (state.tactics[player] === "defense" || state.tactics[player] === "hunt"
+                    ? defensivePlacementScore(position)
+                    : 0) +
+                strategicCellScore(position) * 0.5
+            );
         },
     });
+}
+
+export function hasAvailablePlacement(
+    state: MatchState,
+    board: BoardDefinition,
+    player: PlayerId,
+): boolean {
+    return findPlacement(state, board, player) !== null;
 }
 
 export function canSpend(
@@ -281,21 +274,15 @@ export function deployMonsters(
             .filter((monster) => monster.owner === state.currentPlayer)
             .map((monster) => monster.monster.cost);
         const choices = deckMonsters
-            .filter((monster) =>
-                canSpend(state, state.currentPlayer, "invocation", monster.cost),
-            )
+            .filter((monster) => canSpend(state, state.currentPlayer, "invocation", monster.cost))
             .filter((monster) => canDeployMonsterForProfile(monster, profile, deployedCosts))
-            .sort(
-                (first, second) => {
-                    return (
-                        (summonedByMonster[first.id] ?? 0) -
-                            (summonedByMonster[second.id] ?? 0) ||
-                        (profileScores.get(second.id) ?? 0) -
-                            (profileScores.get(first.id) ?? 0) ||
-                            first.cost - second.cost
-                    );
-                },
-            );
+            .sort((first, second) => {
+                return (
+                    (summonedByMonster[first.id] ?? 0) - (summonedByMonster[second.id] ?? 0) ||
+                    (profileScores.get(second.id) ?? 0) - (profileScores.get(first.id) ?? 0) ||
+                    first.cost - second.cost
+                );
+            });
         const monster = choices[0];
         if (!monster || !spend(state, state.currentPlayer, "invocation", monster.cost)) return;
 
@@ -329,8 +316,7 @@ export function deployMonsters(
                 ...(state.debug
                     ? {
                           debug: {
-                              situation:
-                                  `invoquer J${state.currentPlayer}, réservation=${state.reserves[state.currentPlayer].invocation}`,
+                              situation: `invoquer J${state.currentPlayer}, réservation=${state.reserves[state.currentPlayer].invocation}`,
                               candidates: choices.length,
                               depth: 1,
                               positionsExplored: state.monsters.length,

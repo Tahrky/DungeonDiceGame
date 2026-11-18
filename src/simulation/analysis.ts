@@ -7,6 +7,8 @@ export interface AnalyzablePlayerStats {
     summoned: number;
     summonedByMonster: Record<string, number>;
     attacks: number;
+    symbolsSpent?: DiceReserve;
+    conversionLosses?: number;
     damageDealt: number;
     monstersKilled: number;
     monstersLost?: number;
@@ -30,6 +32,7 @@ export interface AnalyzableMatch {
     finishReason: "baseDestroyed" | "monstersEliminated" | "turnLimit";
     turns: number;
     statistics: Record<PlayerId, AnalyzablePlayerStats>;
+    remainingResources: Record<PlayerId, DiceReserve>;
     finalBoard: FinalBoard;
     finalMonsters: Array<{
         id: string;
@@ -70,7 +73,9 @@ export interface SimulationAnalytics {
     winsByProfile: Partial<Record<BotProfile, number>>;
     averageMonstersLost: Record<PlayerId, number>;
     averageDamageReceived: Record<PlayerId, number>;
-    averageUnusedResources: Record<PlayerId, number>;
+    averageRemainingResources: Record<PlayerId, number>;
+    averageSymbolsSpent: Record<PlayerId, DiceReserve | null>;
+    averageConversionLosses: Record<PlayerId, number | null>;
     averageDecisionTimeMs: Record<PlayerId, number>;
     averagePositionsExplored: Record<PlayerId, number>;
 }
@@ -87,6 +92,18 @@ function isPlayerId(value: unknown): value is PlayerId {
     return value === 1 || value === 2;
 }
 
+function isDiceReserve(value: unknown): value is DiceReserve {
+    return (
+        isRecord(value) &&
+        ["invocation", "attack", "movement"].every(
+            (symbol) =>
+                typeof value[symbol] === "number" &&
+                Number.isInteger(value[symbol]) &&
+                value[symbol] >= 0,
+        )
+    );
+}
+
 function isProfile(value: unknown): value is BotProfile {
     return typeof value === "string" && BOT_PROFILES.includes(value as BotProfile);
 }
@@ -101,7 +118,9 @@ function isStatistics(value: unknown): value is AnalyzablePlayerStats {
         isNumber(value.damageDealt) &&
         isNumber(value.monstersKilled) &&
         isNumber(value.baseDamage) &&
-        isNumber(value.movements)
+        isNumber(value.movements) &&
+        (value.symbolsSpent === undefined || isDiceReserve(value.symbolsSpent)) &&
+        (value.conversionLosses === undefined || isNumber(value.conversionLosses))
     );
 }
 
@@ -126,9 +145,7 @@ function isFinalBoard(value: unknown): value is FinalBoard {
         Number.isInteger(value.height) &&
         Array.isArray(value.rows) &&
         value.rows.length === value.height &&
-        value.rows.every(
-            (row) => typeof row === "string" && row.length === value.width,
-        ) &&
+        value.rows.every((row) => typeof row === "string" && row.length === value.width) &&
         Array.isArray(value.legend) &&
         value.legend.every(
             (item) =>
@@ -181,6 +198,9 @@ function isMatch(value: unknown): value is AnalyzableMatch {
         Number.isInteger(value.turns) &&
         isStatistics(value.statistics[1]) &&
         isStatistics(value.statistics[2]) &&
+        isRecord(value.remainingResources) &&
+        isDiceReserve(value.remainingResources[1]) &&
+        isDiceReserve(value.remainingResources[2]) &&
         isFinalBoard(value.finalBoard) &&
         Array.isArray(value.finalMonsters) &&
         value.finalMonsters.every(isFinalMonster) &&
@@ -202,7 +222,10 @@ export function parseSimulationData(value: unknown): SimulationData | null {
 }
 
 export function analyzeSimulationData(data: SimulationData): SimulationAnalytics {
-    const totals = new Map<string, { appearances: number; matchesSeen: number; damage: number; attacks: number }>();
+    const totals = new Map<
+        string,
+        { appearances: number; matchesSeen: number; damage: number; attacks: number }
+    >();
     const monsterIdsByName = new Map(
         data.configuration.monsters.map((monster) => [monster.name, monster.id]),
     );
@@ -213,11 +236,18 @@ export function analyzeSimulationData(data: SimulationData): SimulationAnalytics
     const turns = new Map<number, number>();
     const winsByProfile: Partial<Record<BotProfile, number>> = {};
     let deployments: Record<PlayerId, number> = { 1: 0, 2: 0 };
-    let monstersLost: Record<PlayerId, number> = { 1: 0, 2: 0 };
-    let damageReceived: Record<PlayerId, number> = { 1: 0, 2: 0 };
-    let unusedResources: Record<PlayerId, number> = { 1: 0, 2: 0 };
-    let decisionTimeMs: Record<PlayerId, number> = { 1: 0, 2: 0 };
-    let positionsExplored: Record<PlayerId, number> = { 1: 0, 2: 0 };
+    const monstersLost: Record<PlayerId, number> = { 1: 0, 2: 0 };
+    const damageReceived: Record<PlayerId, number> = { 1: 0, 2: 0 };
+    const remainingResources: Record<PlayerId, number> = { 1: 0, 2: 0 };
+    const symbolsSpent: Record<PlayerId, DiceReserve> = {
+        1: { invocation: 0, attack: 0, movement: 0 },
+        2: { invocation: 0, attack: 0, movement: 0 },
+    };
+    const matchesWithResourceUsage: Record<PlayerId, number> = { 1: 0, 2: 0 };
+    const conversionLosses: Record<PlayerId, number> = { 1: 0, 2: 0 };
+    const matchesWithConversionMetrics: Record<PlayerId, number> = { 1: 0, 2: 0 };
+    const decisionTimeMs: Record<PlayerId, number> = { 1: 0, 2: 0 };
+    const positionsExplored: Record<PlayerId, number> = { 1: 0, 2: 0 };
     const winsByPlayer: Record<PlayerId, number> = { 1: 0, 2: 0 };
     const winsByFinishReason = { baseDestroyed: 0, monstersEliminated: 0 };
     let draws = 0;
@@ -233,12 +263,20 @@ export function analyzeSimulationData(data: SimulationData): SimulationAnalytics
             const stats = match.statistics[player];
             monstersLost[player] += stats.monstersLost ?? 0;
             damageReceived[player] += stats.damageReceived ?? 0;
-            unusedResources[player] += stats.unusedResources
-                ? Object.values(stats.unusedResources).reduce(
-                      (total, amount) => total + amount,
-                      0,
-                  )
-                : 0;
+            remainingResources[player] += Object.values(match.remainingResources[player]).reduce(
+                (total, amount) => total + amount,
+                0,
+            );
+            if (stats.symbolsSpent) {
+                for (const symbol of ["invocation", "attack", "movement"] as const) {
+                    symbolsSpent[player][symbol] += stats.symbolsSpent[symbol];
+                }
+                matchesWithResourceUsage[player]++;
+            }
+            if (stats.conversionLosses !== undefined) {
+                conversionLosses[player] += stats.conversionLosses;
+                matchesWithConversionMetrics[player]++;
+            }
             decisionTimeMs[player] += stats.decisionTimeMs ?? 0;
             positionsExplored[player] += stats.positionsExplored ?? 0;
         }
@@ -319,9 +357,37 @@ export function analyzeSimulationData(data: SimulationData): SimulationAnalytics
             1: damageReceived[1] / matchCount,
             2: damageReceived[2] / matchCount,
         },
-        averageUnusedResources: {
-            1: unusedResources[1] / matchCount,
-            2: unusedResources[2] / matchCount,
+        averageRemainingResources: {
+            1: remainingResources[1] / matchCount,
+            2: remainingResources[2] / matchCount,
+        },
+        averageSymbolsSpent: {
+            1:
+                matchesWithResourceUsage[1] === 0
+                    ? null
+                    : {
+                          invocation: symbolsSpent[1].invocation / matchesWithResourceUsage[1],
+                          attack: symbolsSpent[1].attack / matchesWithResourceUsage[1],
+                          movement: symbolsSpent[1].movement / matchesWithResourceUsage[1],
+                      },
+            2:
+                matchesWithResourceUsage[2] === 0
+                    ? null
+                    : {
+                          invocation: symbolsSpent[2].invocation / matchesWithResourceUsage[2],
+                          attack: symbolsSpent[2].attack / matchesWithResourceUsage[2],
+                          movement: symbolsSpent[2].movement / matchesWithResourceUsage[2],
+                      },
+        },
+        averageConversionLosses: {
+            1:
+                matchesWithConversionMetrics[1] === 0
+                    ? null
+                    : conversionLosses[1] / matchesWithConversionMetrics[1],
+            2:
+                matchesWithConversionMetrics[2] === 0
+                    ? null
+                    : conversionLosses[2] / matchesWithConversionMetrics[2],
         },
         averageDecisionTimeMs: {
             1: decisionTimeMs[1] / matchCount,

@@ -19,6 +19,35 @@ describe("analyse des résultats de simulation", () => {
         data.matches[0]!.finishReason = "baseDestroyed";
         data.matches[1]!.winner = 2;
         data.matches[1]!.finishReason = "monstersEliminated";
+        data.matches[0]!.remainingResources = {
+            1: { invocation: 1, attack: 2, movement: 3 },
+            2: { invocation: 0, attack: 1, movement: 2 },
+        };
+        data.matches[1]!.remainingResources = {
+            1: { invocation: 2, attack: 3, movement: 4 },
+            2: { invocation: 1, attack: 2, movement: 3 },
+        };
+        data.matches[0]!.statistics[1].symbolsSpent = {
+            invocation: 2,
+            attack: 4,
+            movement: 6,
+        };
+        data.matches[1]!.statistics[1].symbolsSpent = {
+            invocation: 4,
+            attack: 6,
+            movement: 8,
+        };
+        data.matches[0]!.statistics[1].conversionLosses = 2;
+        data.matches[1]!.statistics[1].conversionLosses = 4;
+        delete data.matches[0]!.statistics[2].symbolsSpent;
+        delete data.matches[1]!.statistics[2].symbolsSpent;
+        delete data.matches[0]!.statistics[2].conversionLosses;
+        delete data.matches[1]!.statistics[2].conversionLosses;
+        data.matches[0]!.statistics[1].unusedResources = {
+            invocation: 999,
+            attack: 999,
+            movement: 999,
+        };
         const baselineGhost = analyzeSimulationData(data).monsters.find(
             (monster) => monster.id === "ghost",
         );
@@ -49,13 +78,20 @@ describe("analyse des résultats de simulation", () => {
                 type: "attack",
                 description: "Ancien événement d’attaque",
                 monsterId: "placed-monster-1",
-                monsterName: data.configuration.monsters.find((monster) => monster.id === "ghost")?.name,
+                monsterName: data.configuration.monsters.find((monster) => monster.id === "ghost")
+                    ?.name,
                 damage: 6,
             },
         );
 
         const analytics = analyzeSimulationData(data);
         expect(analytics.averageTurns).toBe(1);
+        expect(analytics.averageRemainingResources).toEqual({ 1: 7.5, 2: 4.5 });
+        expect(analytics.averageSymbolsSpent).toEqual({
+            1: { invocation: 3, attack: 5, movement: 7 },
+            2: null,
+        });
+        expect(analytics.averageConversionLosses).toEqual({ 1: 3, 2: null });
         expect(analytics.turnDistribution).toEqual([{ turns: 1, matches: 2 }]);
         expect(analytics.averageDeployments[1]).toBeGreaterThanOrEqual(0);
         expect(analytics.winsByFinishReason).toEqual({

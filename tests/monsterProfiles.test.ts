@@ -85,6 +85,12 @@ describe("profils de monstres", () => {
         expect(priest?.attackActionsPerTurn).toBe(2);
         expect(priest?.attacks).toMatchObject([
             {
+                name: "Coup de baton",
+                damage: 1,
+                cost: 1,
+                pattern: { type: "adjacent" },
+            },
+            {
                 name: "Soin",
                 damage: 0,
                 healAmount: 3,
@@ -108,6 +114,12 @@ describe("profils de monstres", () => {
         const priestBuffer = MONSTERS.find((monster) => monster.id === "priestBuffer");
 
         expect(priestBuffer?.attacks).toMatchObject([
+            {
+                name: "Coup de baton",
+                damage: 1,
+                cost: 1,
+                pattern: { type: "adjacent" },
+            },
             {
                 name: "Foulée bénie",
                 movementRangeBonus: 1,

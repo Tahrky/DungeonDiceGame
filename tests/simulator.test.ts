@@ -31,6 +31,8 @@ describe("simulation de matchs", () => {
         expect(first.summary.matches).toBe(2);
         expect(match?.seed).toBe(42);
         expect(match?.profiles).toEqual({ 1: "cheap", 2: "offensive" });
+        expect(match?.statistics[1]).not.toHaveProperty("unusedResources");
+        expect(match?.remainingResources[1]).toBeDefined();
         expect(first.matches.map(({ startingPlayer }) => startingPlayer)).toEqual([1, 2]);
         expect(match?.history.some((event) => event.type === "dice")).toBe(true);
         expect(match?.history.some((event) => event.type === "strategy")).toBe(true);
@@ -68,6 +70,88 @@ describe("simulation de matchs", () => {
         ]);
     });
 
+    it("alterne le joueur qui commence à chaque répétition d’une même confrontation", () => {
+        const result = runSimulations({
+            games: 6,
+            seed: 42,
+            maxTurns: 1,
+            profile1: "cheap",
+            profile2: "offensive",
+            profilePairs: [
+                { profile1: "balanced", profile2: "cheap" },
+                { profile1: "tracker", profile2: "support" },
+            ],
+        });
+        const firstPairStarts = result.matches
+            .filter(({ profiles }) => profiles[1] === "balanced")
+            .map(({ startingPlayer }) => startingPlayer);
+        const secondPairStarts = result.matches
+            .filter(({ profiles }) => profiles[1] === "tracker")
+            .map(({ startingPlayer }) => startingPlayer);
+
+        expect(firstPairStarts).toEqual([1, 2, 1]);
+        expect(secondPairStarts).toEqual([2, 1, 2]);
+    });
+
+    it("ne compte les conversions qu’au moment où le symbole converti est dépensé", () => {
+        const match = runSimulations({
+            games: 1,
+            seed: 3992650978,
+            maxTurns: 20,
+            profile1: "balanced",
+            profile2: "support",
+        }).matches[0];
+        if (!match) throw new Error("Match de test attendu.");
+
+        expect(
+            match.history.some(
+                (event) =>
+                    event.type === "strategy" &&
+                    event.description.startsWith("Conversion tactique"),
+            ),
+        ).toBe(true);
+
+        for (const player of [1, 2] as const) {
+            const spentFromActions = { invocation: 0, attack: 0, movement: 0 };
+            const conversions = match.history.filter(
+                (event) =>
+                    event.player === player &&
+                    event.type === "strategy" &&
+                    event.description.startsWith("Conversion tactique"),
+            );
+            for (const event of match.history) {
+                if (event.player !== player || event.type === "strategy") continue;
+                if (
+                    event.type === "invocation" ||
+                    event.type === "attack" ||
+                    event.type === "movement"
+                ) {
+                    spentFromActions[event.type] += event.cost ?? 0;
+                }
+            }
+            expect(match.statistics[player].symbolsSpent).toEqual(spentFromActions);
+            expect(match.statistics[player].conversionLosses).toBe(conversions.length);
+        }
+    });
+
+    it("évite les conversions répétées vers une ressource déjà suffisante", () => {
+        const match = runSimulations({
+            games: 1,
+            seed: 3992651002,
+            maxTurns: 20,
+            profile1: "support",
+            profile2: "balanced",
+        }).matches[0];
+        if (!match) throw new Error("Match de test attendu.");
+        const conversions = match.history.filter(
+            (event) =>
+                event.type === "strategy" &&
+                event.description.startsWith("Conversion tactique"),
+        );
+
+        expect(conversions.length).toBeLessThan(60);
+    });
+
     it("attribue une lettre unique même aux symboles de configuration dupliqués", () => {
         const symbols = getUniqueMonsterSymbols([
             { id: "first", symbol: "Q" },
@@ -97,9 +181,11 @@ describe("simulation de matchs", () => {
             ...result,
             matches: result.matches.map((match) => ({
                 ...match,
-                finalMonsters: match.finalMonsters.map(
-                    ({ symbol: _symbol, ...monster }) => monster,
-                ),
+                finalMonsters: match.finalMonsters.map((monster) => {
+                    const { symbol, ...legacyMonster } = monster;
+                    void symbol;
+                    return legacyMonster;
+                }),
             })),
         };
 
@@ -151,6 +237,8 @@ describe("simulation de matchs", () => {
         expect(decisions).toHaveLength(2);
         expect(decisions?.[0]?.description).toContain("s’adapte au profil « offensive »");
         expect(decisions?.[0]?.description).toContain("renforce son périmètre");
-        expect(decisions?.[1]?.description).toContain("vise uniquement les PV de la base");
+        expect(decisions?.[1]?.description).toContain(
+            "priorise les PV de la base adverse sans ignorer les menaces",
+        );
     });
 });

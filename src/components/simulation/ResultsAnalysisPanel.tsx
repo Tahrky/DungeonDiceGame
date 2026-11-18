@@ -78,10 +78,7 @@ export function ResultsAnalysisPanel({ generatedResult }: ResultsAnalysisPanelPr
                 Importez un résultat de simulation ou consultez le dernier batch généré.
             </p>
             <div className="simulation-file-actions">
-                <button
-                    className="secondary-button"
-                    onClick={() => inputRef.current?.click()}
-                >
+                <button className="secondary-button" onClick={() => inputRef.current?.click()}>
                     Choisir un fichier JSON
                 </button>
                 {generatedResult && (
@@ -127,8 +124,14 @@ export function ResultsAnalysisPanel({ generatedResult }: ResultsAnalysisPanelPr
                             label="Monstres invoqués / match · J2"
                             value={analytics.averageDeployments[2].toFixed(1)}
                         />
-                        <MetricCard label="Victoires · J1" value={String(analytics.winsByPlayer[1])} />
-                        <MetricCard label="Victoires · J2" value={String(analytics.winsByPlayer[2])} />
+                        <MetricCard
+                            label="Victoires · J1"
+                            value={String(analytics.winsByPlayer[1])}
+                        />
+                        <MetricCard
+                            label="Victoires · J2"
+                            value={String(analytics.winsByPlayer[2])}
+                        />
                         <MetricCard
                             label="Victoires · PV de la base à 0"
                             value={String(analytics.winsByFinishReason.baseDestroyed)}
@@ -155,12 +158,40 @@ export function ResultsAnalysisPanel({ generatedResult }: ResultsAnalysisPanelPr
                             value={analytics.averageDamageReceived[2].toFixed(1)}
                         />
                         <MetricCard
-                            label="Symboles inutilisés / match · J1"
-                            value={analytics.averageUnusedResources[1].toFixed(1)}
+                            label="Réserve restante / match · J1"
+                            value={analytics.averageRemainingResources[1].toFixed(1)}
                         />
                         <MetricCard
-                            label="Symboles inutilisés / match · J2"
-                            value={analytics.averageUnusedResources[2].toFixed(1)}
+                            label="Réserve restante / match · J2"
+                            value={analytics.averageRemainingResources[2].toFixed(1)}
+                        />
+                        <MetricCard
+                            label="Symboles dépensés / match (Inv/Att/Mvt) · J1"
+                            value={
+                                analytics.averageSymbolsSpent[1]
+                                    ? `${analytics.averageSymbolsSpent[1].invocation.toFixed(1)} / ${analytics.averageSymbolsSpent[1].attack.toFixed(1)} / ${analytics.averageSymbolsSpent[1].movement.toFixed(1)}`
+                                    : "Non mesuré"
+                            }
+                        />
+                        <MetricCard
+                            label="Symboles dépensés / match (Inv/Att/Mvt) · J2"
+                            value={
+                                analytics.averageSymbolsSpent[2]
+                                    ? `${analytics.averageSymbolsSpent[2].invocation.toFixed(1)} / ${analytics.averageSymbolsSpent[2].attack.toFixed(1)} / ${analytics.averageSymbolsSpent[2].movement.toFixed(1)}`
+                                    : "Non mesuré"
+                            }
+                        />
+                        <MetricCard
+                            label="Perte nette de conversion / match · J1"
+                            value={
+                                analytics.averageConversionLosses[1]?.toFixed(1) ?? "Non mesuré"
+                            }
+                        />
+                        <MetricCard
+                            label="Perte nette de conversion / match · J2"
+                            value={
+                                analytics.averageConversionLosses[2]?.toFixed(1) ?? "Non mesuré"
+                            }
                         />
                         <MetricCard
                             label="Positions explorées / match · J1"

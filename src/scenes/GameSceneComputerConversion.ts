@@ -217,16 +217,13 @@ export abstract class GameSceneComputerConversion extends GameSceneMovement {
                 this.rolledDice,
                 reserve,
             );
+            const deployedCosts = this.placedMonsters
+                .filter((placed) => placed.owner === 2)
+                .map((placed) => placed.monster.cost);
             const nextAffordable = this.getDeckMonsters(2)
                 .filter((monster) => monster.cost <= invocationCount)
                 .filter((monster) =>
-                    canDeployMonsterForProfile(
-                        monster,
-                        this.opponentProfile,
-                        this.placedMonsters
-                            .filter((placed) => placed.owner === 2)
-                            .map((placed) => placed.monster.cost),
-                    ),
+                    canDeployMonsterForProfile(monster, this.opponentProfile, deployedCosts),
                 )
                 .reduce((lowest, monster) => Math.min(lowest, monster.cost), Infinity);
             if (Number.isFinite(nextAffordable)) protectedCounts.invocation = nextAffordable;

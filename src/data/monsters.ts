@@ -233,6 +233,12 @@ export const MONSTERS: Monster[] = [
         hp: 5,
         attacks: [
             {
+                name: "Coup de baton",
+                damage: 1,
+                cost: 1,
+                pattern: { type: "adjacent" },
+            },
+            {
                 name: "Foulée bénie",
                 damage: 0,
                 cost: 1,
@@ -267,6 +273,12 @@ export const MONSTERS: Monster[] = [
         cost: 4,
         hp: 5,
         attacks: [
+            {
+                name: "Coup de baton",
+                damage: 1,
+                cost: 1,
+                pattern: { type: "adjacent" },
+            },
             {
                 name: "Soin",
                 damage: 0,

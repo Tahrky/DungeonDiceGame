@@ -16,23 +16,14 @@ import {
     hasLineOfSight,
     isBehind,
 } from "../game/monsterActions";
-import {
-    getStartingPositions,
-    isBoardCell,
-    type BoardDefinition,
-} from "../game/boards";
-import {
-    getMonsterEliminationWinner,
-} from "../game/matchRules";
+import { getStartingPositions, isBoardCell, type BoardDefinition } from "../game/boards";
+import { getMonsterEliminationWinner } from "../game/matchRules";
 import {
     applyStatusEffectsAtTurnStart,
     clearStatusEffects,
     healMonster,
 } from "../game/statusEffects";
-import {
-    scoreTacticalAttack,
-    type TacticalAttackValue,
-} from "../game/botStrategy";
+import { scoreTacticalAttack, type TacticalAttackValue } from "../game/botStrategy";
 import type {
     Monster,
     PlayerId,
@@ -115,9 +106,7 @@ function isValidAttackCell(
 
     const target = state.monsters.find(
         (monster) =>
-            monster.currentHp > 0 &&
-            monster.position.x === cell.x &&
-            monster.position.y === cell.y,
+            monster.currentHp > 0 && monster.position.x === cell.x && monster.position.y === cell.y,
     );
     if (!target || (target.id === attacker.id && !attack.targetsSelf)) return false;
     if (!canTargetMonsterOwner(attack, target.owner, state.currentPlayer)) return false;
@@ -190,11 +179,7 @@ function evaluateAttack(
     const affectedCells = isAreaAttack(attack) ? cells : [target];
     for (const cell of affectedCells) {
         if (!isBoardCell(board, cell)) continue;
-        if (
-            canHitBase &&
-            cell.x === enemyStart.x &&
-            cell.y === enemyStart.y
-        ) {
+        if (canHitBase && cell.x === enemyStart.x && cell.y === enemyStart.y) {
             value.baseDamage = 1;
             continue;
         }
@@ -215,10 +200,7 @@ function evaluateAttack(
             value.damage += effectiveDamage;
             if (damage >= victim.currentHp) value.kills++;
             const effect = attack.statusEffect;
-            if (
-                effect &&
-                !victim.statusEffects.some((existing) => existing.type === effect.type)
-            ) {
+            if (effect && !victim.statusEffects.some((existing) => existing.type === effect.type)) {
                 value.statusDamage +=
                     effect.damagePerTurn *
                     Math.min(2, typeof effect.duration === "number" ? effect.duration : 2);
@@ -254,11 +236,7 @@ function getAttackChoices(
     )
         .filter(({ target, cells }) => {
             if (!isBoardCell(board, target)) return false;
-            if (
-                target.x === enemyStart.x &&
-                target.y === enemyStart.y &&
-                !canHitBase
-            ) {
+            if (target.x === enemyStart.x && target.y === enemyStart.y && !canHitBase) {
                 return false;
             }
             if (!isAreaAttack(attack) && !hasLineOfSight(attacker.position, target, blockers)) {
@@ -274,27 +252,18 @@ function getAttackChoices(
             attackIndex,
             ...option,
             score: scoreTacticalAttack(
-                evaluateAttack(
-                    state,
-                    board,
-                    attacker,
-                    attackIndex,
-                    option.target,
-                    option.cells,
-                ),
+                evaluateAttack(state, board, attacker, attackIndex, option.target, option.cells),
                 getAttackCost(attack, attacker.turnBuffs?.attackCostReduction ?? 0),
                 state.tactics[state.currentPlayer],
                 state.health[opposingPlayer(state.currentPlayer)],
+                state.profiles[state.currentPlayer],
             ),
         }))
         .filter((choice) => choice.score > 0);
     return choices;
 }
 
-function chooseAttack(
-    state: MatchState,
-    board: BoardDefinition,
-): AttackChoice | null {
+function chooseAttack(state: MatchState, board: BoardDefinition): AttackChoice | null {
     const choices: AttackChoice[] = [];
     for (const attacker of getPlayerMonsters(state, state.currentPlayer)) {
         if (
@@ -306,17 +275,11 @@ function chooseAttack(
             continue;
         }
         for (const [attackIndex, attack] of attacker.monster.attacks.entries()) {
-            const cost = getAttackCost(
-                attack,
-                attacker.turnBuffs?.attackCostReduction ?? 0,
-            );
+            const cost = getAttackCost(attack, attacker.turnBuffs?.attackCostReduction ?? 0);
             if (
                 !canSpend(state, state.currentPlayer, "attack", cost) ||
                 (attacker.attackCooldowns[attackIndex] ?? 0) > 0 ||
-                !canUseMonsterAttackThisTurn(
-                    attack,
-                    attacker.attackUsesThisTurn[attackIndex] ?? 0,
-                )
+                !canUseMonsterAttackThisTurn(attack, attacker.attackUsesThisTurn[attackIndex] ?? 0)
             ) {
                 continue;
             }
@@ -368,7 +331,9 @@ function getJumpLanding(
         .filter(
             (cell) =>
                 state.monsters.some((monster) =>
-                    monster.cells.some((deployed) => deployed.x === cell.x && deployed.y === cell.y),
+                    monster.cells.some(
+                        (deployed) => deployed.x === cell.x && deployed.y === cell.y,
+                    ),
                 ) &&
                 !occupied.some((position) => position.x === cell.x && position.y === cell.y) &&
                 !starts.some((position) => position.x === cell.x && position.y === cell.y),
@@ -395,8 +360,7 @@ function executeAttack(state: MatchState, board: BoardDefinition, choice: Attack
     if (!spend(state, player, "attack", cost)) return;
     attacker.facing = getFacingFromMovement(attacker.position, target, attacker.facing);
     attacker.attacksUsedThisTurn++;
-    attacker.attackUsesThisTurn[attackIndex] =
-        (attacker.attackUsesThisTurn[attackIndex] ?? 0) + 1;
+    attacker.attackUsesThisTurn[attackIndex] = (attacker.attackUsesThisTurn[attackIndex] ?? 0) + 1;
     if (attack.cooldownTurns !== undefined) {
         attacker.attackCooldowns[attackIndex] = attack.cooldownTurns;
     }
@@ -451,10 +415,7 @@ function executeAttack(state: MatchState, board: BoardDefinition, choice: Attack
             ) {
                 continue;
             }
-            const damage = getAttackDamage(
-                attack,
-                attacker.turnBuffs?.attackDamageBonus ?? 0,
-            );
+            const damage = getAttackDamage(attack, attacker.turnBuffs?.attackDamageBonus ?? 0);
             victim.currentHp -= damage;
             actualDamage += damage;
             stats.damageDealt += damage;
@@ -485,7 +446,7 @@ function executeAttack(state: MatchState, board: BoardDefinition, choice: Attack
             isBehind(targetMonster.position, attacker.position, targetMonster.facing);
         const damage =
             getAttackDamage(attack, attacker.turnBuffs?.attackDamageBonus ?? 0) +
-            (backstab ? attacker.monster.bonusDamageFromBehind ?? 0 : 0);
+            (backstab ? (attacker.monster.bonusDamageFromBehind ?? 0) : 0);
         targetMonster.currentHp -= damage;
         actualDamage = damage;
         stats.damageDealt += damage;
@@ -529,8 +490,7 @@ function executeAttack(state: MatchState, board: BoardDefinition, choice: Attack
         ...(state.debug
             ? {
                   debug: {
-                      situation:
-                          `base J${player}=${state.health[player]}, base adverse=${state.health[opposingPlayer(player)]}`,
+                      situation: `base J${player}=${state.health[player]}, base adverse=${state.health[opposingPlayer(player)]}`,
                       candidates: 1,
                       depth: 1,
                       positionsExplored: state.monsters.length,
@@ -548,10 +508,7 @@ function executeAttack(state: MatchState, board: BoardDefinition, choice: Attack
         damage: actualDamage,
         to: target,
     });
-    state.winner ??= getMonsterEliminationWinner(
-        state.monsters,
-        state.monstersKilledForVictory,
-    );
+    state.winner ??= getMonsterEliminationWinner(state.monsters, state.monstersKilledForVictory);
     if (state.winner !== null && state.finishReason !== "baseDestroyed") {
         state.finishReason = "monstersEliminated";
     }
@@ -599,9 +556,6 @@ export function beginTurn(
 export function finishPlayerTurn(state: MatchState, player: PlayerId): void {
     for (const monster of state.monsters) {
         if (monster.owner === player) clearMonsterTurnBuff(monster);
-    }
-    for (const symbol of ["invocation", "attack", "movement"] as const) {
-        state.statistics[player].unusedResources[symbol] += state.reserves[player][symbol];
     }
     addEvent(state, player, "turnEnd", `Fin du tour ${state.turn}.`);
 }

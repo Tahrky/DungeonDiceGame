@@ -277,8 +277,9 @@ function migrateGameConfiguration(value: unknown): unknown {
 
     let monsters = value.monsters;
     if (value.version === 1) {
-        const defaultHealPattern = MONSTERS.find((monster) => monster.id === "priest")?.attacks[0]
-            .pattern;
+        const defaultHealPattern = MONSTERS.find((monster) => monster.id === "priest")?.attacks.find(
+            (attack) => attack.name === "Soin",
+        )?.pattern;
         monsters = value.monsters.map((monster) => {
             if (!isRecord(monster) || monster.id !== "priest" || !Array.isArray(monster.attacks)) {
                 return monster;

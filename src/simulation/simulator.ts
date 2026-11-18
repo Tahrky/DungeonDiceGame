@@ -1,12 +1,21 @@
 import { DICE } from "../data/dice";
 import { getDefaultBoard, type BoardDefinition } from "../game/boards";
 import { getDefaultGameConfiguration, type GameConfiguration } from "../game/gameConfiguration";
+import { getInvokedMonsterCount } from "../game/matchRules";
+import { getAttackCost, getMovementCost } from "../game/monsterActions";
 import type { PlayerId } from "../types/GameTypes";
-import { buildMatchBoard, createStats, deployMonsters, type MatchState } from "./matchState";
+import {
+    buildMatchBoard,
+    createStats,
+    deployMonsters,
+    hasAvailablePlacement,
+    type MatchState,
+} from "./matchState";
 import { beginTurn, finishPlayerTurn, performAttacks } from "./combat";
 import { performMovements } from "./movement";
 import { chooseDeck } from "./strategies";
 import {
+    canDeployMonsterForProfile,
     chooseBotTactic,
     chooseSymbolConversion,
     scoreMonsterForProfile,
@@ -123,14 +132,32 @@ function createMatch(
                 description: `Décision stratégique : ${decision.description}.`,
             });
 
+            const deployedCosts = state.monsters
+                .filter((monster) => monster.owner === player)
+                .map((monster) => monster.monster.cost);
+            const invocableMonsters =
+                getInvokedMonsterCount(state.monsters, player) <
+                    configuration.maxMonstersPerPlayer && hasAvailablePlacement(state, board, player)
+                    ? decks[player]
+                          .map((id) =>
+                              configuration.monsters.find((monster) => monster.id === id),
+                          )
+                          .filter(
+                              (monster) =>
+                                  monster !== undefined &&
+                                  canDeployMonsterForProfile(
+                                      monster,
+                                      profiles[player],
+                                      deployedCosts,
+                                  ),
+                          )
+                    : [];
+
             for (let conversion = 0; conversion < 3; conversion++) {
                 const reserve = state.reserves[player];
                 const opportunities = {
-                    invocation: decks[player].reduce((best, id) => {
-                        const monster = configuration.monsters.find(
-                            (candidate) => candidate.id === id,
-                        );
-                        return monster && monster.cost <= reserve.invocation + 1
+                    invocation: invocableMonsters.reduce((best, monster) => {
+                        return monster.cost > reserve.invocation
                             ? Math.max(best, scoreMonsterForProfile(monster, profiles[player]) + 1)
                             : best;
                     }, 0),
@@ -143,22 +170,35 @@ function createMatch(
                                     (monster.monster.attackActionsPerTurn ?? 1),
                         )
                         .reduce(
-                            (best, monster) =>
-                                Math.max(
-                                    best,
-                                    ...monster.monster.attacks.map((attack) =>
-                                        attack.cost <= reserve.attack + 1 ? 1 : 0,
-                                    ),
-                                ),
+                            (best, monster) => {
+                                for (const attack of monster.monster.attacks) {
+                                    const cost = getAttackCost(
+                                        attack,
+                                        monster.turnBuffs?.attackCostReduction ?? 0,
+                                    );
+                                    if (cost > reserve.attack) {
+                                        best = Math.max(best, 1);
+                                    }
+                                }
+                                return best;
+                            },
                             0,
                         ),
-                    movement: state.monsters.some(
-                        (monster) =>
-                            monster.owner === player &&
-                            monster.currentHp > 0 &&
-                            monster.movementsUsedThisTurn <
-                                (monster.monster.movementActionsPerTurn ?? 1),
-                    )
+                    movement: state.monsters.some((monster) => {
+                        if (
+                            monster.owner !== player ||
+                            monster.currentHp <= 0 ||
+                            monster.movementsUsedThisTurn >=
+                                (monster.monster.movementActionsPerTurn ?? 1)
+                        ) {
+                            return false;
+                        }
+                        const cost = getMovementCost(
+                            monster.monster,
+                            monster.turnBuffs?.movementCostReduction ?? 0,
+                        );
+                        return cost > reserve.movement;
+                    })
                         ? 1
                         : 0,
                 };
@@ -170,6 +210,7 @@ function createMatch(
                 if (!choice) break;
                 if (!convertReservedSymbols(reserve, choice.sourceSymbols, choice.targetSymbol))
                     break;
+                state.statistics[player].conversionLosses++;
                 state.history.push({
                     turn,
                     player,
@@ -247,11 +288,14 @@ export function runSimulations(
 
     const matches = Array.from({ length: options.games }, (_, index) => {
         const matchIndex = startIndex + index;
-        const profilePair = options.profilePairs?.[matchIndex % options.profilePairs.length];
+        const profilePairCount = options.profilePairs?.length ?? 1;
+        const pairIndex = matchIndex % profilePairCount;
+        const repetitionIndex = Math.floor(matchIndex / profilePairCount);
+        const profilePair = options.profilePairs?.[pairIndex];
         return createMatch(
             matchIndex + 1,
             (options.seed + matchIndex) >>> 0,
-            matchIndex % 2 === 0 ? 1 : 2,
+            (pairIndex + repetitionIndex) % 2 === 0 ? 1 : 2,
             profilePair ? { ...options, ...profilePair } : options,
             configuration,
             board,
