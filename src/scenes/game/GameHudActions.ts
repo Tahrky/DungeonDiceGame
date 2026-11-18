@@ -2,7 +2,9 @@ import {
     INVOCATION_PANEL_WIDTH,
     INVOCATION_ROW_HEIGHT,
     INVOCATION_ROW_GAP,
-    ACTION_PANEL_Y,
+    INVOCATION_BUTTON_Y,
+    INVOCATION_BUTTON_GAP,
+    HUD_BUTTON_HEIGHT,
     getHudRightX,
     getHudTopY,
 } from "./GameHudBase";
@@ -67,7 +69,7 @@ export abstract class GameHudActionsPanel extends GameHudReserves {
         this.addButton(
             `INVOCATION ${DICE_SYMBOL_PRESENTATION.invocation.emoji} (${availableInvocationCount}) ${invocationArrow}`,
             rightX,
-            getHudTopY(this.scene, 12),
+            getHudTopY(this.scene, INVOCATION_BUTTON_Y),
             actions.toggleInvocationMenu,
             {
                 enabled: state.actionMode.type === "idle" && !state.pendingCells,
@@ -196,7 +198,10 @@ export abstract class GameHudActionsPanel extends GameHudReserves {
 
     protected renderActionStatus(state: GameViewState, actions: GameHudActions): void {
         const rightX = getHudRightX(this.scene);
-        const actionPanelY = getHudTopY(this.scene, ACTION_PANEL_Y);
+        const actionPanelY =
+            getHudTopY(this.scene, INVOCATION_BUTTON_Y) +
+            HUD_BUTTON_HEIGHT +
+            INVOCATION_BUTTON_GAP;
         if (state.actionMode.type === "convertSymbols") return;
         if (state.actionMode.type === "attack") {
             const actionMode = state.actionMode;

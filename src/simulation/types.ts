@@ -13,12 +13,18 @@ import type { BotProfile } from "../game/botStrategy";
 export { BOT_PROFILES } from "../game/botStrategy";
 export type { BotProfile } from "../game/botStrategy";
 
+export interface ProfilePair {
+    profile1: BotProfile;
+    profile2: BotProfile;
+}
+
 export interface SimulationOptions {
     games: number;
     seed: number;
     maxTurns: number;
     profile1: BotProfile;
     profile2: BotProfile;
+    profilePairs?: readonly ProfilePair[];
     debug?: boolean;
     configurationFile?: string;
     deck1?: string[];

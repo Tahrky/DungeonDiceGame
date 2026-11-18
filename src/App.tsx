@@ -13,13 +13,22 @@ import { GAME_CONFIG } from "./config";
 import { getDefaultBoard, getRandomBoard, getTestBoard, parseBoardDefinition } from "./game/boards";
 import { getDefaultDeck, getSavedDeck, parseDeck, type GameSetup } from "./game/decks";
 import { chooseDeck, type BotProfile } from "./game/botStrategy";
+import type { GameSnapshot } from "./types/GameTypes";
 import {
     getSavedGameConfiguration,
     parseGameConfiguration,
     type GameConfiguration,
 } from "./game/gameConfiguration";
-
-import type { GameSnapshot, PlayerId, RemoteGameCommand } from "./types/GameTypes";
+import type { PlayerId, RemoteGameCommand } from "./types/GameTypes";
+import {
+    clearGameSession,
+    clearSimulationRun,
+    getRecoverableScreen,
+    getRecoverySessionId,
+    loadGameSession,
+    saveActiveScreen,
+    saveGameSession,
+} from "./sessionPersistence";
 
 type RoomRole = "host" | "guest";
 type RoomStatus = "connecting" | "connected" | "error";
@@ -79,6 +88,7 @@ function startOnlineGame(
 }
 
 export function App() {
+    const [sessionId] = useState(getRecoverySessionId);
     const gameContainerRef = useRef<HTMLDivElement>(null);
     const gameRef = useRef<Phaser.Game | null>(null);
     const gameInitializationRef = useRef<Promise<void> | null>(null);
@@ -87,10 +97,14 @@ export function App() {
     const hostClientIdRef = useRef<string | null>(null);
     const guestClientIdRef = useRef<string | null>(null);
     const roomStartRequestedRef = useRef(false);
+    const activeGameSetupRef = useRef<GameSetup | null>(null);
+    const activeGameRoomRef = useRef<{ roomCode: string; roomRole: RoomRole } | null>(null);
     const [game, setGame] = useState<Phaser.Game | null>(null);
     const [isGameLoading, setIsGameLoading] = useState(false);
     const [gameLoadError, setGameLoadError] = useState("");
-    const [screen, setScreen] = useState<AppScreenName>("menu");
+    const [screen, setScreen] = useState<AppScreenName>(() => getRecoverableScreen() ?? "menu");
+    const [isRestoring, setIsRestoring] = useState(() => getRecoverableScreen() === "game");
+    const [recoveryError, setRecoveryError] = useState("");
     const [gameConfiguration, setGameConfiguration] = useState(getSavedGameConfiguration);
     const [opponentProfile, setOpponentProfile] = useState<BotProfile>("balanced");
     const [roomCode, setRoomCode] = useState("");
@@ -102,6 +116,44 @@ export function App() {
         !import.meta.env.DEV &&
         !["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
 
+    const navigateTo = useCallback(
+        (nextScreen: AppScreenName): void => {
+            try {
+                saveActiveScreen(
+                    nextScreen === "game" || nextScreen === "simulation" ? nextScreen : null,
+                );
+            } catch (error) {
+                setRecoveryError(
+                    error instanceof Error
+                        ? error.message
+                        : "Impossible de mémoriser l’écran actif.",
+                );
+            }
+            setScreen(nextScreen);
+            if (nextScreen !== "game") {
+                activeGameSetupRef.current = null;
+                activeGameRoomRef.current = null;
+                void clearGameSession(sessionId).catch((error: unknown) =>
+                    setRecoveryError(
+                        error instanceof Error
+                            ? error.message
+                            : "Impossible d’effacer la sauvegarde de la partie.",
+                    ),
+                );
+            }
+            if (nextScreen !== "simulation") {
+                void clearSimulationRun(sessionId).catch((error: unknown) =>
+                    setRecoveryError(
+                        error instanceof Error
+                            ? error.message
+                            : "Impossible d’effacer la sauvegarde de la simulation.",
+                    ),
+                );
+            }
+        },
+        [sessionId],
+    );
+
     useEffect(() => {
         isMountedRef.current = true;
         return () => {
@@ -111,9 +163,9 @@ export function App() {
         };
     }, []);
 
-    function initializeGame(): Promise<void> {
-        if (gameRef.current) return Promise.resolve();
+    const initializeGame = useCallback((): Promise<void> => {
         if (gameInitializationRef.current) return gameInitializationRef.current;
+        if (gameRef.current) return Promise.resolve();
 
         setIsGameLoading(true);
         setGameLoadError("");
@@ -144,17 +196,42 @@ export function App() {
                 });
                 gameRef.current = instance;
                 setGame(instance);
+                instance.events.on("persist-game-snapshot", (snapshot: GameSnapshot) => {
+                    const setup = activeGameSetupRef.current;
+                    if (!setup) return;
+                    const room = activeGameRoomRef.current;
+                    void saveGameSession(
+                        sessionId,
+                        setup,
+                        snapshot,
+                        room?.roomCode ?? null,
+                        room?.roomRole ?? null,
+                    ).catch((error: unknown) =>
+                        setRecoveryError(
+                            error instanceof Error
+                                ? `Sauvegarde de la partie impossible : ${error.message}`
+                                : "Sauvegarde de la partie impossible.",
+                        ),
+                    );
+                });
 
                 const handleLeaveGame = (): void => {
                     instance.scene.stop("GameScene");
                     roomStartRequestedRef.current = false;
+                    activeGameSetupRef.current = null;
+                    activeGameRoomRef.current = null;
                     setRoomRole(null);
                     setRoomCode("");
                     setRoomPlayers([]);
                     setRoomError("");
-                    setScreen("menu");
+                    navigateTo("menu");
                 };
                 instance.events.on("leave-game", handleLeaveGame);
+                if (!instance.isBooted) {
+                    await new Promise<void>((resolve) =>
+                        instance.events.once(PhaserRuntime.Core.Events.READY, resolve),
+                    );
+                }
             } catch (error) {
                 if (isMountedRef.current) {
                     setGameLoadError(`Chargement du jeu impossible : ${getErrorMessage(error)}`);
@@ -166,12 +243,68 @@ export function App() {
         })();
         gameInitializationRef.current = initialization;
         return initialization;
-    }
+    }, [navigateTo, sessionId]);
 
     function openPlayMenu(): void {
-        setScreen("play-menu");
+        navigateTo("play-menu");
         void initializeGame();
     }
+
+    useEffect(() => {
+        if (screen !== "game" || !isRestoring) return;
+
+        let active = true;
+        void loadGameSession(sessionId)
+            .then(async (saved) => {
+                if (!active) return;
+                if (!saved) throw new Error("Aucune sauvegarde de partie à restaurer.");
+
+                activeGameSetupRef.current = saved.setup;
+                activeGameRoomRef.current =
+                    saved.roomCode && saved.roomRole
+                        ? { roomCode: saved.roomCode, roomRole: saved.roomRole }
+                        : null;
+                if (saved.roomRole === "host") roomStartRequestedRef.current = true;
+                if (saved.roomCode && saved.roomRole) {
+                    setRoomCode(saved.roomCode);
+                    setRoomRole(saved.roomRole);
+                }
+
+                await initializeGame();
+                if (!active) return;
+                const instance = gameRef.current;
+                if (!instance) throw new Error("Le moteur de jeu n’a pas pu être restauré.");
+                instance.scene.stop("GameScene");
+                instance.scene.start("GameScene", {
+                    ...saved.setup,
+                    resumeSnapshot: saved.snapshot,
+                });
+                setIsRestoring(false);
+            })
+            .catch((error: unknown) => {
+                if (!active) return;
+                setRecoveryError(
+                    error instanceof Error
+                        ? `Reprise de la partie impossible : ${error.message}`
+                        : "Reprise de la partie impossible.",
+                );
+                try {
+                    saveActiveScreen(null);
+                } catch (storageError) {
+                    setRecoveryError(
+                        storageError instanceof Error
+                            ? storageError.message
+                            : "Impossible de mémoriser l’écran actif.",
+                    );
+                }
+                navigateTo("menu");
+                setIsRestoring(false);
+            });
+
+        return () => {
+            active = false;
+        };
+    }, [initializeGame, isRestoring, screen, sessionId]);
 
     useEffect(() => {
         if (screen !== "game" || !game) return;
@@ -205,12 +338,12 @@ export function App() {
             if (event.altKey || event.ctrlKey || event.metaKey || event.repeat) return;
             if (screen === "menu" && event.key.toLowerCase() === "s") {
                 event.preventDefault();
-                setScreen("simulation");
+                navigateTo("simulation");
             }
         };
         window.addEventListener("keydown", handleMenuShortcut);
         return () => window.removeEventListener("keydown", handleMenuShortcut);
-    }, [screen]);
+    }, [navigateTo, screen]);
 
     useEffect(() => {
         if (!roomCode || !roomRole) return;
@@ -284,6 +417,16 @@ export function App() {
                 return;
             }
             try {
+                activeGameSetupRef.current = {
+                    mode: "online",
+                    localPlayer: 2,
+                    isHost: false,
+                    playerDeck: guestDeck,
+                    opponentDeck: hostDeck,
+                    board,
+                    configuration,
+                };
+                activeGameRoomRef.current = { roomCode, roomRole };
                 startOnlineGame(
                     gameRef.current,
                     2,
@@ -293,7 +436,7 @@ export function App() {
                     board,
                     configuration,
                 );
-                setScreen("game");
+                navigateTo("game");
             } catch (error) {
                 setRoomStatus("error");
                 setRoomError(getErrorMessage(error));
@@ -370,7 +513,7 @@ export function App() {
             if (channelRef.current === channel) channelRef.current = null;
             realtime.close();
         };
-    }, [gameConfiguration.deckSize, roomCode, roomRole]);
+    }, [game, gameConfiguration.deckSize, navigateTo, roomCode, roomRole]);
 
     function startComputerGame(profile: BotProfile): void {
         const instance = gameRef.current;
@@ -390,9 +533,11 @@ export function App() {
             board: getConfiguredBoard(gameConfiguration),
             configuration: gameConfiguration,
         };
+        activeGameSetupRef.current = setup;
+        activeGameRoomRef.current = null;
         instance.scene.stop("GameScene");
         instance.scene.start("GameScene", setup);
-        setScreen("game");
+        navigateTo("game");
     }
 
     function startLocalGame(): void {
@@ -408,9 +553,11 @@ export function App() {
             board: getConfiguredBoard(gameConfiguration),
             configuration: gameConfiguration,
         };
+        activeGameSetupRef.current = setup;
+        activeGameRoomRef.current = null;
         instance.scene.stop("GameScene");
         instance.scene.start("GameScene", setup);
-        setScreen("game");
+        navigateTo("game");
     }
 
     function createRoom(): void {
@@ -423,7 +570,7 @@ export function App() {
         setRoomError("");
         setRoomRole("host");
         setRoomCode(code);
-        setScreen("room");
+        navigateTo("room");
     }
 
     function joinRoom(code: string): void {
@@ -454,6 +601,16 @@ export function App() {
         roomStartRequestedRef.current = true;
         try {
             const board = getConfiguredBoard(gameConfiguration);
+            activeGameSetupRef.current = {
+                mode: "online",
+                localPlayer: 1,
+                isHost: true,
+                playerDeck: hostDeck,
+                opponentDeck: guestDeck,
+                board,
+                configuration: gameConfiguration,
+            };
+            activeGameRoomRef.current = { roomCode, roomRole: "host" };
             await channel.publish("start", {
                 hostDeck,
                 guestDeck,
@@ -469,13 +626,13 @@ export function App() {
                 board,
                 gameConfiguration,
             );
-            setScreen("game");
+            navigateTo("game");
         } catch (error) {
             roomStartRequestedRef.current = false;
             setRoomStatus("error");
             setRoomError(getErrorMessage(error));
         }
-    }, [gameConfiguration, roomPlayers, roomRole]);
+    }, [gameConfiguration, navigateTo, roomCode, roomPlayers, roomRole]);
 
     useEffect(() => {
         if (roomRole === "host" && roomStatus === "connected" && roomPlayers.length === 2) {
@@ -489,7 +646,7 @@ export function App() {
         setRoomCode("");
         setRoomPlayers([]);
         setRoomError("");
-        setScreen("play-menu");
+        navigateTo("play-menu");
     }
 
     function leaveGame(): void {
@@ -502,9 +659,12 @@ export function App() {
     return (
         <AppScreen
             screen={screen}
+            sessionId={sessionId}
             game={game}
             gameLoading={isGameLoading}
             gameLoadError={gameLoadError}
+            isRestoring={isRestoring}
+            recoveryError={recoveryError}
             gameContainerRef={gameContainerRef}
             gameConfiguration={gameConfiguration}
             showOnlineOptions={showOnlineOptions}
@@ -514,7 +674,7 @@ export function App() {
             roomPlayerCount={roomPlayers.length}
             roomError={roomError}
             opponentProfile={opponentProfile}
-            onScreenChange={setScreen}
+            onScreenChange={navigateTo}
             onOpenPlay={openPlayMenu}
             onPlay={startComputerGame}
             onOpponentProfileChange={setOpponentProfile}

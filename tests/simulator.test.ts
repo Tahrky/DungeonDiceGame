@@ -48,6 +48,26 @@ describe("simulation de matchs", () => {
         expect(first.matches).toEqual(second.matches);
     });
 
+    it("utilise la paire de profils correspondant à l’index global du match", () => {
+        const result = runSimulations({
+            games: 3,
+            seed: 42,
+            maxTurns: 1,
+            profile1: "cheap",
+            profile2: "offensive",
+            profilePairs: [
+                { profile1: "balanced", profile2: "cheap" },
+                { profile1: "tracker", profile2: "support" },
+            ],
+        });
+
+        expect(result.matches.map(({ profiles }) => profiles)).toEqual([
+            { 1: "balanced", 2: "cheap" },
+            { 1: "tracker", 2: "support" },
+            { 1: "balanced", 2: "cheap" },
+        ]);
+    });
+
     it("attribue une lettre unique même aux symboles de configuration dupliqués", () => {
         const symbols = getUniqueMonsterSymbols([
             { id: "first", symbol: "Q" },

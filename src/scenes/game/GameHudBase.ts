@@ -97,7 +97,9 @@ export const INVOCATION_ROW_HEIGHT = 40;
 
 export const INVOCATION_ROW_GAP = 44;
 
-export const ACTION_PANEL_Y = 58;
+export const INVOCATION_BUTTON_Y = 12;
+
+export const INVOCATION_BUTTON_GAP = 8;
 
 export const ACTION_LOG_TOP_OFFSET = 136;
 

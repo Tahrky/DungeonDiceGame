@@ -253,7 +253,7 @@ main {
     font-weight: 700;
 }
 
-.settings-field input,
+.settings-field input:not([type="checkbox"]),
 .settings-field select {
     width: 100%;
     min-height: 40px;
@@ -264,7 +264,7 @@ main {
     background: #151e28;
 }
 
-.settings-field input:focus,
+.settings-field input:not([type="checkbox"]):focus,
 .settings-field select:focus,
 .settings-monster textarea:focus {
     border-color: var(--accent-gold);

@@ -231,17 +231,28 @@ export function runSimulations(
     if (!Number.isInteger(options.seed) || options.seed < 0 || options.seed > 0xffff_ffff) {
         throw new RangeError("La seed doit être un entier non signé de 32 bits.");
     }
+    if (
+        options.profilePairs !== undefined &&
+        (options.profilePairs.length === 0 ||
+            options.profilePairs.some(
+                ({ profile1, profile2 }) =>
+                    !BOT_PROFILES.includes(profile1) || !BOT_PROFILES.includes(profile2),
+            ))
+    ) {
+        throw new RangeError("La liste des confrontations entre profils est invalide.");
+    }
     if (!Number.isSafeInteger(startIndex) || startIndex < 0) {
         throw new RangeError("L’index de départ doit être un entier non négatif.");
     }
 
     const matches = Array.from({ length: options.games }, (_, index) => {
         const matchIndex = startIndex + index;
+        const profilePair = options.profilePairs?.[matchIndex % options.profilePairs.length];
         return createMatch(
             matchIndex + 1,
             (options.seed + matchIndex) >>> 0,
             matchIndex % 2 === 0 ? 1 : 2,
-            options,
+            profilePair ? { ...options, ...profilePair } : options,
             configuration,
             board,
         );

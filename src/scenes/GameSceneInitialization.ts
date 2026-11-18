@@ -136,7 +136,15 @@ export abstract class GameSceneInitialization extends GameSceneComputer {
             this.monsterSpriteView.createAnimations(monsterIds, IDLE_ACTIONS);
             this.monsterSpriteView.setReady();
             this.assetsReady = true;
+            if (this.pendingResumeSnapshot) {
+                this.applySnapshot(this.pendingResumeSnapshot);
+                this.pendingResumeSnapshot = null;
+            }
             this.render();
+            if (this.computerOpponent && this.currentPlayer === 2 && this.winner === null) {
+                this.computerTurnInProgress = true;
+                this.time.delayedCall(450, () => this.playComputerTurn());
+            }
 
             if (failedFiles.length > 0) {
                 console.error("Échec du chargement de sprites :", failedFiles);

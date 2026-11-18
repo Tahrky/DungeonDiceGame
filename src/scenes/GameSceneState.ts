@@ -141,6 +141,8 @@ export abstract class GameSceneState extends Phaser.Scene {
 
     protected nextMonsterId = 1;
 
+    protected pendingResumeSnapshot: GameSnapshot | null = null;
+
     protected board = getDefaultBoard();
 
     protected startingPositions = getStartingPositions(this.board);
@@ -151,6 +153,10 @@ export abstract class GameSceneState extends Phaser.Scene {
 
     init(data?: Partial<GameSetup>): void {
         this.hasGameSetup = data?.mode !== undefined;
+        this.pendingResumeSnapshot =
+            data?.resumeSnapshot && isGameSnapshot(data.resumeSnapshot)
+                ? data.resumeSnapshot
+                : null;
         const configuration = data?.configuration
             ? parseGameConfiguration(data.configuration)
             : getDefaultGameConfiguration();
@@ -262,6 +268,9 @@ export abstract class GameSceneState extends Phaser.Scene {
         this.drawBoard();
         this.monsterSpriteView.render(this.placedMonsters, this.getGrayscaleMonsterIds());
         this.gameHud.render(this.viewState, this.hudActions);
+        if (this.assetsReady && !this.computerTurnInProgress) {
+            this.game.events.emit("persist-game-snapshot", this.createSnapshot());
+        }
         if (this.mode === "online" && this.isHost) {
             this.game.events.emit("remote-game-state-out", this.createSnapshot());
         }
@@ -414,6 +423,11 @@ export abstract class GameSceneState extends Phaser.Scene {
             }
         }
 
+        this.applySnapshot(value);
+        this.render();
+    }
+
+    protected applySnapshot(value: GameSnapshot): void {
         this.currentPlayer = value.currentPlayer;
         this.turnNumber = value.turnNumber;
         this.playerHealth = value.playerHealth;
@@ -442,7 +456,6 @@ export abstract class GameSceneState extends Phaser.Scene {
         this.actionHistory = value.actionHistory;
         this.actionHistoryScrollOffset = value.actionHistoryScrollOffset;
         this.nextMonsterId = value.nextMonsterId;
-        this.render();
     }
 
     protected getDeckMonsters(player: PlayerId): Monster[] {

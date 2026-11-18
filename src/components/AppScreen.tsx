@@ -29,9 +29,12 @@ export type AppScreenName =
 
 interface AppScreenProps {
     screen: AppScreenName;
+    sessionId: string;
     game: Phaser.Game | null;
     gameLoading: boolean;
     gameLoadError: string;
+    isRestoring: boolean;
+    recoveryError: string;
     gameContainerRef: RefObject<HTMLDivElement | null>;
     gameConfiguration: GameConfiguration;
     showOnlineOptions: boolean;
@@ -55,9 +58,12 @@ interface AppScreenProps {
 
 export function AppScreen({
     screen,
+    sessionId,
     game,
     gameLoading,
     gameLoadError,
+    isRestoring,
+    recoveryError,
     gameContainerRef,
     gameConfiguration,
     showOnlineOptions,
@@ -85,6 +91,16 @@ export function AppScreen({
             </header>
 
             <main>
+                {isRestoring && (
+                    <output className="notice" role="status">
+                        Restauration de la partie…
+                    </output>
+                )}
+                {recoveryError && (
+                    <output className="notice" role="alert">
+                        {recoveryError}
+                    </output>
+                )}
                 {screen === "menu" && (
                     <MainMenu
                         onOpenPlay={onOpenPlay}
@@ -101,6 +117,7 @@ export function AppScreen({
                         }
                     >
                         <SimulationLab
+                            sessionId={sessionId}
                             configuration={gameConfiguration}
                             onBack={() => onScreenChange("menu")}
                         />

@@ -3,13 +3,25 @@ import type { PlayerId } from "../types/GameTypes";
 import {
     BOT_PROFILES,
     type BotProfile,
+    type ProfilePair,
     type SimulationBatchResult,
     type SimulationOptions,
 } from "./types";
 
 export const MAX_SIMULATION_WORKERS = 4;
 
+export const CROSS_PROFILE_MATCHUP_COUNT = BOT_PROFILES.length * (BOT_PROFILES.length - 1);
+
 const CHUNKS_PER_WORKER = 4;
+
+export function createCrossProfilePairs(): ProfilePair[] {
+    return BOT_PROFILES.flatMap((profile1) =>
+        BOT_PROFILES.filter((profile2) => profile2 !== profile1).map((profile2) => ({
+            profile1,
+            profile2,
+        })),
+    );
+}
 
 export interface SimulationChunk {
     readonly startIndex: number;

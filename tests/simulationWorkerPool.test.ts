@@ -4,6 +4,8 @@ import { getDefaultGameConfiguration } from "../src/game/gameConfiguration";
 import { runSimulations } from "../src/simulation/simulator";
 import {
     createSimulationChunks,
+    createCrossProfilePairs,
+    CROSS_PROFILE_MATCHUP_COUNT,
     getSimulationWorkerCount,
     mergeSimulationResults,
 } from "../src/simulation/workerPool";
@@ -27,6 +29,21 @@ describe("pool de workers de simulation", () => {
 
         expect(nextStartIndex).toBe(10);
         expect(chunks.length).toBeLessThanOrEqual(12);
+    });
+
+    it("crée toutes les confrontations entre profils dans les deux sens, sans auto-match", () => {
+        const pairs = createCrossProfilePairs();
+
+        expect(pairs).toHaveLength(CROSS_PROFILE_MATCHUP_COUNT);
+        expect(new Set(pairs.map(({ profile1, profile2 }) => `${profile1}:${profile2}`)).size).toBe(
+            CROSS_PROFILE_MATCHUP_COUNT,
+        );
+        expect(pairs.every(({ profile1, profile2 }) => profile1 !== profile2)).toBe(true);
+        expect(
+            pairs.every(({ profile1, profile2 }) =>
+                pairs.some((pair) => pair.profile1 === profile2 && pair.profile2 === profile1),
+            ),
+        ).toBe(true);
     });
 
     it("fusionne des lots dans l’ordre global sans modifier les seeds ni les résultats", () => {

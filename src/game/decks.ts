@@ -1,12 +1,9 @@
 import { MONSTERS } from "../data/monsters";
 import type { BoardDefinition, BoardSelection } from "./boards";
-import {
-    DEFAULT_DECK_SIZE,
-    MAX_AVAILABLE_DECK_SIZE,
-    MIN_DECK_SIZE,
-} from "./gameConfiguration";
+import { DEFAULT_DECK_SIZE, MAX_AVAILABLE_DECK_SIZE, MIN_DECK_SIZE } from "./gameConfiguration";
 import type { GameConfiguration } from "./gameConfiguration";
 import type { PlayerId } from "../types/GameTypes";
+import type { GameSnapshot } from "../types/GameTypes";
 import type { BotProfile } from "./botStrategy";
 
 export const DECK_SIZE = DEFAULT_DECK_SIZE;
@@ -22,6 +19,7 @@ export interface GameSetup {
     boardSelection?: BoardSelection;
     localPlayer?: 1 | 2;
     isHost?: boolean;
+    resumeSnapshot?: GameSnapshot;
 }
 
 export function getDefaultDeck(deckSize = DEFAULT_DECK_SIZE): string[] {

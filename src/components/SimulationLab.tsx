@@ -1,23 +1,24 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import type { GameConfiguration } from "../game/gameConfiguration";
 import type { SimulationBatchResult } from "../simulation/types";
 import { ResultsAnalysisPanel } from "./simulation/ResultsAnalysisPanel";
 import { RunSimulationPanel } from "./simulation/RunSimulationPanel";
 
 interface SimulationLabProps {
+    readonly sessionId: string;
     readonly configuration: GameConfiguration;
     readonly onBack: () => void;
 }
 
-export function SimulationLab({ configuration, onBack }: SimulationLabProps) {
+export function SimulationLab({ sessionId, configuration, onBack }: SimulationLabProps) {
     const [activeTab, setActiveTab] = useState<"run" | "analysis">("run");
     const [isRunning, setIsRunning] = useState(false);
     const [generatedResult, setGeneratedResult] = useState<SimulationBatchResult | null>(null);
 
-    function showResult(result: SimulationBatchResult): void {
+    const showResult = useCallback((result: SimulationBatchResult): void => {
         setGeneratedResult(result);
         setActiveTab("analysis");
-    }
+    }, []);
 
     return (
         <section id="menu-screen" className="simulation-screen">
@@ -47,6 +48,7 @@ export function SimulationLab({ configuration, onBack }: SimulationLabProps) {
                 </nav>
                 <div hidden={activeTab !== "run"}>
                     <RunSimulationPanel
+                        sessionId={sessionId}
                         configuration={configuration}
                         onRunningChange={setIsRunning}
                         onResult={showResult}
