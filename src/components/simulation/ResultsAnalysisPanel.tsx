@@ -220,6 +220,17 @@ export function ResultsAnalysisPanel({ generatedResult }: ResultsAnalysisPanelPr
                                 .sort((first, second) => second.value - first.value)}
                         />
                         <MetricBarChart
+                            title="Dégâts totaux par monstre"
+                            valueLabel="dégâts"
+                            bars={analytics.monsters
+                                .filter((monster) => monster.totalDamage > 0)
+                                .map((monster) => ({
+                                    label: monster.name,
+                                    value: monster.totalDamage,
+                                }))
+                                .sort((first, second) => second.value - first.value)}
+                        />
+                        <MetricBarChart
                             title="Répartition des durées"
                             valueLabel="matchs"
                             bars={analytics.turnDistribution.map(({ turns, matches }) => ({
@@ -246,6 +257,7 @@ export function ResultsAnalysisPanel({ generatedResult }: ResultsAnalysisPanelPr
                                     <th>Invocations</th>
                                     <th>Matchs avec apparition</th>
                                     <th>Attaques</th>
+                                    <th>Dégâts totaux</th>
                                     <th>Dégâts moyens / attaque</th>
                                 </tr>
                             </thead>
@@ -256,6 +268,7 @@ export function ResultsAnalysisPanel({ generatedResult }: ResultsAnalysisPanelPr
                                         <td>{monster.appearances}</td>
                                         <td>{monster.matchesSeen}</td>
                                         <td>{monster.attacks}</td>
+                                        <td>{monster.totalDamage}</td>
                                         <td>{monster.averageDamage.toFixed(2)}</td>
                                     </tr>
                                 ))}

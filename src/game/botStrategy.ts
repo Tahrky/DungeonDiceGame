@@ -223,7 +223,7 @@ export function chooseDeck(
             deck.length === 0
                 ? 0
                 : (monsters.find((monster) => monster.id === deck[deck.length - 1])?.cost ?? 0);
-        const candidates =
+        const preferredCandidates =
             profile !== "expensive"
                 ? remaining
                 : remaining.filter((monster) =>
@@ -231,6 +231,8 @@ export function chooseDeck(
                           ? monster.cost === 2 || monster.cost === 3
                           : monster.cost > previousCost,
                   );
+        const candidates =
+            preferredCandidates.length > 0 ? preferredCandidates : remaining;
         if (candidates.length === 0) break;
         const totalWeight = candidates.reduce((total, _monster, rank) => total + 1 / (rank + 1), 0);
         let selection = Math.max(0, Math.min(1 - Number.EPSILON, random())) * totalWeight;
@@ -444,17 +446,14 @@ export function findObjectiveMovement(
                   ) -
                   Math.min(...enemyPositions.map((enemy) => getGridDistance(destination, enemy)))
                 : 0;
-        if (
-            routeProgress < 0 ||
-            (routeProgress === 0 && objectiveProgress <= 0 && enemyProgress <= 0)
-        ) {
+        if (routeProgress <= 0 && objectiveProgress <= 0 && enemyProgress <= 0) {
             continue;
         }
 
         const path = paths.get(getKey(destination)) ?? [];
         if (path.length < 2) continue;
 
-        const score = routeProgress * 100 + objectiveProgress * 10 + enemyProgress * 6;
+        const score = objectiveProgress * 100 + enemyProgress * 60 + routeProgress * 10;
         if (score <= bestScore) continue;
         bestScore = score;
         best = { position: destination, path, routeProgress };

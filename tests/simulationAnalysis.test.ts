@@ -51,7 +51,11 @@ describe("analyse des résultats de simulation", () => {
         const baselineGhost = analyzeSimulationData(data).monsters.find(
             (monster) => monster.id === "ghost",
         );
+        const baselineSwampThing = analyzeSimulationData(data).monsters.find(
+            (monster) => monster.id === "swamp-thing",
+        );
         if (!baselineGhost) throw new Error("Analyse du fantôme attendue.");
+        if (!baselineSwampThing) throw new Error("Analyse de la créature des marais attendue.");
 
         data.matches[0]!.history.push(
             {
@@ -82,6 +86,17 @@ describe("analyse des résultats de simulation", () => {
                     ?.name,
                 damage: 6,
             },
+            {
+                turn: 1,
+                player: 1,
+                type: "status",
+                description: "La Créature des Marais inflige des dégâts de poison.",
+                monsterId: "placed-swamp-thing",
+                monsterTypeId: "swamp-thing",
+                monsterName: "Créature des Marais",
+                target: "Fantôme (J2)",
+                damage: 4,
+            },
         );
 
         const analytics = analyzeSimulationData(data);
@@ -99,11 +114,16 @@ describe("analyse des résultats de simulation", () => {
             monstersEliminated: 1,
         });
         const ghostAnalysis = analytics.monsters.find((monster) => monster.id === "ghost");
+        const swampThingAnalysis = analytics.monsters.find(
+            (monster) => monster.id === "swamp-thing",
+        );
         expect(ghostAnalysis?.attacks).toBe(baselineGhost.attacks + 3);
         expect(ghostAnalysis?.averageDamage).toBeCloseTo(
             (baselineGhost.averageDamage * baselineGhost.attacks + 12) /
                 (baselineGhost.attacks + 3),
         );
+        expect(swampThingAnalysis?.totalDamage).toBe(baselineSwampThing.totalDamage + 4);
+        expect(swampThingAnalysis?.attacks).toBe(baselineSwampThing.attacks);
         expect(parseSimulationData({ ...batch, schemaVersion: 99 })).toBeNull();
         expect(
             parseSimulationData({

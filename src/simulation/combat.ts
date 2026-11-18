@@ -295,13 +295,23 @@ function chooseAttack(state: MatchState, board: BoardDefinition): AttackChoice |
 function applyStatusEffect(
     target: PlacedMonster,
     effect: StatusEffectDefinition | undefined,
+    source: PlacedMonster,
 ): void {
     if (target.currentHp <= 0) {
         clearStatusEffects(target);
     } else if (effect) {
         target.statusEffects = [
             ...target.statusEffects.filter((existing) => existing.type !== effect.type),
-            { ...effect, remainingTurns: effect.duration },
+            {
+                ...effect,
+                remainingTurns: effect.duration,
+                source: {
+                    id: source.id,
+                    monsterId: source.monster.id,
+                    name: source.monster.name,
+                    owner: source.owner,
+                },
+            },
         ];
     }
 }
@@ -420,7 +430,7 @@ function executeAttack(state: MatchState, board: BoardDefinition, choice: Attack
             actualDamage += damage;
             stats.damageDealt += damage;
             state.statistics[victim.owner].damageReceived += damage;
-            applyStatusEffect(victim, attack.statusEffect);
+            applyStatusEffect(victim, attack.statusEffect, attacker);
             actionTarget = `${victim.monster.name} (J${victim.owner})`;
             if (victim.currentHp <= 0 && victim.owner !== player) {
                 stats.monstersKilled++;
@@ -452,7 +462,7 @@ function executeAttack(state: MatchState, board: BoardDefinition, choice: Attack
         stats.damageDealt += damage;
         state.statistics[targetMonster.owner].damageReceived += damage;
         actionTarget = `${targetMonster.monster.name} (J${targetMonster.owner})`;
-        applyStatusEffect(targetMonster, attack.statusEffect);
+        applyStatusEffect(targetMonster, attack.statusEffect, attacker);
         if (targetMonster.currentHp <= 0) {
             stats.monstersKilled++;
             state.statistics[targetMonster.owner].monstersLost++;
@@ -529,13 +539,33 @@ export function beginTurn(
 ): void {
     state.currentPlayer = player;
     for (const monster of getPlayerMonsters(state, player)) {
+        const healthBefore = monster.currentHp;
+        const source = monster.statusEffects.find(
+            (effect) => effect.type === "damageOverTime" && effect.source,
+        )?.source;
         const damage = applyStatusEffectsAtTurnStart(monster);
         if (damage > 0) {
+            const actualDamage = Math.min(damage, healthBefore);
+            state.statistics[player].damageReceived += actualDamage;
+            if (source) state.statistics[source.owner].damageDealt += actualDamage;
             addEvent(
                 state,
-                player,
+                source?.owner ?? player,
                 "status",
-                `${monster.monster.name} subit ${damage} dégât(s) d'effet de statut.`,
+                source
+                    ? `${source.name} inflige ${actualDamage} dégât(s) de poison à ${monster.monster.name} (J${player}).`
+                    : `${monster.monster.name} subit ${actualDamage} dégât(s) d'effet de statut.`,
+                {
+                    ...(source
+                        ? {
+                              monsterId: source.id,
+                              monsterTypeId: source.monsterId,
+                              monsterName: source.name,
+                          }
+                        : {}),
+                    target: `${monster.monster.name} (J${player})`,
+                    damage: actualDamage,
+                },
             );
         }
         monster.attacksUsedThisTurn = 0;

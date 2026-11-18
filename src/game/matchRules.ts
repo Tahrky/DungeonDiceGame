@@ -1,7 +1,7 @@
 import type { PlacedMonster, PlayerId } from "../types/GameTypes";
+import { DEFAULT_MONSTERS_KILLED_FOR_VICTORY } from "./gameConfiguration";
 
-export const MAX_MONSTERS_PER_PLAYER = 8;
-export const DEFAULT_MONSTERS_KILLED_FOR_VICTORY = 8;
+export { DEFAULT_MONSTERS_KILLED_FOR_VICTORY };
 
 export function getInvokedMonsterCount(
     monsters: readonly PlacedMonster[],

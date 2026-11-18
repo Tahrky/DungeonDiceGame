@@ -58,6 +58,7 @@ export interface MonsterAnalysis {
     name: string;
     appearances: number;
     matchesSeen: number;
+    totalDamage: number;
     averageDamage: number;
     attacks: number;
 }
@@ -224,13 +225,25 @@ export function parseSimulationData(value: unknown): SimulationData | null {
 export function analyzeSimulationData(data: SimulationData): SimulationAnalytics {
     const totals = new Map<
         string,
-        { appearances: number; matchesSeen: number; damage: number; attacks: number }
+        {
+            appearances: number;
+            matchesSeen: number;
+            damage: number;
+            attackDamage: number;
+            attacks: number;
+        }
     >();
     const monsterIdsByName = new Map(
         data.configuration.monsters.map((monster) => [monster.name, monster.id]),
     );
     for (const monster of data.configuration.monsters) {
-        totals.set(monster.id, { appearances: 0, matchesSeen: 0, damage: 0, attacks: 0 });
+        totals.set(monster.id, {
+            appearances: 0,
+            matchesSeen: 0,
+            damage: 0,
+            attackDamage: 0,
+            attacks: 0,
+        });
     }
 
     const turns = new Map<number, number>();
@@ -306,15 +319,19 @@ export function analyzeSimulationData(data: SimulationData): SimulationAnalytics
             totals.get(monsterId)!.matchesSeen++;
         }
         for (const event of match.history) {
-            if (event.type !== "attack") continue;
+            if (event.type !== "attack" && event.type !== "status") continue;
             const monsterTypeId =
                 event.monsterTypeId ??
                 (event.monsterName ? monsterIdsByName.get(event.monsterName) : undefined);
             if (!monsterTypeId) continue;
             const total = totals.get(monsterTypeId);
             if (!total) continue;
-            total.attacks++;
-            total.damage += event.damage ?? 0;
+            const damage = event.damage ?? 0;
+            total.damage += damage;
+            if (event.type === "attack") {
+                total.attacks++;
+                total.attackDamage += damage;
+            }
         }
     }
 
@@ -328,7 +345,8 @@ export function analyzeSimulationData(data: SimulationData): SimulationAnalytics
                     name: monster.name,
                     appearances: total.appearances,
                     matchesSeen: total.matchesSeen,
-                    averageDamage: total.attacks > 0 ? total.damage / total.attacks : 0,
+                    totalDamage: total.damage,
+                    averageDamage: total.attacks > 0 ? total.attackDamage / total.attacks : 0,
                     attacks: total.attacks,
                 };
             })

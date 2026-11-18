@@ -273,9 +273,13 @@ export function deployMonsters(
         const deployedCosts = state.monsters
             .filter((monster) => monster.owner === state.currentPlayer)
             .map((monster) => monster.monster.cost);
-        const choices = deckMonsters
-            .filter((monster) => canSpend(state, state.currentPlayer, "invocation", monster.cost))
-            .filter((monster) => canDeployMonsterForProfile(monster, profile, deployedCosts))
+        const affordableMonsters = deckMonsters.filter((monster) =>
+            canSpend(state, state.currentPlayer, "invocation", monster.cost),
+        );
+        const preferredMonsters = affordableMonsters.filter((monster) =>
+            canDeployMonsterForProfile(monster, profile, deployedCosts),
+        );
+        const choices = (preferredMonsters.length > 0 ? preferredMonsters : affordableMonsters)
             .sort((first, second) => {
                 return (
                     (summonedByMonster[first.id] ?? 0) - (summonedByMonster[second.id] ?? 0) ||

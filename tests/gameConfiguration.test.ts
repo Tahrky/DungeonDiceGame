@@ -1,10 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { MONSTERS } from "../src/data/monsters";
 import {
     DEFAULT_DECK_SIZE,
-    MAX_AVAILABLE_DECK_SIZE,
+    GAME_CONFIGURATION_STORAGE_KEY,
+    GAME_OPTIONS,
     getDefaultGameConfiguration,
+    getSavedGameConfiguration,
+    MAX_AVAILABLE_DECK_SIZE,
     MIN_DECK_SIZE,
     parseGameConfiguration,
     parseMonsterConfiguration,
@@ -12,6 +15,42 @@ import {
 } from "../src/game/gameConfiguration";
 
 describe("configuration des règles de partie", () => {
+    it("regroupe les options de l'IHM et utilise leurs valeurs par défaut", () => {
+        const configuration = getDefaultGameConfiguration();
+        expect(configuration).toMatchObject({
+            diceCount: GAME_OPTIONS.diceCount.default,
+            deckSize: GAME_OPTIONS.deckSize.default,
+            randomBoard: GAME_OPTIONS.randomBoard.default,
+            testBoard: GAME_OPTIONS.testBoard.default,
+            initialPlayerHealth: GAME_OPTIONS.initialPlayerHealth.default,
+            allowBaseAttackOnSummonTurn: GAME_OPTIONS.allowBaseAttackOnSummonTurn.default,
+            maxMonstersPerPlayer: GAME_OPTIONS.maxMonstersPerPlayer.default,
+            monstersKilledForVictory: GAME_OPTIONS.monstersKilledForVictory.default,
+        });
+        expect(configuration.initialPlayerHealth).toBe(3);
+    });
+
+    it("conserve les options sauvegardées mais donne la priorité aux monstres du code", () => {
+        const saved = getDefaultGameConfiguration();
+        saved.diceCount = 3;
+        saved.monsters[0]!.hp += 1;
+        vi.stubGlobal("localStorage", {
+            getItem: (key: string) =>
+                key === GAME_CONFIGURATION_STORAGE_KEY
+                    ? serializeGameConfiguration(saved)
+                    : null,
+        });
+
+        try {
+            const loaded = getSavedGameConfiguration();
+
+            expect(loaded.diceCount).toBe(3);
+            expect(loaded.monsters).toEqual(getDefaultGameConfiguration().monsters);
+        } finally {
+            vi.unstubAllGlobals();
+        }
+    });
+
     it("sérialise puis valide les réglages et profils par défaut", () => {
         const configuration = getDefaultGameConfiguration();
         configuration.diceCount = 3;

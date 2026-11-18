@@ -201,7 +201,7 @@ export const MONSTERS: Monster[] = [
         name: "Archer Squelette",
         symbol: "A",
         color: 0x888888,
-        cost: 2,
+        cost: 3,
         hp: 2,
         attacks: [
             {
@@ -217,7 +217,7 @@ export const MONSTERS: Monster[] = [
                 pattern: { type: "radius", range: 4 },
                 animation: "alternativeAttack1",
                 cooldownTurns: 2,
-                initialCooldownTurns: 1,
+                initialCooldownTurns: 2,
             },
         ],
         movementRange: 2,

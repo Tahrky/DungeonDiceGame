@@ -132,6 +132,12 @@ export type StatusEffectColor = "green" | "red" | "blue" | "yellow" | "white" | 
 
 export interface MonsterStatusEffect extends StatusEffectDefinition {
     remainingTurns: number | "untilDeath";
+    source?: {
+        id: string;
+        monsterId: string;
+        name: string;
+        owner: PlayerId;
+    };
 }
 
 export interface MonsterTurnBuffs {

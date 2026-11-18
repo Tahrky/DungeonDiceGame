@@ -5,6 +5,11 @@ import {
     healMonster,
 } from "../src/game/statusEffects";
 import { MONSTERS } from "../src/data/monsters";
+import { getDefaultBoard } from "../src/game/boards";
+import { getDefaultGameConfiguration } from "../src/game/gameConfiguration";
+import { getInitialAttackCooldowns, getInitialAttackUses } from "../src/game/monsterActions";
+import { beginTurn, performAttacks } from "../src/simulation/combat";
+import { createStats, type MatchState } from "../src/simulation/matchState";
 import type { PlacedMonster } from "../src/types/GameTypes";
 
 function createPoisonedMonster(duration: number | "untilDeath"): PlacedMonster {
@@ -24,6 +29,30 @@ function createPoisonedMonster(duration: number | "untilDeath"): PlacedMonster {
         movementsUsedThisTurn: 0,
         attackCooldowns: [],
         statusEffects: [{ ...poison, remainingTurns: duration }],
+    };
+}
+
+function createPlacedMonster(
+    id: string,
+    monsterId: string,
+    owner: 1 | 2,
+    position: { x: number; y: number },
+): PlacedMonster {
+    const monster = MONSTERS.find((definition) => definition.id === monsterId)!;
+    return {
+        id,
+        monster,
+        owner,
+        position,
+        facing: owner === 1 ? "east" : "west",
+        currentHp: monster.hp,
+        cells: [position],
+        summonedOnTurn: 0,
+        attacksUsedThisTurn: 0,
+        attackUsesThisTurn: getInitialAttackUses(monster),
+        movementsUsedThisTurn: 0,
+        attackCooldowns: getInitialAttackCooldowns(monster),
+        statusEffects: [],
     };
 }
 
@@ -52,6 +81,46 @@ describe("effets de statut au début du tour", () => {
 
         expect(applyStatusEffectsAtTurnStart(target)).toBe(0);
         expect(target.statusEffects).toEqual([]);
+    });
+
+    it("attribue les dégâts de poison à la créature qui l'a infligé", () => {
+        const source = createPlacedMonster("m1", "swamp-thing", 1, { x: 5, y: 7 });
+        const target = createPlacedMonster("m2", "ghost", 2, { x: 7, y: 7 });
+        source.attackCooldowns = [0, 0];
+        const state: MatchState = {
+            turn: 1,
+            currentPlayer: 1,
+            profiles: { 1: "balanced", 2: "balanced" },
+            tactics: { 1: "balanced", 2: "balanced" },
+            allowBaseAttackOnSummonTurn: true,
+            winner: null,
+            finishReason: "turnLimit",
+            health: { 1: 3, 2: 3 },
+            reserves: {
+                1: { invocation: 0, attack: 3, movement: 0 },
+                2: { invocation: 0, attack: 0, movement: 0 },
+            },
+            monsters: [source, target],
+            history: [],
+            statistics: { 1: createStats(), 2: createStats() },
+            nextMonsterId: 3,
+            monstersKilledForVictory: 8,
+        };
+
+        performAttacks(state, getDefaultBoard());
+        expect(target.statusEffects).toHaveLength(1);
+        state.turn = 2;
+        beginTurn(state, getDefaultGameConfiguration(), 2);
+
+        expect(state.statistics[1].damageDealt).toBe(2);
+        expect(state.statistics[2].damageReceived).toBe(2);
+        expect(state.history.find((event) => event.type === "status")).toMatchObject({
+            player: 1,
+            monsterTypeId: "swamp-thing",
+            monsterName: "Créature des Marais",
+            target: "Fantôme (J2)",
+            damage: 2,
+        });
     });
 
     it("soigne sans dépasser les PV maximum et ne dissipe que si le sort le demande", () => {

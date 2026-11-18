@@ -1,10 +1,6 @@
 import { MONSTERS } from "../data/monsters";
 import { DICE } from "../data/dice";
 import { isStatusEffectColor } from "./statusEffects";
-import {
-    DEFAULT_MONSTERS_KILLED_FOR_VICTORY,
-    MAX_MONSTERS_PER_PLAYER,
-} from "./matchRules";
 import type {
     AttackPattern,
     Monster,
@@ -13,16 +9,44 @@ import type {
     StatusEffectDefinition,
 } from "../types/GameTypes";
 
+export const GAME_OPTIONS = {
+    diceCount: { default: 5, min: 2, max: DICE.length },
+    deckSize: {
+        default: 5,
+        min: 3,
+        max: 15,
+        maxAvailable: Math.min(15, MONSTERS.length),
+    },
+    randomBoard: { default: false },
+    testBoard: { default: false },
+    initialPlayerHealth: { default: 10, min: 1, max: 20 },
+    allowBaseAttackOnSummonTurn: { default: false },
+    maxMonstersPerPlayer: { default: 8, min: 1, max: 20 },
+    monstersKilledForVictory: { default: 8, min: 1, max: 20 },
+} as const;
+
 export const GAME_CONFIGURATION_STORAGE_KEY = "dungeon-dice.configuration";
 export const GAME_CONFIGURATION_VERSION = 6;
-export const MIN_DICE_COUNT = 2;
-export const MAX_DICE_COUNT = DICE.length;
-export const DEFAULT_DICE_COUNT = 5;
-export const MIN_DECK_SIZE = 3;
-export const MAX_DECK_SIZE = 15;
-export const DEFAULT_DECK_SIZE = 5;
-export const MAX_AVAILABLE_DECK_SIZE = Math.min(MAX_DECK_SIZE, MONSTERS.length);
-export const DEFAULT_PLAYER_LIFE = 3;
+export const MIN_DICE_COUNT: number = GAME_OPTIONS.diceCount.min;
+export const MAX_DICE_COUNT: number = GAME_OPTIONS.diceCount.max;
+export const DEFAULT_DICE_COUNT: number = GAME_OPTIONS.diceCount.default;
+export const MIN_DECK_SIZE: number = GAME_OPTIONS.deckSize.min;
+export const MAX_DECK_SIZE: number = GAME_OPTIONS.deckSize.max;
+export const DEFAULT_DECK_SIZE: number = GAME_OPTIONS.deckSize.default;
+export const MAX_AVAILABLE_DECK_SIZE: number = GAME_OPTIONS.deckSize.maxAvailable;
+export const DEFAULT_PLAYER_LIFE: number = GAME_OPTIONS.initialPlayerHealth.default;
+export const MIN_PLAYER_HEALTH: number = GAME_OPTIONS.initialPlayerHealth.min;
+export const MAX_PLAYER_HEALTH: number = GAME_OPTIONS.initialPlayerHealth.max;
+export const DEFAULT_MAX_MONSTERS_PER_PLAYER: number =
+    GAME_OPTIONS.maxMonstersPerPlayer.default;
+export const MIN_MAX_MONSTERS_PER_PLAYER: number = GAME_OPTIONS.maxMonstersPerPlayer.min;
+export const MAX_MAX_MONSTERS_PER_PLAYER: number = GAME_OPTIONS.maxMonstersPerPlayer.max;
+export const DEFAULT_MONSTERS_KILLED_FOR_VICTORY: number =
+    GAME_OPTIONS.monstersKilledForVictory.default;
+export const MIN_MONSTERS_KILLED_FOR_VICTORY: number =
+    GAME_OPTIONS.monstersKilledForVictory.min;
+export const MAX_MONSTERS_KILLED_FOR_VICTORY: number =
+    GAME_OPTIONS.monstersKilledForVictory.max;
 
 export interface GameConfiguration {
     version: typeof GAME_CONFIGURATION_VERSION;
@@ -72,14 +96,14 @@ function cloneMonster(monster: Monster): Monster {
 export function getDefaultGameConfiguration(): GameConfiguration {
     return {
         version: GAME_CONFIGURATION_VERSION,
-        diceCount: DEFAULT_DICE_COUNT,
-        deckSize: DEFAULT_DECK_SIZE,
-        randomBoard: false,
-        testBoard: false,
-        initialPlayerHealth: DEFAULT_PLAYER_LIFE,
-        allowBaseAttackOnSummonTurn: true,
-        maxMonstersPerPlayer: MAX_MONSTERS_PER_PLAYER,
-        monstersKilledForVictory: DEFAULT_MONSTERS_KILLED_FOR_VICTORY,
+        diceCount: GAME_OPTIONS.diceCount.default,
+        deckSize: GAME_OPTIONS.deckSize.default,
+        randomBoard: GAME_OPTIONS.randomBoard.default,
+        testBoard: GAME_OPTIONS.testBoard.default,
+        initialPlayerHealth: GAME_OPTIONS.initialPlayerHealth.default,
+        allowBaseAttackOnSummonTurn: GAME_OPTIONS.allowBaseAttackOnSummonTurn.default,
+        maxMonstersPerPlayer: GAME_OPTIONS.maxMonstersPerPlayer.default,
+        monstersKilledForVictory: GAME_OPTIONS.monstersKilledForVictory.default,
         monsters: MONSTERS.map(cloneMonster),
     };
 }
@@ -326,14 +350,14 @@ function migrateGameConfiguration(value: unknown): unknown {
     return {
         ...value,
         version: GAME_CONFIGURATION_VERSION,
-        deckSize: value.deckSize === undefined ? DEFAULT_DECK_SIZE : value.deckSize,
+        deckSize: value.deckSize === undefined ? GAME_OPTIONS.deckSize.default : value.deckSize,
         monstersKilledForVictory:
             value.monstersKilledForVictory === undefined
-                ? DEFAULT_MONSTERS_KILLED_FOR_VICTORY
+                ? GAME_OPTIONS.monstersKilledForVictory.default
                 : value.monstersKilledForVictory,
         allowBaseAttackOnSummonTurn:
             value.allowBaseAttackOnSummonTurn === undefined
-                ? true
+                ? GAME_OPTIONS.allowBaseAttackOnSummonTurn.default
                 : value.allowBaseAttackOnSummonTurn,
         monsters,
     };
@@ -459,14 +483,34 @@ export function parseGameConfiguration(value: unknown): GameConfiguration | null
     if (
         !isRecord(migratedValue) ||
         migratedValue.version !== GAME_CONFIGURATION_VERSION ||
-        !isIntegerInRange(migratedValue.diceCount, MIN_DICE_COUNT, MAX_DICE_COUNT) ||
-        !isIntegerInRange(migratedValue.deckSize, MIN_DECK_SIZE, MAX_AVAILABLE_DECK_SIZE) ||
+        !isIntegerInRange(
+            migratedValue.diceCount,
+            GAME_OPTIONS.diceCount.min,
+            GAME_OPTIONS.diceCount.max,
+        ) ||
+        !isIntegerInRange(
+            migratedValue.deckSize,
+            GAME_OPTIONS.deckSize.min,
+            GAME_OPTIONS.deckSize.maxAvailable,
+        ) ||
         typeof migratedValue.randomBoard !== "boolean" ||
         (migratedValue.testBoard !== undefined && typeof migratedValue.testBoard !== "boolean") ||
-        !isIntegerInRange(migratedValue.initialPlayerHealth, 1, 20) ||
+        !isIntegerInRange(
+            migratedValue.initialPlayerHealth,
+            GAME_OPTIONS.initialPlayerHealth.min,
+            GAME_OPTIONS.initialPlayerHealth.max,
+        ) ||
         typeof migratedValue.allowBaseAttackOnSummonTurn !== "boolean" ||
-        !isIntegerInRange(migratedValue.maxMonstersPerPlayer, 1, 20) ||
-        !isIntegerInRange(migratedValue.monstersKilledForVictory, 1, 20) ||
+        !isIntegerInRange(
+            migratedValue.maxMonstersPerPlayer,
+            GAME_OPTIONS.maxMonstersPerPlayer.min,
+            GAME_OPTIONS.maxMonstersPerPlayer.max,
+        ) ||
+        !isIntegerInRange(
+            migratedValue.monstersKilledForVictory,
+            GAME_OPTIONS.monstersKilledForVictory.min,
+            GAME_OPTIONS.monstersKilledForVictory.max,
+        ) ||
         !Array.isArray(migratedValue.monsters) ||
         migratedValue.monsters.length !== MONSTERS.length
     ) {
@@ -489,7 +533,10 @@ export function parseGameConfiguration(value: unknown): GameConfiguration | null
         diceCount: migratedValue.diceCount,
         deckSize: migratedValue.deckSize,
         randomBoard: migratedValue.randomBoard,
-        testBoard: migratedValue.testBoard === true,
+        testBoard:
+            typeof migratedValue.testBoard === "boolean"
+                ? migratedValue.testBoard
+                : GAME_OPTIONS.testBoard.default,
         initialPlayerHealth: migratedValue.initialPlayerHealth,
         allowBaseAttackOnSummonTurn: migratedValue.allowBaseAttackOnSummonTurn,
         maxMonstersPerPlayer: migratedValue.maxMonstersPerPlayer,
@@ -503,11 +550,16 @@ export function serializeGameConfiguration(configuration: GameConfiguration): st
 }
 
 export function getSavedGameConfiguration(): GameConfiguration {
+    const defaults = getDefaultGameConfiguration();
     try {
         const stored = localStorage.getItem(GAME_CONFIGURATION_STORAGE_KEY);
-        if (stored === null) return getDefaultGameConfiguration();
-        return parseGameConfiguration(JSON.parse(stored)) ?? getDefaultGameConfiguration();
+        if (stored === null) return defaults;
+        const savedValue: unknown = JSON.parse(stored);
+        if (!isRecord(savedValue)) return defaults;
+        return (
+            parseGameConfiguration({ ...savedValue, monsters: defaults.monsters }) ?? defaults
+        );
     } catch {
-        return getDefaultGameConfiguration();
+        return defaults;
     }
 }

@@ -3,11 +3,17 @@ import { useRef, useState } from "react";
 import { UnsavedChangesDialog, useBeforeUnloadWarning } from "./UnsavedChangesDialog";
 import {
     GAME_CONFIGURATION_STORAGE_KEY,
-    MAX_DECK_SIZE,
-    MAX_DICE_COUNT,
     MAX_AVAILABLE_DECK_SIZE,
+    MAX_DICE_COUNT,
+    MAX_MAX_MONSTERS_PER_PLAYER,
+    MAX_PLAYER_HEALTH,
+    MAX_MONSTERS_KILLED_FOR_VICTORY,
     MIN_DECK_SIZE,
     MIN_DICE_COUNT,
+    MIN_MAX_MONSTERS_PER_PLAYER,
+    MIN_MONSTERS_KILLED_FOR_VICTORY,
+    MIN_PLAYER_HEALTH,
+    MAX_DECK_SIZE,
     parseGameConfiguration,
     serializeGameConfiguration,
     type GameConfiguration,
@@ -180,55 +186,57 @@ export function GameSettings({
                         />
                     </label>
                     <label className="settings-field">
-                        Points de vie de départ (1 à 20)
+                        Points de vie de départ ({MIN_PLAYER_HEALTH} à {MAX_PLAYER_HEALTH})
                         <input
                             type="number"
-                            min="1"
-                            max="20"
+                            min={MIN_PLAYER_HEALTH}
+                            max={MAX_PLAYER_HEALTH}
                             step="1"
                             value={configuration.initialPlayerHealth}
                             onChange={(event) =>
                                 updateNumber(
                                     "initialPlayerHealth",
                                     event.currentTarget.value,
-                                    1,
-                                    20,
+                                    MIN_PLAYER_HEALTH,
+                                    MAX_PLAYER_HEALTH,
                                 )
                             }
                         />
                     </label>
                     <label className="settings-field">
-                        Monstres invocables par joueur (1 à 20)
+                        Monstres invocables par joueur ({MIN_MAX_MONSTERS_PER_PLAYER} à{" "}
+                        {MAX_MAX_MONSTERS_PER_PLAYER})
                         <input
                             type="number"
-                            min="1"
-                            max="20"
+                            min={MIN_MAX_MONSTERS_PER_PLAYER}
+                            max={MAX_MAX_MONSTERS_PER_PLAYER}
                             step="1"
                             value={configuration.maxMonstersPerPlayer}
                             onChange={(event) =>
                                 updateNumber(
                                     "maxMonstersPerPlayer",
                                     event.currentTarget.value,
-                                    1,
-                                    20,
+                                    MIN_MAX_MONSTERS_PER_PLAYER,
+                                    MAX_MAX_MONSTERS_PER_PLAYER,
                                 )
                             }
                         />
                     </label>
                     <label className="settings-field">
-                        Monstres tués pour gagner (1 à 20)
+                        Monstres tués pour gagner ({MIN_MONSTERS_KILLED_FOR_VICTORY} à{" "}
+                        {MAX_MONSTERS_KILLED_FOR_VICTORY})
                         <input
                             type="number"
-                            min="1"
-                            max="20"
+                            min={MIN_MONSTERS_KILLED_FOR_VICTORY}
+                            max={MAX_MONSTERS_KILLED_FOR_VICTORY}
                             step="1"
                             value={configuration.monstersKilledForVictory}
                             onChange={(event) =>
                                 updateNumber(
                                     "monstersKilledForVictory",
                                     event.currentTarget.value,
-                                    1,
-                                    20,
+                                    MIN_MONSTERS_KILLED_FOR_VICTORY,
+                                    MAX_MONSTERS_KILLED_FOR_VICTORY,
                                 )
                             }
                         />

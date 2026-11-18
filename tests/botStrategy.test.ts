@@ -72,6 +72,29 @@ describe("stratégie des bots", () => {
         });
     });
 
+    it("continue vers l’objectif au-delà de la frontière de son territoire", () => {
+        const deployedCells = [
+            { x: 14, y: 7 },
+            { x: 15, y: 7 },
+            { x: 16, y: 7 },
+        ];
+        const options: MovementOptions = {
+            source: deployedCells[0]!,
+            destination: deployedCells[0]!,
+            deployedCells,
+            occupiedCells: [],
+            blockedCells: [],
+            range: 1,
+            boardWidth: 19,
+            boardHeight: 15,
+        };
+
+        expect(findObjectiveMovement(options, [deployedCells[0]!], { x: 18, y: 7 })).toMatchObject({
+            position: { x: 15, y: 7 },
+            routeProgress: -1,
+        });
+    });
+
     it("étend le territoire vers la base adverse plutôt que latéralement à l’opposé", () => {
         const owned = [{ x: 7, y: 1 }];
         const start = { x: 7, y: 1 };
@@ -138,7 +161,7 @@ describe("stratégie des bots", () => {
         expect(chooseBotTactic("defensive", "tracker").tactic).toBe("defense");
     });
 
-    it("impose une progression de coût au profil coûteux", () => {
+    it("privilégie une progression de coût au profil coûteux sans raccourcir son deck", () => {
         const monsters = getDefaultGameConfiguration().monsters;
         const costOne = monsters.find((monster) => monster.cost === 1)!;
         const costThree = monsters.find((monster) => monster.cost === 3)!;
@@ -151,9 +174,10 @@ describe("stratégie des bots", () => {
         const deck = chooseDeck(monsters, "expensive", 5, createRandom(42)).map(
             (id) => monsters.find((monster) => monster.id === id)!.cost,
         );
+        expect(deck).toHaveLength(5);
         expect(deck[0]).toBeGreaterThanOrEqual(2);
         expect(deck[0]).toBeLessThanOrEqual(3);
-        expect(deck.every((cost, index) => index === 0 || cost > deck[index - 1]!)).toBe(true);
+        expect(deck[1]).toBeGreaterThan(deck[0]!);
     });
 
     it("place le périmètre défensif sur une ligne de vue ennemie vers la base", () => {

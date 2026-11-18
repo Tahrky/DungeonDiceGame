@@ -221,6 +221,30 @@ describe("simulation de matchs", () => {
         expect(events.some((event) => event.type === "attack")).toBe(true);
     });
 
+    it("continue les invocations du profil coûteux au lieu de bloquer sur son ordre de coûts", () => {
+        const match = runSimulations(
+            {
+                games: 1,
+                seed: 4009713184,
+                maxTurns: 100,
+                profile1: "cheap",
+                profile2: "expensive",
+                deck1: ["swamp-thing", "ghost", "black-knight", "archer", "spectre"],
+                deck2: ["archer", "frost-mage"],
+            },
+            undefined,
+            undefined,
+            7,
+        ).matches[0];
+        if (!match) throw new Error("Match de régression attendu.");
+
+        expect(match.startingPlayer).toBe(2);
+        expect(match.decks[2]).toEqual(["archer", "frost-mage"]);
+        expect(match.statistics[2].summoned).toBeGreaterThan(2);
+        expect(match.winner).not.toBeNull();
+        expect(match.turns).toBeLessThan(100);
+    });
+
     it("consigne la posture stratégique et l’adaptation au profil adverse", () => {
         const result = runSimulations({
             games: 1,
