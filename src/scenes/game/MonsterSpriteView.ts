@@ -96,8 +96,11 @@ export class MonsterSpriteView {
 
         for (const monster of spriteMonsters) {
             const state = this.sprites.get(monster.id) ?? this.createSprite(monster);
-            if (state.isDead) continue;
             state.shouldBeGrayscale = grayscaleMonsterIds.has(monster.id);
+            if (state.isDead) {
+                this.updateGrayscale(state);
+                continue;
+            }
             this.updateStatusTint(
                 state,
                 monster.statusEffects[monster.statusEffects.length - 1]?.color ?? null,
@@ -234,7 +237,10 @@ export class MonsterSpriteView {
         const state = this.sprites.get(id);
         if (!state || state.isDead) return;
         const animation = currentHp <= 0 ? "death" : "hit";
-        if (currentHp <= 0) this.updateStatusTint(state, null);
+        if (currentHp <= 0) {
+            this.updateStatusTint(state, null);
+            state.sprite.setAlpha(0.3);
+        }
         if (!MONSTER_SPRITES[state.monster.id]?.animations[animation]) return;
 
         this.scene.tweens.killTweensOf(state.sprite);
@@ -289,7 +295,7 @@ export class MonsterSpriteView {
     }
 
     private updateGrayscale(state: MonsterSpriteState): void {
-        if (state.isMoving || state.action !== "idle") return;
+        if (state.isMoving || (!state.isDead && state.action !== "idle")) return;
         if (state.shouldBeGrayscale && !state.isGrayscale) {
             if (!state.grayscaleEffect) {
                 const preFX = state.sprite.preFX;

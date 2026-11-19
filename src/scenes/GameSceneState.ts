@@ -279,11 +279,10 @@ export abstract class GameSceneState extends Phaser.Scene {
     protected getGrayscaleMonsterIds(): ReadonlySet<string> {
         const grayscaled = new Set<string>();
         for (const monster of this.placedMonsters) {
-            if (monster.currentHp <= 0) continue;
-
             if (this.winner !== null) {
                 grayscaled.add(monster.id);
             } else if (
+                monster.currentHp > 0 &&
                 monster.owner === this.currentPlayer &&
                 ((this.actionMode.type === "attack" &&
                     !canUseActionThisTurn(
