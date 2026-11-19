@@ -339,6 +339,65 @@ export function createDefensivePlacementScorer(
     };
 }
 
+export function createPathBlockadeScorer(
+    boardWidth: number,
+    boardHeight: number,
+    ownBase: Position,
+    enemyBase: Position,
+    ownPathCells: readonly Position[],
+    blockedCells: readonly Position[],
+): (candidateCells: readonly Position[]) => number {
+    const getKey = ({ x, y }: Position): string => `${x},${y}`;
+    const ownBaseKey = getKey(ownBase);
+    const enemyBaseKey = getKey(enemyBase);
+    const baseBlockedCells = [...ownPathCells, ...blockedCells];
+
+    const getRouteLength = (additionalBlocks: readonly Position[]): number | null => {
+        const blocked = new Set([...baseBlockedCells, ...additionalBlocks].map(getKey));
+        blocked.delete(ownBaseKey);
+        blocked.delete(enemyBaseKey);
+        const distances = new Map<string, number>([[enemyBaseKey, 0]]);
+        const queue: Position[] = [enemyBase];
+
+        for (let index = 0; index < queue.length; index++) {
+            const position = queue[index]!;
+            const key = getKey(position);
+            const distance = distances.get(key)!;
+            if (key === ownBaseKey) return distance;
+
+            for (const neighbor of [
+                { x: position.x - 1, y: position.y },
+                { x: position.x + 1, y: position.y },
+                { x: position.x, y: position.y - 1 },
+                { x: position.x, y: position.y + 1 },
+            ]) {
+                if (
+                    neighbor.x < 0 ||
+                    neighbor.y < 0 ||
+                    neighbor.x >= boardWidth ||
+                    neighbor.y >= boardHeight
+                ) {
+                    continue;
+                }
+                const neighborKey = getKey(neighbor);
+                if (blocked.has(neighborKey) || distances.has(neighborKey)) continue;
+                distances.set(neighborKey, distance + 1);
+                queue.push(neighbor);
+            }
+        }
+        return null;
+    };
+
+    const currentRouteLength = getRouteLength([]);
+    if (currentRouteLength === null) return () => 0;
+
+    return (candidateCells) => {
+        const nextRouteLength = getRouteLength(candidateCells);
+        if (nextRouteLength === null) return 500;
+        return Math.max(0, nextRouteLength - currentRouteLength) * 80;
+    };
+}
+
 export function chooseBotObjective(
     tactic: BotTactic | BotProfile,
     source: Position,
@@ -398,6 +457,7 @@ export function findObjectiveMovement(
     objective: Position,
     enemyPositions: readonly Position[] = [],
     tactic: BotTactic = "balanced",
+    threatScores: ReadonlyMap<string, number> = new Map(),
 ): ObjectiveMovement | null {
     const getKey = ({ x, y }: Position): string => `${x},${y}`;
     const occupied = new Set(options.occupiedCells.map(getKey));
@@ -453,7 +513,8 @@ export function findObjectiveMovement(
         const path = paths.get(getKey(destination)) ?? [];
         if (path.length < 2) continue;
 
-        const score = objectiveProgress * 100 + enemyProgress * 60 + routeProgress * 10;
+        const threat = threatScores.get(getKey(destination)) ?? 0;
+        const score = objectiveProgress * 100 + enemyProgress * 60 + routeProgress * 10 - threat * 20;
         if (score <= bestScore) continue;
         bestScore = score;
         best = { position: destination, path, routeProgress };

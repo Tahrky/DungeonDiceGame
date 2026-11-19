@@ -62,4 +62,31 @@ describe("combat de simulation", () => {
         expect(allowed.health[2]).toBe(2);
         expect(forbidden.health[2]).toBe(3);
     });
+
+    it("explore un nombre plafonné de réponses tactiques avant de choisir une attaque", () => {
+        const board = createCustomBoard(7, 7);
+        const state = createMatchState(true);
+        const ghost = state.monsters[0]!;
+        const enemy = {
+            ...ghost,
+            id: "enemy-one",
+            owner: 2 as const,
+            position: { x: ghost.position.x - 1, y: ghost.position.y },
+            facing: "west" as const,
+            cells: [{ x: ghost.position.x - 1, y: ghost.position.y }],
+        };
+        const secondEnemy = {
+            ...enemy,
+            id: "enemy-two",
+            position: { x: ghost.position.x, y: ghost.position.y - 1 },
+            cells: [{ x: ghost.position.x, y: ghost.position.y - 1 }],
+        };
+        state.monsters.push(enemy, secondEnemy);
+        state.reserves[2].attack = 1;
+
+        performAttacks(state, board);
+
+        expect(state.statistics[1].positionsExplored).toBeGreaterThan(3);
+        expect(state.statistics[1].positionsExplored).toBeLessThan(20);
+    });
 });

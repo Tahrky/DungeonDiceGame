@@ -70,13 +70,13 @@ function describeTurnBuff(attack: MonsterAttack): string | undefined {
         );
     }
     if (attack.movementCostReduction !== undefined) {
-        effects.push(`coût de déplacement réduit de ${attack.movementCostReduction} symbole`);
+        effects.push(`-${attack.movementCostReduction}${DICE_SYMBOL_PRESENTATION.movement.emoji}`);
     }
     if (attack.attackDamageBonus !== undefined) {
         effects.push(`dégâts +${attack.attackDamageBonus}`);
     }
     if (attack.attackCostReduction !== undefined) {
-        effects.push(`coût d’attaque réduit de ${attack.attackCostReduction} symbole`);
+        effects.push(`-${attack.attackCostReduction}${DICE_SYMBOL_PRESENTATION.attack.emoji}`);
     }
     return effects.length > 0 ? `${effects.join(" et ")} pour ce tour` : undefined;
 }

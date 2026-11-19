@@ -59,8 +59,30 @@ export interface MonsterAnalysis {
     appearances: number;
     matchesSeen: number;
     totalDamage: number;
-    averageDamage: number;
     attacks: number;
+    movements: number;
+    averageMovements: number;
+    attackUsage: MonsterAttackUsage[];
+}
+
+export interface MonsterAttackUsage {
+    name: string;
+    uses: number;
+}
+
+export interface MatchMonsterAnalysis {
+    id: string;
+    monsterId: string;
+    name: string;
+    symbol?: string;
+    owner: PlayerId;
+    hp: number;
+    maxHp: number;
+    position: { x: number; y: number };
+    attacks: number;
+    totalDamage: number;
+    movements: number;
+    attackUsage: MonsterAttackUsage[];
 }
 
 export interface SimulationAnalytics {
@@ -135,6 +157,7 @@ function isSimulationEvent(value: unknown): value is SimulationEvent {
         (value.monsterId === undefined || typeof value.monsterId === "string") &&
         (value.monsterTypeId === undefined || typeof value.monsterTypeId === "string") &&
         (value.monsterName === undefined || typeof value.monsterName === "string") &&
+        (value.attackName === undefined || typeof value.attackName === "string") &&
         (value.damage === undefined || isNumber(value.damage))
     );
 }
@@ -222,6 +245,55 @@ export function parseSimulationData(value: unknown): SimulationData | null {
     return { configuration, board, matches: value.matches };
 }
 
+function getAttackName(event: SimulationEvent): string | undefined {
+    return event.attackName ?? event.description.match(/«([^»]+)»/)?.[1]?.trim();
+}
+
+function sortAttackUsage(usage: Map<string, number>): MonsterAttackUsage[] {
+    return [...usage.entries()]
+        .map(([name, uses]) => ({ name, uses }))
+        .sort((first, second) => second.uses - first.uses || first.name.localeCompare(second.name));
+}
+
+export function analyzeMatchMonsters(match: AnalyzableMatch): MatchMonsterAnalysis[] {
+    const monsters = new Map(
+        match.finalMonsters.map((monster) => [
+            monster.id,
+            {
+                ...monster,
+                attacks: 0,
+                totalDamage: 0,
+                movements: 0,
+                attackUsage: new Map<string, number>(),
+            },
+        ]),
+    );
+
+    for (const event of match.history) {
+        if (!event.monsterId) continue;
+        const monster = monsters.get(event.monsterId);
+        if (!monster) continue;
+
+        if (event.type === "attack") {
+            monster.attacks++;
+            monster.totalDamage += event.damage ?? 0;
+            const attackName = getAttackName(event);
+            if (attackName) {
+                monster.attackUsage.set(attackName, (monster.attackUsage.get(attackName) ?? 0) + 1);
+            }
+        } else if (event.type === "status") {
+            monster.totalDamage += event.damage ?? 0;
+        } else if (event.type === "movement") {
+            monster.movements++;
+        }
+    }
+
+    return [...monsters.values()].map(({ attackUsage, ...monster }) => ({
+        ...monster,
+        attackUsage: sortAttackUsage(attackUsage),
+    }));
+}
+
 export function analyzeSimulationData(data: SimulationData): SimulationAnalytics {
     const totals = new Map<
         string,
@@ -229,8 +301,9 @@ export function analyzeSimulationData(data: SimulationData): SimulationAnalytics
             appearances: number;
             matchesSeen: number;
             damage: number;
-            attackDamage: number;
             attacks: number;
+            movements: number;
+            attackUsage: Map<string, number>;
         }
     >();
     const monsterIdsByName = new Map(
@@ -241,8 +314,9 @@ export function analyzeSimulationData(data: SimulationData): SimulationAnalytics
             appearances: 0,
             matchesSeen: 0,
             damage: 0,
-            attackDamage: 0,
             attacks: 0,
+            movements: 0,
+            attackUsage: new Map(),
         });
     }
 
@@ -319,18 +393,29 @@ export function analyzeSimulationData(data: SimulationData): SimulationAnalytics
             totals.get(monsterId)!.matchesSeen++;
         }
         for (const event of match.history) {
-            if (event.type !== "attack" && event.type !== "status") continue;
+            if (event.type !== "attack" && event.type !== "status" && event.type !== "movement") {
+                continue;
+            }
             const monsterTypeId =
                 event.monsterTypeId ??
                 (event.monsterName ? monsterIdsByName.get(event.monsterName) : undefined);
             if (!monsterTypeId) continue;
             const total = totals.get(monsterTypeId);
             if (!total) continue;
-            const damage = event.damage ?? 0;
-            total.damage += damage;
-            if (event.type === "attack") {
-                total.attacks++;
-                total.attackDamage += damage;
+            if (event.type === "movement") {
+                total.movements++;
+            } else {
+                total.damage += event.damage ?? 0;
+                if (event.type === "attack") {
+                    total.attacks++;
+                    const attackName = getAttackName(event);
+                    if (attackName) {
+                        total.attackUsage.set(
+                            attackName,
+                            (total.attackUsage.get(attackName) ?? 0) + 1,
+                        );
+                    }
+                }
             }
         }
     }
@@ -346,14 +431,17 @@ export function analyzeSimulationData(data: SimulationData): SimulationAnalytics
                     appearances: total.appearances,
                     matchesSeen: total.matchesSeen,
                     totalDamage: total.damage,
-                    averageDamage: total.attacks > 0 ? total.attackDamage / total.attacks : 0,
                     attacks: total.attacks,
+                    movements: total.movements,
+                    averageMovements:
+                        total.appearances > 0 ? total.movements / total.appearances : 0,
+                    attackUsage: sortAttackUsage(total.attackUsage),
                 };
             })
             .sort(
                 (first, second) =>
                     second.appearances - first.appearances ||
-                    second.averageDamage - first.averageDamage,
+                    second.totalDamage - first.totalDamage,
             ),
         averageTurns: totalTurns / matchCount,
         averageDeployments: {

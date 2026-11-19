@@ -40,6 +40,7 @@ export interface SimulationEvent {
     monsterId?: string;
     monsterTypeId?: string;
     monsterName?: string;
+    attackName?: string;
     target?: string;
     cost?: number;
     damage?: number;

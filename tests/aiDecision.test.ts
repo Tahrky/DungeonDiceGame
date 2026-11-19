@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 import { getStartingPositions, createCustomBoard } from "../src/game/boards";
 import { getDefaultGameConfiguration } from "../src/game/gameConfiguration";
 import { getInitialAttackCooldowns, getInitialAttackUses } from "../src/game/monsterActions";
-import { assignMonsterRoles, evaluateStrategicState, getStrategicCellScore } from "../src/game/ai";
+import {
+    assignMonsterRoles,
+    createThreatScores,
+    evaluateStrategicState,
+    getStrategicCellScore,
+} from "../src/game/ai";
 import { runCrossProfileTournament, runSimulations } from "../src/simulation/simulator";
 import { createStats, type MatchState } from "../src/simulation/matchState";
 import type { StrategicSnapshot } from "../src/game/ai";
@@ -26,6 +31,40 @@ function createSnapshot(health1: number, health2: number): StrategicSnapshot {
 }
 
 describe("noyau de décision tactique", () => {
+    it("repère les cases menacées par une attaque ennemie accessible", () => {
+        const configuration = getDefaultGameConfiguration();
+        const ghost = configuration.monsters.find((monster) => monster.id === "ghost");
+        if (!ghost) throw new Error("Fantôme de test introuvable.");
+        const defender = {
+            id: "defender",
+            monster: ghost,
+            owner: 1 as const,
+            position: { x: 4, y: 3 },
+            facing: "west" as const,
+            currentHp: ghost.hp,
+            cells: [{ x: 4, y: 3 }],
+            summonedOnTurn: 1,
+            attacksUsedThisTurn: 0,
+            attackUsesThisTurn: getInitialAttackUses(ghost),
+            movementsUsedThisTurn: 0,
+            attackCooldowns: getInitialAttackCooldowns(ghost),
+            statusEffects: [],
+        };
+        const attacker = {
+            ...defender,
+            id: "attacker",
+            owner: 2 as const,
+            position: { x: 3, y: 3 },
+            facing: "east" as const,
+            cells: [{ x: 3, y: 3 }],
+        };
+
+        const threats = createThreatScores(createCustomBoard(7, 7), [defender, attacker], defender.id);
+
+        expect(threats.get("4,3")).toBeGreaterThan(0);
+        expect(threats.has("4,4")).toBe(false);
+    });
+
     it("pénalise une base proche de la destruction", () => {
         const endangered = evaluateStrategicState(createSnapshot(1, 3));
         const stable = evaluateStrategicState(createSnapshot(3, 3));

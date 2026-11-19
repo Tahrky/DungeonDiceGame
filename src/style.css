@@ -846,6 +846,27 @@ canvas {
     border-bottom: 0;
 }
 
+.simulation-attack-list {
+    display: grid;
+    gap: 3px;
+    min-width: 150px;
+    margin: 0;
+    padding-left: 18px;
+}
+
+.simulation-player-label {
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.simulation-player-label--1 {
+    color: #ff9188;
+}
+
+.simulation-player-label--2 {
+    color: #8fc5ff;
+}
+
 .simulation-match-inspector {
     margin-top: 28px;
     border-top: 1px solid #3d4b5a;

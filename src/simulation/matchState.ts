@@ -9,6 +9,7 @@ import {
     canDeployMonsterForProfile,
     chooseBotObjective,
     createDefensivePlacementScorer,
+    createPathBlockadeScorer,
     describeDeploymentChoice,
     scoreMonsterForProfile,
     scoreTerritoryExpansion,
@@ -157,6 +158,17 @@ function findPlacement(
         enemyPositions,
         blockingCells,
     );
+    const pathBlockadeScore =
+        state.tactics[player] === "defense" || state.tactics[player] === "hunt"
+            ? createPathBlockadeScorer(
+                  board.width,
+                  board.height,
+                  starts[player],
+                  starts[opposingPlayer(player)],
+                  ownCells,
+                  board.blockedCells,
+              )
+            : () => 0;
     const ownKeys = new Set([starts[player], ...ownCells].map(({ x, y }) => `${x},${y}`));
     const enemyKeys = new Set(
         [starts[opposingPlayer(player)], ...opponentCells].map(({ x, y }) => `${x},${y}`),
@@ -211,6 +223,7 @@ function findPlacement(
                 (state.tactics[player] === "defense" || state.tactics[player] === "hunt"
                     ? defensivePlacementScore(position)
                     : 0) +
+                pathBlockadeScore(cells) +
                 strategicCellScore(position) * 0.5
             );
         },

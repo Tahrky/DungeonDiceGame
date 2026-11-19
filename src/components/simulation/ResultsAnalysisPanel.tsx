@@ -7,6 +7,7 @@ import {
 } from "../../simulation/analysis";
 import { BOT_PROFILE_LABELS } from "../../game/botStrategy";
 import { BOT_PROFILES, type SimulationBatchResult } from "../../simulation/types";
+import { AttackUsageList } from "./AttackUsageList";
 import { MetricBarChart } from "./MetricBarChart";
 import { MatchInspector } from "./MatchInspector";
 
@@ -39,6 +40,7 @@ export function ResultsAnalysisPanel({ generatedResult }: ResultsAnalysisPanelPr
     const [data, setData] = useState<SimulationData | null>(null);
     const [analytics, setAnalytics] = useState<SimulationAnalytics | null>(null);
     const [selectedMatchId, setSelectedMatchId] = useState("");
+    const [activeTab, setActiveTab] = useState<"general" | "match">("general");
     const [fileName, setFileName] = useState("");
     const [error, setError] = useState("");
 
@@ -49,6 +51,7 @@ export function ResultsAnalysisPanel({ generatedResult }: ResultsAnalysisPanelPr
         setData(parsed);
         setAnalytics(analyzeSimulationData(parsed));
         setSelectedMatchId(String(parsed.matches[0]?.id ?? ""));
+        setActiveTab("general");
         setFileName("Dernière simulation");
         setError("");
     }, [generatedResult]);
@@ -65,6 +68,7 @@ export function ResultsAnalysisPanel({ generatedResult }: ResultsAnalysisPanelPr
             setData(parsed);
             setAnalytics(analyzeSimulationData(parsed));
             setSelectedMatchId(String(parsed.matches[0]?.id ?? ""));
+            setActiveTab("general");
             setFileName(file.name);
         } catch {
             setError("Impossible de lire ce JSON. Vérifiez le contenu du fichier.");
@@ -110,178 +114,164 @@ export function ResultsAnalysisPanel({ generatedResult }: ResultsAnalysisPanelPr
 
             {data && analytics ? (
                 <>
-                    <div className="simulation-metrics">
-                        <MetricCard label="Matchs analysés" value={String(data.matches.length)} />
-                        <MetricCard
-                            label="Tours moyens"
-                            value={analytics.averageTurns.toFixed(1)}
-                        />
-                        <MetricCard
-                            label="Monstres invoqués / match · J1"
-                            value={analytics.averageDeployments[1].toFixed(1)}
-                        />
-                        <MetricCard
-                            label="Monstres invoqués / match · J2"
-                            value={analytics.averageDeployments[2].toFixed(1)}
-                        />
-                        <MetricCard
-                            label="Victoires · J1"
-                            value={String(analytics.winsByPlayer[1])}
-                        />
-                        <MetricCard
-                            label="Victoires · J2"
-                            value={String(analytics.winsByPlayer[2])}
-                        />
-                        <MetricCard
-                            label="Victoires · PV de la base à 0"
-                            value={String(analytics.winsByFinishReason.baseDestroyed)}
-                        />
-                        <MetricCard
-                            label="Victoires · élimination des monstres adverses"
-                            value={String(analytics.winsByFinishReason.monstersEliminated)}
-                        />
-                        <MetricCard label="Matchs nuls" value={String(analytics.draws)} />
-                        <MetricCard
-                            label="Monstres perdus / match · J1"
-                            value={analytics.averageMonstersLost[1].toFixed(1)}
-                        />
-                        <MetricCard
-                            label="Monstres perdus / match · J2"
-                            value={analytics.averageMonstersLost[2].toFixed(1)}
-                        />
-                        <MetricCard
-                            label="Dégâts reçus / match · J1"
-                            value={analytics.averageDamageReceived[1].toFixed(1)}
-                        />
-                        <MetricCard
-                            label="Dégâts reçus / match · J2"
-                            value={analytics.averageDamageReceived[2].toFixed(1)}
-                        />
-                        <MetricCard
-                            label="Réserve restante / match · J1"
-                            value={analytics.averageRemainingResources[1].toFixed(1)}
-                        />
-                        <MetricCard
-                            label="Réserve restante / match · J2"
-                            value={analytics.averageRemainingResources[2].toFixed(1)}
-                        />
-                        <MetricCard
-                            label="Symboles dépensés / match (Inv/Att/Mvt) · J1"
-                            value={
-                                analytics.averageSymbolsSpent[1]
-                                    ? `${analytics.averageSymbolsSpent[1].invocation.toFixed(1)} / ${analytics.averageSymbolsSpent[1].attack.toFixed(1)} / ${analytics.averageSymbolsSpent[1].movement.toFixed(1)}`
-                                    : "Non mesuré"
-                            }
-                        />
-                        <MetricCard
-                            label="Symboles dépensés / match (Inv/Att/Mvt) · J2"
-                            value={
-                                analytics.averageSymbolsSpent[2]
-                                    ? `${analytics.averageSymbolsSpent[2].invocation.toFixed(1)} / ${analytics.averageSymbolsSpent[2].attack.toFixed(1)} / ${analytics.averageSymbolsSpent[2].movement.toFixed(1)}`
-                                    : "Non mesuré"
-                            }
-                        />
-                        <MetricCard
-                            label="Perte nette de conversion / match · J1"
-                            value={
-                                analytics.averageConversionLosses[1]?.toFixed(1) ?? "Non mesuré"
-                            }
-                        />
-                        <MetricCard
-                            label="Perte nette de conversion / match · J2"
-                            value={
-                                analytics.averageConversionLosses[2]?.toFixed(1) ?? "Non mesuré"
-                            }
-                        />
-                        <MetricCard
-                            label="Positions explorées / match · J1"
-                            value={analytics.averagePositionsExplored[1].toFixed(1)}
-                        />
+                    <div className="simulation-tabs" role="tablist" aria-label="Vue des résultats">
+                        <button
+                            id="simulation-general-tab"
+                            type="button"
+                            role="tab"
+                            aria-selected={activeTab === "general"}
+                            aria-controls="simulation-general-panel"
+                            className={activeTab === "general" ? "is-active" : ""}
+                            onClick={() => setActiveTab("general")}
+                        >
+                            Statistiques générales
+                        </button>
+                        <button
+                            id="simulation-match-tab"
+                            type="button"
+                            role="tab"
+                            aria-selected={activeTab === "match"}
+                            aria-controls="simulation-match-panel"
+                            className={activeTab === "match" ? "is-active" : ""}
+                            onClick={() => setActiveTab("match")}
+                        >
+                            Statistiques d’une partie
+                        </button>
                     </div>
 
-                    <div className="simulation-chart-grid">
-                        <MetricBarChart
-                            title="Apparitions par monstre"
-                            valueLabel="invocations"
-                            bars={analytics.monsters.map((monster) => ({
-                                label: monster.name,
-                                value: monster.appearances,
-                            }))}
-                        />
-                        <MetricBarChart
-                            title="Dégâts moyens par attaque"
-                            valueLabel="dégâts moyens"
-                            bars={analytics.monsters
-                                .filter((monster) => monster.attacks > 0)
-                                .map((monster) => ({
-                                    label: monster.name,
-                                    value: monster.averageDamage,
-                                }))
-                                .sort((first, second) => second.value - first.value)}
-                        />
-                        <MetricBarChart
-                            title="Dégâts totaux par monstre"
-                            valueLabel="dégâts"
-                            bars={analytics.monsters
-                                .filter((monster) => monster.totalDamage > 0)
-                                .map((monster) => ({
-                                    label: monster.name,
-                                    value: monster.totalDamage,
-                                }))
-                                .sort((first, second) => second.value - first.value)}
-                        />
-                        <MetricBarChart
-                            title="Répartition des durées"
-                            valueLabel="matchs"
-                            bars={analytics.turnDistribution.map(({ turns, matches }) => ({
-                                label: `${turns} tours`,
-                                value: matches,
-                            }))}
-                        />
-                        <MetricBarChart
-                            title="Victoires par profil"
-                            valueLabel="victoires"
-                            bars={BOT_PROFILES.map((profile) => ({
-                                label: BOT_PROFILE_LABELS[profile],
-                                value: analytics.winsByProfile[profile] ?? 0,
-                            }))}
-                        />
-                    </div>
+                    {activeTab === "general" ? (
+                        <div
+                            id="simulation-general-panel"
+                            role="tabpanel"
+                            aria-labelledby="simulation-general-tab"
+                        >
+                            <div className="simulation-metrics">
+                                <MetricCard
+                                    label="Matchs analysés"
+                                    value={String(data.matches.length)}
+                                />
+                                <MetricCard
+                                    label="Tours moyens"
+                                    value={analytics.averageTurns.toFixed(1)}
+                                />
+                                <MetricCard
+                                    label="Monstres invoqués / match · J1"
+                                    value={analytics.averageDeployments[1].toFixed(1)}
+                                />
+                                <MetricCard
+                                    label="Monstres invoqués / match · J2"
+                                    value={analytics.averageDeployments[2].toFixed(1)}
+                                />
+                                <MetricCard
+                                    label="Victoires · J1"
+                                    value={String(analytics.winsByPlayer[1])}
+                                />
+                                <MetricCard
+                                    label="Victoires · J2"
+                                    value={String(analytics.winsByPlayer[2])}
+                                />
+                                <MetricCard
+                                    label="Victoires · PV de la base à 0"
+                                    value={String(analytics.winsByFinishReason.baseDestroyed)}
+                                />
+                                <MetricCard
+                                    label="Victoires · élimination des monstres adverses"
+                                    value={String(analytics.winsByFinishReason.monstersEliminated)}
+                                />
+                                <MetricCard label="Matchs nuls" value={String(analytics.draws)} />
+                            </div>
 
-                    <div className="simulation-table-wrap">
-                        <h4>Tableau par monstre</h4>
-                        <table className="simulation-table">
-                            <thead>
-                                <tr>
-                                    <th>Monstre</th>
-                                    <th>Invocations</th>
-                                    <th>Matchs avec apparition</th>
-                                    <th>Attaques</th>
-                                    <th>Dégâts totaux</th>
-                                    <th>Dégâts moyens / attaque</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {analytics.monsters.map((monster) => (
-                                    <tr key={monster.id}>
-                                        <th scope="row">{monster.name}</th>
-                                        <td>{monster.appearances}</td>
-                                        <td>{monster.matchesSeen}</td>
-                                        <td>{monster.attacks}</td>
-                                        <td>{monster.totalDamage}</td>
-                                        <td>{monster.averageDamage.toFixed(2)}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+                            <div className="simulation-chart-grid">
+                                <MetricBarChart
+                                    title="Victoires par profil"
+                                    valueLabel="victoires"
+                                    bars={BOT_PROFILES.map((profile) => ({
+                                        label: BOT_PROFILE_LABELS[profile],
+                                        value: analytics.winsByProfile[profile] ?? 0,
+                                    }))}
+                                />
+                                <MetricBarChart
+                                    title="Durée des parties"
+                                    valueLabel="matchs"
+                                    bars={analytics.turnDistribution.map(({ turns, matches }) => ({
+                                        label: `${turns} tours`,
+                                        value: matches,
+                                    }))}
+                                />
+                            </div>
 
-                    <MatchInspector
-                        matches={data.matches}
-                        configuration={data.configuration}
-                        selectedMatchId={selectedMatchId}
-                        onMatchChange={setSelectedMatchId}
-                    />
+                            <div className="simulation-chart-grid">
+                                <MetricBarChart
+                                    title="Apparitions par monstre"
+                                    valueLabel="invocations"
+                                    bars={analytics.monsters.map((monster) => ({
+                                        label: monster.name,
+                                        value: monster.appearances,
+                                    }))}
+                                />
+                                <MetricBarChart
+                                    title="Dégâts totaux par monstre"
+                                    valueLabel="dégâts"
+                                    bars={analytics.monsters
+                                        .filter((monster) => monster.totalDamage > 0)
+                                        .map((monster) => ({
+                                            label: monster.name,
+                                            value: monster.totalDamage,
+                                        }))
+                                        .sort((first, second) => second.value - first.value)}
+                                />
+                            </div>
+
+                            <div className="simulation-table-wrap">
+                                <h4>Tableau général par monstre</h4>
+                                <table className="simulation-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Monstre</th>
+                                            <th>Invocations</th>
+                                            <th>Matchs avec apparition</th>
+                                            <th>Attaques</th>
+                                            <th>Dégâts totaux</th>
+                                            <th>Déplacements cumulés</th>
+                                            <th>Déplacements moyens / invocation</th>
+                                            <th>Attaques les plus utilisées</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {analytics.monsters.map((monster) => (
+                                            <tr key={monster.id}>
+                                                <th scope="row">{monster.name}</th>
+                                                <td>{monster.appearances}</td>
+                                                <td>{monster.matchesSeen}</td>
+                                                <td>{monster.attacks}</td>
+                                                <td>{monster.totalDamage}</td>
+                                                <td>{monster.movements}</td>
+                                                <td>{monster.averageMovements.toFixed(2)}</td>
+                                                <td>
+                                                    <AttackUsageList
+                                                        attacks={monster.attackUsage}
+                                                    />
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    ) : (
+                        <div
+                            id="simulation-match-panel"
+                            role="tabpanel"
+                            aria-labelledby="simulation-match-tab"
+                        >
+                            <MatchInspector
+                                matches={data.matches}
+                                configuration={data.configuration}
+                                selectedMatchId={selectedMatchId}
+                                onMatchChange={setSelectedMatchId}
+                            />
+                        </div>
+                    )}
                 </>
             ) : (
                 !error && (

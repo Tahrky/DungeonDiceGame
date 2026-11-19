@@ -21,7 +21,11 @@ import {
     type MatchState,
 } from "./matchState";
 import { chooseBotObjective, findObjectiveMovement } from "../game/botStrategy";
-import { assignMonsterRoles, type StrategicSnapshot } from "../game/ai";
+import {
+    assignMonsterRoles,
+    createThreatScores,
+    type StrategicSnapshot,
+} from "../game/ai";
 
 export function performMovements(state: MatchState, board: BoardDefinition): void {
     if (state.winner !== null) return;
@@ -90,6 +94,7 @@ export function performMovements(state: MatchState, board: BoardDefinition): voi
                 roleObjective,
                 enemyPositions,
                 state.tactics[player],
+                createThreatScores(board, state.monsters, monster.id),
             );
             if (!best || !spend(state, player, "movement", cost)) break;
 

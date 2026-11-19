@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { getDefaultGameConfiguration } from "../src/game/gameConfiguration";
 import { getDefaultBoard } from "../src/game/boards";
-import { analyzeSimulationData, parseSimulationData } from "../src/simulation/analysis";
+import {
+    analyzeMatchMonsters,
+    analyzeSimulationData,
+    parseSimulationData,
+} from "../src/simulation/analysis";
 import { runSimulations } from "../src/simulation/simulator";
 
 describe("analyse des résultats de simulation", () => {
@@ -65,6 +69,7 @@ describe("analyse des résultats de simulation", () => {
                 description: "Test d’attaque",
                 monsterId: "placed-monster-1",
                 monsterTypeId: "ghost",
+                attackName: "Griffe",
                 damage: 2,
             },
             {
@@ -74,13 +79,14 @@ describe("analyse des résultats de simulation", () => {
                 description: "Test d’attaque",
                 monsterId: "placed-monster-1",
                 monsterTypeId: "ghost",
+                attackName: "Griffe",
                 damage: 4,
             },
             {
                 turn: 1,
                 player: 1,
                 type: "attack",
-                description: "Ancien événement d’attaque",
+                description: "Ancien événement « Griffure »",
                 monsterId: "placed-monster-1",
                 monsterName: data.configuration.monsters.find((monster) => monster.id === "ghost")
                     ?.name,
@@ -118,10 +124,9 @@ describe("analyse des résultats de simulation", () => {
             (monster) => monster.id === "swamp-thing",
         );
         expect(ghostAnalysis?.attacks).toBe(baselineGhost.attacks + 3);
-        expect(ghostAnalysis?.averageDamage).toBeCloseTo(
-            (baselineGhost.averageDamage * baselineGhost.attacks + 12) /
-                (baselineGhost.attacks + 3),
-        );
+        expect(ghostAnalysis?.attackUsage).toContainEqual({ name: "Griffe", uses: 2 });
+        expect(ghostAnalysis?.attackUsage).toContainEqual({ name: "Griffure", uses: 1 });
+        expect(ghostAnalysis?.movements).toBeGreaterThanOrEqual(0);
         expect(swampThingAnalysis?.totalDamage).toBe(baselineSwampThing.totalDamage + 4);
         expect(swampThingAnalysis?.attacks).toBe(baselineSwampThing.attacks);
         expect(parseSimulationData({ ...batch, schemaVersion: 99 })).toBeNull();
@@ -133,5 +138,94 @@ describe("analyse des résultats de simulation", () => {
                 matches: [{ id: "invalid" }],
             }),
         ).toBeNull();
+    });
+
+    it("agrège attaques, dégâts et déplacements par monstre dans le match et globalement", () => {
+        const batch = runSimulations({
+            games: 1,
+            seed: 12,
+            maxTurns: 1,
+            profile1: "balanced",
+            profile2: "balanced",
+        });
+        const data = parseSimulationData(batch);
+        if (!data) throw new Error("Export de simulation attendu comme valide.");
+        const match = data.matches[0]!;
+        const monster = match.finalMonsters[0];
+        if (!monster) throw new Error("Monstre final attendu.");
+        const baseline = analyzeSimulationData(data).monsters.find(
+            (entry) => entry.id === monster.monsterId,
+        );
+        if (!baseline) throw new Error("Statistiques globales du monstre attendues.");
+        const matchBaseline = analyzeMatchMonsters(match).find((entry) => entry.id === monster.id);
+        if (!matchBaseline) throw new Error("Statistiques du match attendues.");
+        const baselineBiteUses =
+            baseline.attackUsage.find(({ name }) => name === "Morsure")?.uses ?? 0;
+
+        match.history.push(
+            {
+                turn: 1,
+                player: monster.owner,
+                type: "attack",
+                description: "Test d’attaque",
+                monsterId: monster.id,
+                monsterTypeId: monster.monsterId,
+                monsterName: monster.name,
+                attackName: "Morsure",
+                damage: 3,
+            },
+            {
+                turn: 1,
+                player: monster.owner,
+                type: "attack",
+                description: "Test d’attaque",
+                monsterId: monster.id,
+                monsterTypeId: monster.monsterId,
+                monsterName: monster.name,
+                attackName: "Morsure",
+                damage: 2,
+            },
+            {
+                turn: 1,
+                player: monster.owner,
+                type: "status",
+                description: "Dégâts de poison",
+                monsterId: monster.id,
+                monsterTypeId: monster.monsterId,
+                monsterName: monster.name,
+                damage: 4,
+            },
+            {
+                turn: 1,
+                player: monster.owner,
+                type: "movement",
+                description: "Déplacement",
+                monsterId: monster.id,
+                monsterTypeId: monster.monsterId,
+                monsterName: monster.name,
+            },
+        );
+
+        const matchAnalysis = analyzeMatchMonsters(match).find((entry) => entry.id === monster.id);
+        const globalAnalysis = analyzeSimulationData(data).monsters.find(
+            (entry) => entry.id === monster.monsterId,
+        );
+
+        expect(matchAnalysis).toMatchObject({
+            attacks: matchBaseline.attacks + 2,
+            totalDamage: matchBaseline.totalDamage + 9,
+            movements: matchBaseline.movements + 1,
+        });
+        expect(matchAnalysis?.attackUsage).toContainEqual({
+            name: "Morsure",
+            uses: baselineBiteUses + 2,
+        });
+        expect(globalAnalysis?.attacks).toBe(baseline.attacks + 2);
+        expect(globalAnalysis?.totalDamage).toBe(baseline.totalDamage + 9);
+        expect(globalAnalysis?.movements).toBe(baseline.movements + 1);
+        expect(globalAnalysis?.attackUsage).toContainEqual({ name: "Morsure", uses: 2 });
+        expect(globalAnalysis?.averageMovements).toBeCloseTo(
+            (baseline.movements + 1) / baseline.appearances,
+        );
     });
 });

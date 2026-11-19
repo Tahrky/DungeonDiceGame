@@ -17,6 +17,7 @@ import {
     canDeployMonsterForProfile,
     chooseBotObjective,
     createDefensivePlacementScorer,
+    createPathBlockadeScorer,
     findObjectiveMovement,
     scoreMonsterForProfile,
     scoreTacticalAttack,
@@ -26,6 +27,8 @@ import {
 import {
     assignMonsterRoles,
     createStrategicCellScorer,
+    createThreatScores,
+    type RoleAssignment,
     type StrategicSnapshot,
 } from "../game/ai";
 
@@ -206,6 +209,17 @@ export abstract class GameSceneComputer extends GameSceneComputerConversion {
             ...this.board.blockedCells,
             ...this.obstacles.map(({ position }) => position),
         ];
+        const pathBlockadeScore =
+            tactic === "defense" || tactic === "hunt"
+                ? createPathBlockadeScorer(
+                      this.board.width,
+                      this.board.height,
+                      this.startingPositions[2],
+                      this.startingPositions[1],
+                      computerPathCells,
+                      blockedCells,
+                  )
+                : () => 0;
         const livingMonsterKeys = new Set(
             this.placedMonsters
                 .filter((monster) => monster.currentHp > 0)
@@ -259,6 +273,7 @@ export abstract class GameSceneComputer extends GameSceneComputerConversion {
                     expansionObjective,
                 ) +
                 (tactic === "defense" || tactic === "hunt" ? defensivePlacementScore(position) : 0) +
+                pathBlockadeScore(cells) +
                 strategicCellScore(position) * 0.5,
         });
     }
@@ -287,6 +302,24 @@ export abstract class GameSceneComputer extends GameSceneComputerConversion {
         const attackers = this.placedMonsters.filter(
             (monster) => monster.owner === 2 && monster.currentHp > 0,
         );
+        const tactic = this.getComputerTactic();
+        const strategicSnapshot: StrategicSnapshot = {
+            board: this.board,
+            health: { ...this.playerHealth },
+            initialHealth: this.gameConfiguration.initialPlayerHealth,
+            monsters: this.placedMonsters,
+            reserves: {
+                1: { ...this.diceReserves[1] },
+                2: { ...this.diceReserves[2] },
+            },
+            profile: this.opponentProfile,
+            tactics: { 1: "balanced", 2: tactic },
+            currentPlayer: 2,
+            turn: this.turnNumber,
+        };
+        const roles = new Map(
+            assignMonsterRoles(strategicSnapshot, 2).map((role) => [role.monsterId, role]),
+        );
         let best: ComputerAttackChoice | null = null;
         for (const attacker of attackers) {
             for (const attackIndex of attacker.monster.attacks.keys()) {
@@ -305,6 +338,7 @@ export abstract class GameSceneComputer extends GameSceneComputerConversion {
                         target,
                         this.getAttackPreviewCells(attacker.id, attackIndex, target),
                         cost,
+                        roles.get(attacker.id),
                     );
                     if (score > (best?.score ?? 0)) {
                         best = { attacker, attackIndex, target, score };
@@ -328,6 +362,7 @@ export abstract class GameSceneComputer extends GameSceneComputerConversion {
         target: Position,
         cells: readonly Position[],
         cost: number,
+        role?: RoleAssignment,
     ): number {
         const attack = attacker.monster.attacks[attackIndex];
         if (!attack) return 0;
@@ -411,24 +446,6 @@ export abstract class GameSceneComputer extends GameSceneComputerConversion {
             this.getComputerTactic(),
             this.playerHealth[1],
         );
-        const tactic = this.getComputerTactic();
-        const strategicSnapshot: StrategicSnapshot = {
-            board: this.board,
-            health: { ...this.playerHealth },
-            initialHealth: this.gameConfiguration.initialPlayerHealth,
-            monsters: this.placedMonsters,
-            reserves: {
-                1: { ...this.diceReserves[1] },
-                2: { ...this.diceReserves[2] },
-            },
-            profile: this.opponentProfile,
-            tactics: { 1: "balanced", 2: tactic },
-            currentPlayer: 2,
-            turn: this.turnNumber,
-        };
-        const role = assignMonsterRoles(strategicSnapshot, 2).find(
-            (assignment) => assignment.monsterId === attacker.id,
-        );
         const roleBonus =
             role?.role === "base"
                 ? value.baseDamage * 8
@@ -485,7 +502,8 @@ export abstract class GameSceneComputer extends GameSceneComputerConversion {
                     ownedCells,
                     objective,
                     enemyPositions,
-                    this.getComputerTactic(),
+                    tactic,
+                    createThreatScores(this.board, this.placedMonsters, monster.id),
                 );
                 if (!movement) break;
 

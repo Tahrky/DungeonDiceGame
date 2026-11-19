@@ -1,7 +1,19 @@
 import type { BoardDefinition } from "./boards";
 import { getStartingPositions } from "./boards";
-import { getGridDistance, hasLineOfSight } from "./monsterActions";
-import type { DiceReserve, Monster, PlacedMonster, PlayerId, Position } from "../types/GameTypes";
+import {
+    canAttackMonster,
+    getAttackDamage,
+    getAttackZoneOptions,
+    getGridDistance,
+    hasLineOfSight,
+} from "./monsterActions";
+import type {
+    DiceReserve,
+    Monster,
+    PlacedMonster,
+    PlayerId,
+    Position,
+} from "../types/GameTypes";
 import { chooseBotObjective, type BotProfile, type BotTactic } from "./botStrategy";
 
 export interface StrategicSnapshot {
@@ -54,6 +66,79 @@ export function clearAiCaches(): void {
 
 function livingMonsters(snapshot: StrategicSnapshot, player: PlayerId): PlacedMonster[] {
     return snapshot.monsters.filter((monster) => monster.owner === player && monster.currentHp > 0);
+}
+
+export function createThreatScores(
+    board: BoardDefinition,
+    monsters: readonly PlacedMonster[],
+    threatenedMonsterId: string,
+): ReadonlyMap<string, number> {
+    const threatenedMonster = monsters.find((monster) => monster.id === threatenedMonsterId);
+    if (!threatenedMonster) return new Map();
+
+    const opponent: PlayerId = threatenedMonster.owner === 1 ? 2 : 1;
+    const threatScores = new Map<string, number>();
+    for (const attacker of monsters) {
+        if (attacker.owner !== opponent || attacker.currentHp <= 0) continue;
+
+        const blockingCells = [
+            ...board.blockedCells,
+            ...monsters
+                .filter(
+                    (monster) =>
+                        monster.currentHp > 0 &&
+                        monster.id !== attacker.id &&
+                        monster.id !== threatenedMonsterId,
+                )
+                .map((monster) => monster.position),
+        ];
+        const attackerThreats = new Map<string, number>();
+        for (const [attackIndex, attack] of attacker.monster.attacks.entries()) {
+            if (attack.targetsAlliesOnly || (attacker.attackCooldowns[attackIndex] ?? 0) > 1) {
+                continue;
+            }
+
+            const isAreaAttack =
+                attack.hitsAllies === true ||
+                attack.movesToZone === true ||
+                attack.pattern.type === "directionalArea" ||
+                attack.pattern.type === "selfRadius";
+            for (const option of getAttackZoneOptions(
+                attacker.position,
+                attacker.facing,
+                attack.pattern,
+                attack.targetsSelf,
+            )) {
+                const affectedCells = isAreaAttack ? option.cells : [option.target];
+                for (const cell of affectedCells) {
+                    if (
+                        cell.x < 0 ||
+                        cell.y < 0 ||
+                        cell.x >= board.width ||
+                        cell.y >= board.height ||
+                        !canAttackMonster(attacker.monster, attack, threatenedMonster.monster) ||
+                        (!isAreaAttack &&
+                            !hasLineOfSight(attacker.position, cell, blockingCells))
+                    ) {
+                        continue;
+                    }
+
+                    const damage =
+                        getAttackDamage(attack, attacker.turnBuffs?.attackDamageBonus ?? 0) +
+                        (attack.statusEffect?.damagePerTurn ?? 0);
+                    const key = `${cell.x},${cell.y}`;
+                    attackerThreats.set(key, Math.max(attackerThreats.get(key) ?? 0, damage));
+                }
+            }
+        }
+
+        for (const [key, damage] of attackerThreats) {
+            const lethalBonus = damage >= threatenedMonster.currentHp ? 4 : 0;
+            threatScores.set(key, (threatScores.get(key) ?? 0) + damage + lethalBonus);
+        }
+    }
+
+    return threatScores;
 }
 
 function getSupportValue(monster: Monster): number {

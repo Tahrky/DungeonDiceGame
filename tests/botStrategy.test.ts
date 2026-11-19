@@ -7,6 +7,7 @@ import {
     chooseDeck,
     findObjectiveMovement,
     scoreDefensivePlacement,
+    createPathBlockadeScorer,
     scoreTacticalAttack,
     scoreTerritoryExpansion,
 } from "../src/game/botStrategy";
@@ -72,6 +73,38 @@ describe("stratégie des bots", () => {
         });
     });
 
+    it("évite une case menacée quand une progression équivalente est disponible", () => {
+        const cells = [
+            { x: 2, y: 2 },
+            { x: 3, y: 2 },
+            { x: 2, y: 3 },
+        ];
+        const options: MovementOptions = {
+            source: cells[0]!,
+            destination: cells[0]!,
+            deployedCells: cells,
+            occupiedCells: [],
+            blockedCells: [],
+            range: 1,
+            boardWidth: 7,
+            boardHeight: 7,
+        };
+
+        expect(
+            findObjectiveMovement(
+                options,
+                cells,
+                { x: 5, y: 3 },
+                [],
+                "balanced",
+                new Map([["3,2", 10]]),
+            ),
+        ).toMatchObject({
+            position: { x: 2, y: 3 },
+            routeProgress: 1,
+        });
+    });
+
     it("continue vers l’objectif au-delà de la frontière de son territoire", () => {
         const deployedCells = [
             { x: 14, y: 7 },
@@ -103,6 +136,21 @@ describe("stratégie des bots", () => {
         const awayFromBase = scoreTerritoryExpansion(2, [{ x: 5, y: 5 }], owned, start, enemyBase);
 
         expect(towardBase).toBeGreaterThan(awayFromBase);
+    });
+
+    it("valorise un chemin qui allonge la route adverse vers sa base", () => {
+        const scoreBlockade = createPathBlockadeScorer(
+            7,
+            7,
+            { x: 6, y: 3 },
+            { x: 0, y: 3 },
+            [],
+            [],
+        );
+
+        expect(scoreBlockade([{ x: 3, y: 3 }])).toBeGreaterThan(
+            scoreBlockade([{ x: 1, y: 1 }]),
+        );
     });
 
     it("applique les priorités de victoire et respecte les profils", () => {

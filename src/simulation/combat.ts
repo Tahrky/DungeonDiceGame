@@ -17,6 +17,7 @@ import {
     isBehind,
 } from "../game/monsterActions";
 import { getStartingPositions, isBoardCell, type BoardDefinition } from "../game/boards";
+import { evaluateStrategicState, type StrategicSnapshot } from "../game/ai";
 import { getMonsterEliminationWinner } from "../game/matchRules";
 import {
     applyStatusEffectsAtTurnStart,
@@ -263,7 +264,7 @@ function getAttackChoices(
     return choices;
 }
 
-function chooseAttack(state: MatchState, board: BoardDefinition): AttackChoice | null {
+function getAvailableAttackChoices(state: MatchState, board: BoardDefinition): AttackChoice[] {
     const choices: AttackChoice[] = [];
     for (const attacker of getPlayerMonsters(state, state.currentPlayer)) {
         if (
@@ -289,7 +290,125 @@ function chooseAttack(state: MatchState, board: BoardDefinition): AttackChoice |
     state.statistics[state.currentPlayer].positionsExplored += choices.length;
     state.statistics[state.currentPlayer].branchesExplored += choices.length;
     choices.sort((first, second) => second.score - first.score);
-    return choices[0] ?? null;
+    return choices;
+}
+
+const MAX_ATTACK_SEARCH_BRANCHES = 3;
+
+function cloneMatchState(state: MatchState): MatchState {
+    const cloneMonster = (monster: PlacedMonster): PlacedMonster => ({
+        ...monster,
+        position: { ...monster.position },
+        cells: monster.cells.map((cell) => ({ ...cell })),
+        attackUsesThisTurn: [...monster.attackUsesThisTurn],
+        attackCooldowns: [...monster.attackCooldowns],
+        statusEffects: monster.statusEffects.map((effect) => ({
+            ...effect,
+            ...(effect.source ? { source: { ...effect.source } } : {}),
+        })),
+        ...(monster.turnBuffs ? { turnBuffs: { ...monster.turnBuffs } } : {}),
+    });
+    const cloneStats = (player: PlayerId) => ({
+        ...state.statistics[player],
+        summonedByMonster: { ...state.statistics[player].summonedByMonster },
+        symbolsSpent: { ...state.statistics[player].symbolsSpent },
+    });
+
+    return {
+        ...state,
+        profiles: { ...state.profiles },
+        tactics: { ...state.tactics },
+        health: { ...state.health },
+        reserves: {
+            1: { ...state.reserves[1] },
+            2: { ...state.reserves[2] },
+        },
+        monsters: state.monsters.map(cloneMonster),
+        history: [],
+        statistics: { 1: cloneStats(1), 2: cloneStats(2) },
+    };
+}
+
+function createStrategicSnapshot(
+    state: MatchState,
+    board: BoardDefinition,
+    player: PlayerId,
+): StrategicSnapshot {
+    return {
+        board,
+        health: state.health,
+        initialHealth: Math.max(state.health[1], state.health[2], 1),
+        monsters: state.monsters,
+        reserves: state.reserves,
+        profile: state.profiles[player],
+        tactics: state.tactics,
+        currentPlayer: player,
+        turn: state.turn,
+    };
+}
+
+function prepareOpponentReply(state: MatchState, player: PlayerId): void {
+    state.currentPlayer = player;
+    state.reserves[player].attack++;
+    for (const monster of state.monsters) {
+        if (monster.owner !== player || monster.currentHp <= 0) continue;
+        monster.attacksUsedThisTurn = 0;
+        monster.attackUsesThisTurn = getInitialAttackUses(monster.monster);
+        monster.attackCooldowns = monster.attackCooldowns.map((cooldown) =>
+            Math.max(0, cooldown - 1),
+        );
+    }
+}
+
+function chooseAttack(state: MatchState, board: BoardDefinition): AttackChoice | null {
+    const choices = getAvailableAttackChoices(state, board);
+    const bestChoice = choices[0];
+    if (!bestChoice || choices.length === 1) return bestChoice ?? null;
+
+    const player = state.currentPlayer;
+    const opponent: PlayerId = player === 1 ? 2 : 1;
+    const baseline = evaluateStrategicState(createStrategicSnapshot(state, board, player));
+    const candidates = choices.slice(0, MAX_ATTACK_SEARCH_BRANCHES);
+    state.statistics[player].positionsExplored += candidates.length;
+    let selected = bestChoice;
+    let selectedScore = Number.NEGATIVE_INFINITY;
+
+    for (const candidate of candidates) {
+        const branch = cloneMatchState(state);
+        const attacker = branch.monsters.find((monster) => monster.id === candidate.attacker.id);
+        if (!attacker) continue;
+        executeAttack(branch, board, {
+            ...candidate,
+            attacker,
+            target: { ...candidate.target },
+            cells: candidate.cells.map((cell) => ({ ...cell })),
+        });
+
+        if (branch.winner === null) {
+            prepareOpponentReply(branch, opponent);
+            const exploredBeforeReply = branch.statistics[opponent].positionsExplored;
+            const reply = chooseAttackWithoutSearch(branch, board);
+            const replyPositionsExplored =
+                branch.statistics[opponent].positionsExplored - exploredBeforeReply;
+            state.statistics[player].positionsExplored += replyPositionsExplored;
+            state.statistics[player].branchesExplored += replyPositionsExplored;
+            if (reply) executeAttack(branch, board, reply);
+        }
+
+        const score =
+            evaluateStrategicState(createStrategicSnapshot(branch, board, player)) -
+            baseline +
+            candidate.score * 0.1;
+        if (score > selectedScore) {
+            selected = candidate;
+            selectedScore = score;
+        }
+    }
+    return selected;
+}
+
+function chooseAttackWithoutSearch(state: MatchState, board: BoardDefinition): AttackChoice | null {
+    return getAvailableAttackChoices(state, board)[0] ?? null;
 }
 
 function applyStatusEffect(
@@ -513,6 +632,7 @@ function executeAttack(state: MatchState, board: BoardDefinition, choice: Attack
         monsterId: attacker.id,
         monsterTypeId: attacker.monster.id,
         monsterName: attacker.monster.name,
+        attackName: attack.name,
         target: actionTarget,
         cost,
         damage: actualDamage,

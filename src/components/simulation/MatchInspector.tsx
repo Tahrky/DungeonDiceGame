@@ -1,6 +1,7 @@
-import type { AnalyzableMatch } from "../../simulation/analysis";
+import { analyzeMatchMonsters, type AnalyzableMatch } from "../../simulation/analysis";
 import type { GameConfiguration } from "../../game/gameConfiguration";
 import { getMonsterSymbol, getUniqueMonsterSymbols } from "../../game/monsterSymbols";
+import { AttackUsageList } from "./AttackUsageList";
 import { SimulationBoard } from "./SimulationBoard";
 
 interface MatchInspectorProps {
@@ -18,6 +19,7 @@ export function MatchInspector({
 }: MatchInspectorProps) {
     const match = matches.find((candidate) => candidate.id === Number(selectedMatchId));
     const visibleHistory = match?.history.slice(-500) ?? [];
+    const monsterStats = match ? analyzeMatchMonsters(match) : [];
     const monsterSymbols = getUniqueMonsterSymbols(configuration.monsters);
 
     return (
@@ -69,10 +71,13 @@ export function MatchInspector({
                                         <th>Joueur</th>
                                         <th>PV</th>
                                         <th>Position</th>
+                                        <th>Attaques</th>
+                                        <th>Dégâts infligés</th>
+                                        <th>Attaques les plus utilisées</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {match.finalMonsters.map((monster) => (
+                                    {monsterStats.map((monster) => (
                                         <tr key={monster.id}>
                                             <td>
                                                 {monster.symbol ??
@@ -82,12 +87,25 @@ export function MatchInspector({
                                                     )}
                                             </td>
                                             <th scope="row">{monster.name}</th>
-                                            <td>J{monster.owner}</td>
                                             <td>
-                                                {monster.hp}/{monster.maxHp}
+                                                <span
+                                                    className={`simulation-player-label simulation-player-label--${monster.owner}`}
+                                                >
+                                                    J{monster.owner}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                {monster.hp <= 0
+                                                    ? "Mort"
+                                                    : `${monster.hp}/${monster.maxHp}`}
                                             </td>
                                             <td>
                                                 {monster.position.x}, {monster.position.y}
+                                            </td>
+                                            <td>{monster.attacks}</td>
+                                            <td>{monster.totalDamage}</td>
+                                            <td>
+                                                <AttackUsageList attacks={monster.attackUsage} />
                                             </td>
                                         </tr>
                                     ))}
