@@ -11,8 +11,8 @@ export const MONSTERS: Monster[] = [
         attacks: [
             {
                 name: "Corps à corps",
-                damage: 2,
-                cost: 1,
+                damage: 4,
+                cost: 2,
                 pattern: { type: "directionalArea", width: 3, depth: 1 },
                 hitsAllies: true,
             },
@@ -37,9 +37,9 @@ export const MONSTERS: Monster[] = [
             },
             {
                 name: "Explosion de Givre",
-                damage: 3,
-                cost: 2,
-                pattern: { type: "selfRadius", range: 3 },
+                damage: 5,
+                cost: 3,
+                pattern: { type: "selfRadius", range: 2 },
                 hitsAllies: true,
                 animation: "alternativeAttack1",
             },
@@ -70,7 +70,7 @@ export const MONSTERS: Monster[] = [
             },
             {
                 name: "Explosion de Poison",
-                damage: 1,
+                damage: 2,
                 cost: 2,
                 pattern: { type: "selfRadius", range: 2 },
                 hitsAllies: true,
@@ -113,7 +113,7 @@ export const MONSTERS: Monster[] = [
             },
         ],
         movementRange: 2,
-        movementCost: 0,
+        movementCost: 1,
         canPassHostiles: true,
     },
 
@@ -121,7 +121,7 @@ export const MONSTERS: Monster[] = [
         id: "spectre",
         name: "Spectre",
         symbol: "S",
-        color: 0x8E10DE,
+        color: 0x8e10de,
         cost: 2,
         hp: 3,
         attacks: [
@@ -137,11 +137,12 @@ export const MONSTERS: Monster[] = [
                 name: "Coup au corps à corps",
                 damage: 1,
                 cost: 1,
-                pattern: { type: "radius", range: 2},
+                cooldownTurns: 1,
+                pattern: { type: "radius", range: 2 },
             },
         ],
         movementRange: 2,
-        movementCost: 0,
+        movementCost: 1,
         flying: true,
         //highAltitude: true,
         canPassHostiles: true,
@@ -162,10 +163,11 @@ export const MONSTERS: Monster[] = [
                 pattern: { type: "adjacent" },
             },
             {
-                name: "Corps à corps puissant",
+                name: "Attaque tranchante",
                 damage: 5,
                 cost: 2,
                 pattern: { type: "radius", range: 2 },
+                cooldownTurns: 2,
                 animation: "alternativeAttack1",
             },
         ],
@@ -185,7 +187,7 @@ export const MONSTERS: Monster[] = [
         attacks: [
             {
                 name: "Corps à corps",
-                damage: 2,
+                damage: 3,
                 cost: 1,
                 pattern: { type: "adjacent" },
                 animation: "backstab",
@@ -193,7 +195,7 @@ export const MONSTERS: Monster[] = [
         ],
         movementRange: 3,
         movementActionsPerTurn: 2,
-        bonusDamageFromBehind: 3,
+        bonusDamageFromBehind: 2,
     },
 
     {
@@ -213,11 +215,11 @@ export const MONSTERS: Monster[] = [
             {
                 name: "Tir chargé",
                 damage: 3,
-                cost: 1,
+                cost: 2,
                 pattern: { type: "radius", range: 4 },
                 animation: "alternativeAttack1",
-                cooldownTurns: 2,
-                initialCooldownTurns: 2,
+                cooldownTurns: 1,
+                initialCooldownTurns: 1,
             },
         ],
         movementRange: 2,
@@ -230,11 +232,11 @@ export const MONSTERS: Monster[] = [
         symbol: "B",
         color: 0x54b8e8,
         cost: 4,
-        hp: 5,
+        hp: 4,
         attacks: [
             {
                 name: "Coup de baton",
-                damage: 1,
+                damage: 2,
                 cost: 1,
                 pattern: { type: "adjacent" },
             },
@@ -275,7 +277,7 @@ export const MONSTERS: Monster[] = [
         attacks: [
             {
                 name: "Coup de baton",
-                damage: 1,
+                damage: 2,
                 cost: 1,
                 pattern: { type: "adjacent" },
             },
