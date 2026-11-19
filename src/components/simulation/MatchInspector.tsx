@@ -1,8 +1,19 @@
-import { analyzeMatchMonsters, type AnalyzableMatch } from "../../simulation/analysis";
+import {
+    analyzeMatchMonsters,
+    type AnalyzableMatch,
+    type MatchMonsterAnalysis,
+} from "../../simulation/analysis";
 import type { GameConfiguration } from "../../game/gameConfiguration";
 import { getMonsterSymbol, getUniqueMonsterSymbols } from "../../game/monsterSymbols";
+import type { SimulationEvent } from "../../simulation/types";
 import { AttackUsageList } from "./AttackUsageList";
+import { SortableTable, type SortableColumn } from "./SortableTable";
 import { SimulationBoard } from "./SimulationBoard";
+
+interface MatchHistoryEntry {
+    event: SimulationEvent;
+    index: number;
+}
 
 interface MatchInspectorProps {
     readonly matches: readonly AnalyzableMatch[];
@@ -21,6 +32,81 @@ export function MatchInspector({
     const visibleHistory = match?.history.slice(-500) ?? [];
     const monsterStats = match ? analyzeMatchMonsters(match) : [];
     const monsterSymbols = getUniqueMonsterSymbols(configuration.monsters);
+    const monsterColumns: SortableColumn<MatchMonsterAnalysis>[] = [
+        {
+            key: "symbol",
+            label: "Symbole",
+            getValue: (monster) =>
+                monster.symbol ?? getMonsterSymbol(monsterSymbols, monster.monsterId),
+        },
+        { key: "name", label: "Monstre", getValue: (monster) => monster.name, rowHeader: true },
+        {
+            key: "owner",
+            label: "Joueur",
+            getValue: (monster) => monster.owner,
+            render: (monster) => (
+                <span
+                    className={`simulation-player-label simulation-player-label--${monster.owner}`}
+                >
+                    J{monster.owner}
+                </span>
+            ),
+        },
+        {
+            key: "hp",
+            label: "PV",
+            getValue: (monster) => monster.hp,
+            render: (monster) =>
+                monster.hp <= 0 ? (
+                    "Mort"
+                ) : (
+                    <>
+                        {monster.hp < monster.maxHp ? (
+                            <span className="simulation-damaged-hp">{monster.hp}</span>
+                        ) : (
+                            monster.hp
+                        )}
+                        /{monster.maxHp}
+                    </>
+                ),
+        },
+        {
+            key: "position",
+            label: "Position",
+            getValue: (monster) => `${monster.position.x}, ${monster.position.y}`,
+            render: (monster) => `${monster.position.x}, ${monster.position.y}`,
+        },
+        {
+            key: "attacks",
+            label: "Attaques",
+            getValue: (monster) => monster.attacks,
+            render: (monster) => (monster.attacks > 0 ? monster.attacks : ""),
+        },
+        {
+            key: "totalDamage",
+            label: "Dégâts infligés",
+            getValue: (monster) => monster.totalDamage,
+            render: (monster) => (monster.totalDamage > 0 ? monster.totalDamage : ""),
+        },
+        {
+            key: "attackUsage",
+            label: "Attaques les plus utilisées",
+            getValue: (monster) =>
+                monster.attackUsage.reduce((total, attack) => total + attack.uses, 0),
+            render: (monster) => <AttackUsageList attacks={monster.attackUsage} />,
+        },
+    ];
+    const historyRows = visibleHistory.map((event, index) => ({ event, index }));
+    const historyColumns: SortableColumn<MatchHistoryEntry>[] = [
+        { key: "turn", label: "Tour", getValue: ({ event }) => event.turn },
+        { key: "player", label: "Joueur", getValue: ({ event }) => event.player },
+        { key: "type", label: "Type", getValue: ({ event }) => event.type },
+        {
+            key: "description",
+            label: "Action / stratégie",
+            getValue: ({ event }) => event.description,
+        },
+    ];
 
     return (
         <section className="simulation-match-inspector">
@@ -53,7 +139,15 @@ export function MatchInspector({
                             J1 : {match.profiles[1]} · {match.statistics[1].summoned} invoqués
                         </span>
                         <span>
+                            Dernière invocation J1 :{" "}
+                            {formatLastSummonTurn(match.statistics[1].lastMonsterSummonTurn)}
+                        </span>
+                        <span>
                             J2 : {match.profiles[2]} · {match.statistics[2].summoned} invoqués
+                        </span>
+                        <span>
+                            Dernière invocation J2 :{" "}
+                            {formatLastSummonTurn(match.statistics[2].lastMonsterSummonTurn)}
                         </span>
                         <span>
                             {match.winner ? `Vainqueur : J${match.winner}` : "Résultat : égalité"}
@@ -63,54 +157,11 @@ export function MatchInspector({
                     {match.finalMonsters.length > 0 && (
                         <div className="simulation-table-wrap">
                             <h4>Monstres en fin de match</h4>
-                            <table className="simulation-table">
-                                <thead>
-                                    <tr>
-                                        <th>Symbole</th>
-                                        <th>Monstre</th>
-                                        <th>Joueur</th>
-                                        <th>PV</th>
-                                        <th>Position</th>
-                                        <th>Attaques</th>
-                                        <th>Dégâts infligés</th>
-                                        <th>Attaques les plus utilisées</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {monsterStats.map((monster) => (
-                                        <tr key={monster.id}>
-                                            <td>
-                                                {monster.symbol ??
-                                                    getMonsterSymbol(
-                                                        monsterSymbols,
-                                                        monster.monsterId,
-                                                    )}
-                                            </td>
-                                            <th scope="row">{monster.name}</th>
-                                            <td>
-                                                <span
-                                                    className={`simulation-player-label simulation-player-label--${monster.owner}`}
-                                                >
-                                                    J{monster.owner}
-                                                </span>
-                                            </td>
-                                            <td>
-                                                {monster.hp <= 0
-                                                    ? "Mort"
-                                                    : `${monster.hp}/${monster.maxHp}`}
-                                            </td>
-                                            <td>
-                                                {monster.position.x}, {monster.position.y}
-                                            </td>
-                                            <td>{monster.attacks}</td>
-                                            <td>{monster.totalDamage}</td>
-                                            <td>
-                                                <AttackUsageList attacks={monster.attackUsage} />
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                            <SortableTable
+                                rows={monsterStats}
+                                columns={monsterColumns}
+                                getRowKey={(monster) => monster.id}
+                            />
                         </div>
                     )}
                     <div className="simulation-history">
@@ -121,29 +172,21 @@ export function MatchInspector({
                                 l’historique complet.
                             </p>
                         )}
-                        <table className="simulation-table">
-                            <thead>
-                                <tr>
-                                    <th>Tour</th>
-                                    <th>Joueur</th>
-                                    <th>Type</th>
-                                    <th>Action / stratégie</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {visibleHistory.map((event, index) => (
-                                    <tr key={`${event.turn}-${event.player}-${index}`}>
-                                        <td>{event.turn}</td>
-                                        <td>J{event.player}</td>
-                                        <td>{event.type}</td>
-                                        <td>{event.description}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                        <SortableTable
+                            rows={historyRows}
+                            columns={historyColumns}
+                            getRowKey={({ event, index }) =>
+                                `${event.turn}-${event.player}-${index}`
+                            }
+                        />
                     </div>
                 </>
             )}
         </section>
     );
+}
+
+function formatLastSummonTurn(turn: number | null | undefined): string {
+    if (turn === undefined) return "non renseignée";
+    return turn === null ? "limite non atteinte" : `tour ${turn}`;
 }

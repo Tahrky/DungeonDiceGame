@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import {
     analyzeSimulationData,
     parseSimulationData,
+    type MonsterAnalysis,
     type SimulationAnalytics,
     type SimulationData,
 } from "../../simulation/analysis";
@@ -10,6 +11,7 @@ import { BOT_PROFILES, type SimulationBatchResult } from "../../simulation/types
 import { AttackUsageList } from "./AttackUsageList";
 import { MetricBarChart } from "./MetricBarChart";
 import { MatchInspector } from "./MatchInspector";
+import { SortableTable, type SortableColumn } from "./SortableTable";
 
 interface ResultsAnalysisPanelProps {
     readonly generatedResult: SimulationBatchResult | null;
@@ -34,6 +36,46 @@ function MetricCard({ label, value }: { label: string; value: string }) {
         </div>
     );
 }
+
+const MONSTER_COLUMNS: SortableColumn<MonsterAnalysis>[] = [
+    { key: "name", label: "Monstre", getValue: (monster) => monster.name, rowHeader: true },
+    { key: "appearances", label: "Invocations", getValue: (monster) => monster.appearances },
+    {
+        key: "matchesSeen",
+        label: "Matchs avec apparition",
+        getValue: (monster) => monster.matchesSeen,
+    },
+    {
+        key: "attacks",
+        label: "Attaques",
+        getValue: (monster) => monster.attacks,
+        render: (monster) => (monster.attacks > 0 ? monster.attacks : ""),
+    },
+    {
+        key: "totalDamage",
+        label: "Dégâts totaux",
+        getValue: (monster) => monster.totalDamage,
+        render: (monster) => (monster.totalDamage > 0 ? monster.totalDamage : ""),
+    },
+    {
+        key: "movements",
+        label: "Déplacements cumulés",
+        getValue: (monster) => monster.movements,
+    },
+    {
+        key: "averageMovements",
+        label: "Déplacements moyens / invocation",
+        getValue: (monster) => monster.averageMovements,
+        render: (monster) => monster.averageMovements.toFixed(2),
+    },
+    {
+        key: "attackUsage",
+        label: "Attaques les plus utilisées",
+        getValue: (monster) =>
+            monster.attackUsage.reduce((total, attack) => total + attack.uses, 0),
+        render: (monster) => <AttackUsageList attacks={monster.attackUsage} />,
+    },
+];
 
 export function ResultsAnalysisPanel({ generatedResult }: ResultsAnalysisPanelProps) {
     const inputRef = useRef<HTMLInputElement>(null);
@@ -224,38 +266,11 @@ export function ResultsAnalysisPanel({ generatedResult }: ResultsAnalysisPanelPr
 
                             <div className="simulation-table-wrap">
                                 <h4>Tableau général par monstre</h4>
-                                <table className="simulation-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Monstre</th>
-                                            <th>Invocations</th>
-                                            <th>Matchs avec apparition</th>
-                                            <th>Attaques</th>
-                                            <th>Dégâts totaux</th>
-                                            <th>Déplacements cumulés</th>
-                                            <th>Déplacements moyens / invocation</th>
-                                            <th>Attaques les plus utilisées</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {analytics.monsters.map((monster) => (
-                                            <tr key={monster.id}>
-                                                <th scope="row">{monster.name}</th>
-                                                <td>{monster.appearances}</td>
-                                                <td>{monster.matchesSeen}</td>
-                                                <td>{monster.attacks}</td>
-                                                <td>{monster.totalDamage}</td>
-                                                <td>{monster.movements}</td>
-                                                <td>{monster.averageMovements.toFixed(2)}</td>
-                                                <td>
-                                                    <AttackUsageList
-                                                        attacks={monster.attackUsage}
-                                                    />
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                                <SortableTable
+                                    rows={analytics.monsters}
+                                    columns={MONSTER_COLUMNS}
+                                    getRowKey={(monster) => monster.id}
+                                />
                             </div>
                         </div>
                     ) : (

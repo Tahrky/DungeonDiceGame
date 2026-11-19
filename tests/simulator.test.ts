@@ -145,8 +145,7 @@ describe("simulation de matchs", () => {
         if (!match) throw new Error("Match de test attendu.");
         const conversions = match.history.filter(
             (event) =>
-                event.type === "strategy" &&
-                event.description.startsWith("Conversion tactique"),
+                event.type === "strategy" && event.description.startsWith("Conversion tactique"),
         );
 
         expect(conversions.length).toBeLessThan(60);
@@ -179,14 +178,23 @@ describe("simulation de matchs", () => {
         });
         const legacyResult = {
             ...result,
-            matches: result.matches.map((match) => ({
-                ...match,
-                finalMonsters: match.finalMonsters.map((monster) => {
-                    const { symbol, ...legacyMonster } = monster;
-                    void symbol;
-                    return legacyMonster;
-                }),
-            })),
+            matches: result.matches.map((match) => {
+                const { lastMonsterSummonTurn: _lastTurn1, ...player1Stats } =
+                    match.statistics[1];
+                const { lastMonsterSummonTurn: _lastTurn2, ...player2Stats } =
+                    match.statistics[2];
+                void _lastTurn1;
+                void _lastTurn2;
+                return {
+                    ...match,
+                    statistics: { 1: player1Stats, 2: player2Stats },
+                    finalMonsters: match.finalMonsters.map((monster) => {
+                        const { symbol, ...legacyMonster } = monster;
+                        void symbol;
+                        return legacyMonster;
+                    }),
+                };
+            }),
         };
 
         expect(parseSimulationData(legacyResult)).not.toBeNull();
@@ -264,5 +272,39 @@ describe("simulation de matchs", () => {
         expect(decisions?.[1]?.description).toContain(
             "priorise les PV de la base adverse sans ignorer les menaces",
         );
+    });
+
+    it("traque l’ultime invocation et retire les invocations des dés aux tours suivants", () => {
+        const configuration = getDefaultGameConfiguration();
+        configuration.maxMonstersPerPlayer = 1;
+        configuration.initialPlayerHealth = 20;
+        configuration.monstersKilledForVictory = 20;
+        configuration.removeInvocationDiceWhenNoMonsters = true;
+        configuration.monsters = configuration.monsters.map((monster) => ({
+            ...monster,
+            cost: 0,
+            hp: 50,
+            attacks: monster.attacks.map((attack) => ({ ...attack, damage: 0 })),
+        }));
+
+        const match = runSimulations(
+            {
+                games: 1,
+                seed: 912,
+                maxTurns: 2,
+                profile1: "balanced",
+                profile2: "balanced",
+            },
+            configuration,
+        ).matches[0];
+        if (!match) throw new Error("Match de test attendu.");
+
+        expect(match.statistics[1].lastMonsterSummonTurn).toBe(1);
+        expect(match.statistics[2].lastMonsterSummonTurn).toBe(1);
+        expect(
+            match.history
+                .filter((event) => event.type === "dice" && event.turn === 2)
+                .every((event) => !event.description.includes("invocation")),
+        ).toBe(true);
     });
 });

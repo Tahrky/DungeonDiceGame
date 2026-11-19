@@ -2,6 +2,7 @@ import { DICE } from "../data/dice";
 import { getDefaultBoard, type BoardDefinition } from "../game/boards";
 import { getDefaultGameConfiguration, type GameConfiguration } from "../game/gameConfiguration";
 import { getInvokedMonsterCount } from "../game/matchRules";
+import { getRollableDieFaces } from "../game/diceResources";
 import { getAttackCost, getMovementCost } from "../game/monsterActions";
 import type { PlayerId } from "../types/GameTypes";
 import {
@@ -107,9 +108,14 @@ function createMatch(
             else state.currentPlayer = player;
             if (state.winner !== null) break;
 
-            const rolled = DICE.slice(0, configuration.diceCount).map(
-                (die) => die.faces[Math.floor(random() * die.faces.length)]!,
-            );
+            const excludeInvocation =
+                configuration.removeInvocationDiceWhenNoMonsters &&
+                getInvokedMonsterCount(state.monsters, player) >=
+                    configuration.maxMonstersPerPlayer;
+            const rolled = DICE.slice(0, configuration.diceCount).map((die) => {
+                const faces = getRollableDieFaces(die, excludeInvocation);
+                return faces[Math.floor(random() * faces.length)]!;
+            });
             for (const symbol of rolled) state.reserves[player][symbol]++;
             state.history.push({
                 turn,
@@ -137,11 +143,10 @@ function createMatch(
                 .map((monster) => monster.monster.cost);
             const invocableMonsters =
                 getInvokedMonsterCount(state.monsters, player) <
-                    configuration.maxMonstersPerPlayer && hasAvailablePlacement(state, board, player)
+                    configuration.maxMonstersPerPlayer &&
+                hasAvailablePlacement(state, board, player)
                     ? decks[player]
-                          .map((id) =>
-                              configuration.monsters.find((monster) => monster.id === id),
-                          )
+                          .map((id) => configuration.monsters.find((monster) => monster.id === id))
                           .filter(
                               (monster) =>
                                   monster !== undefined &&
@@ -169,21 +174,18 @@ function createMatch(
                                 monster.attacksUsedThisTurn <
                                     (monster.monster.attackActionsPerTurn ?? 1),
                         )
-                        .reduce(
-                            (best, monster) => {
-                                for (const attack of monster.monster.attacks) {
-                                    const cost = getAttackCost(
-                                        attack,
-                                        monster.turnBuffs?.attackCostReduction ?? 0,
-                                    );
-                                    if (cost > reserve.attack) {
-                                        best = Math.max(best, 1);
-                                    }
+                        .reduce((best, monster) => {
+                            for (const attack of monster.monster.attacks) {
+                                const cost = getAttackCost(
+                                    attack,
+                                    monster.turnBuffs?.attackCostReduction ?? 0,
+                                );
+                                if (cost > reserve.attack) {
+                                    best = Math.max(best, 1);
                                 }
-                                return best;
-                            },
-                            0,
-                        ),
+                            }
+                            return best;
+                        }, 0),
                     movement: state.monsters.some((monster) => {
                         if (
                             monster.owner !== player ||

@@ -9,6 +9,7 @@ export interface AnalyzablePlayerStats {
     attacks: number;
     symbolsSpent?: DiceReserve;
     conversionLosses?: number;
+    lastMonsterSummonTurn?: number | null;
     damageDealt: number;
     monstersKilled: number;
     monstersLost?: number;
@@ -142,6 +143,11 @@ function isStatistics(value: unknown): value is AnalyzablePlayerStats {
         isNumber(value.monstersKilled) &&
         isNumber(value.baseDamage) &&
         isNumber(value.movements) &&
+        (value.lastMonsterSummonTurn === undefined ||
+            value.lastMonsterSummonTurn === null ||
+            (typeof value.lastMonsterSummonTurn === "number" &&
+                Number.isInteger(value.lastMonsterSummonTurn) &&
+                value.lastMonsterSummonTurn >= 1)) &&
         (value.symbolsSpent === undefined || isDiceReserve(value.symbolsSpent)) &&
         (value.conversionLosses === undefined || isNumber(value.conversionLosses))
     );

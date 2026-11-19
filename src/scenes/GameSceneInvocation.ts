@@ -4,6 +4,7 @@ import { DICE } from "../data/dice";
 import { PLACEMENT_PATTERNS } from "../data/placementPatterns";
 import {
     getAvailableSymbolCount,
+    getRollableDieFaces,
     spendSymbols,
     storeRemainingDice,
     storeRolledDie,
@@ -26,11 +27,18 @@ export abstract class GameSceneInvocation extends GameSceneState {
             return;
         }
 
-        this.rolledDice = DICE.slice(0, this.gameConfiguration.diceCount).map((die) => ({
-            definitionId: die.id,
-            symbol: die.faces[Phaser.Math.Between(0, die.faces.length - 1)],
-            status: "available",
-        }));
+        const excludeInvocation =
+            this.gameConfiguration.removeInvocationDiceWhenNoMonsters &&
+            getInvokedMonsterCount(this.placedMonsters, this.currentPlayer) >=
+                this.gameConfiguration.maxMonstersPerPlayer;
+        this.rolledDice = DICE.slice(0, this.gameConfiguration.diceCount).map((die) => {
+            const faces = getRollableDieFaces(die, excludeInvocation);
+            return {
+                definitionId: die.id,
+                symbol: faces[Phaser.Math.Between(0, faces.length - 1)]!,
+                status: "available",
+            };
+        });
         storeRemainingDice(this.rolledDice, this.diceReserves[this.currentPlayer]);
         this.hasRolled = true;
         this.selectedMonster = null;
@@ -139,10 +147,7 @@ export abstract class GameSceneInvocation extends GameSceneState {
             connectedCells,
             ownedPathCells,
             this.board.height,
-            [
-                ...this.board.blockedCells,
-                ...this.obstacles.map(({ position }) => position),
-            ],
+            [...this.board.blockedCells, ...this.obstacles.map(({ position }) => position)],
         );
     }
 
@@ -152,23 +157,14 @@ export abstract class GameSceneInvocation extends GameSceneState {
         const currentHeight =
             this.obstacles.find(
                 (obstacle) =>
-                    obstacle.position.x === position.x &&
-                    obstacle.position.y === position.y,
+                    obstacle.position.x === position.x && obstacle.position.y === position.y,
             )?.height ?? 0;
         const nextHeight: BoardCellHeight =
-            delta > 0
-                ? currentHeight === -1
-                    ? 0
-                    : 1
-                : currentHeight === 1
-                  ? 0
-                  : -1;
+            delta > 0 ? (currentHeight === -1 ? 0 : 1) : currentHeight === 1 ? 0 : -1;
         if (nextHeight === currentHeight) return;
 
         this.obstacles = this.obstacles.filter(
-            (obstacle) =>
-                obstacle.position.x !== position.x ||
-                obstacle.position.y !== position.y,
+            (obstacle) => obstacle.position.x !== position.x || obstacle.position.y !== position.y,
         );
         if (nextHeight !== 0) {
             this.obstacles.push({ height: nextHeight, position: { ...position } });
@@ -200,9 +196,7 @@ export abstract class GameSceneInvocation extends GameSceneState {
             );
             const isBlocked = this.pendingCells.some((cell) =>
                 this.obstacles.some(
-                    (obstacle) =>
-                        obstacle.position.x === cell.x &&
-                        obstacle.position.y === cell.y,
+                    (obstacle) => obstacle.position.x === cell.x && obstacle.position.y === cell.y,
                 ),
             );
             if (!isOnDie || isOccupied || isStartingCell || isBlocked) return;

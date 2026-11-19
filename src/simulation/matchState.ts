@@ -56,6 +56,7 @@ export function createStats(): PlayerSimulationStats {
         movements: 0,
         symbolsSpent: { invocation: 0, attack: 0, movement: 0 },
         conversionLosses: 0,
+        lastMonsterSummonTurn: null,
         ineffectiveActions: 0,
         decisionsWithoutImpact: 0,
         decisionTimeMs: 0,
@@ -292,14 +293,15 @@ export function deployMonsters(
         const preferredMonsters = affordableMonsters.filter((monster) =>
             canDeployMonsterForProfile(monster, profile, deployedCosts),
         );
-        const choices = (preferredMonsters.length > 0 ? preferredMonsters : affordableMonsters)
-            .sort((first, second) => {
-                return (
-                    (summonedByMonster[first.id] ?? 0) - (summonedByMonster[second.id] ?? 0) ||
-                    (profileScores.get(second.id) ?? 0) - (profileScores.get(first.id) ?? 0) ||
-                    first.cost - second.cost
-                );
-            });
+        const choices = (
+            preferredMonsters.length > 0 ? preferredMonsters : affordableMonsters
+        ).sort((first, second) => {
+            return (
+                (summonedByMonster[first.id] ?? 0) - (summonedByMonster[second.id] ?? 0) ||
+                (profileScores.get(second.id) ?? 0) - (profileScores.get(first.id) ?? 0) ||
+                first.cost - second.cost
+            );
+        });
         const monster = choices[0];
         if (!monster || !spend(state, state.currentPlayer, "invocation", monster.cost)) return;
 
@@ -321,6 +323,12 @@ export function deployMonsters(
         state.monsters.push(placed);
         const stats = state.statistics[state.currentPlayer];
         stats.summoned++;
+        if (
+            stats.summoned >= configuration.maxMonstersPerPlayer &&
+            stats.lastMonsterSummonTurn === null
+        ) {
+            stats.lastMonsterSummonTurn = state.turn;
+        }
         stats.summonedByMonster[monster.id] = (stats.summonedByMonster[monster.id] ?? 0) + 1;
         addEvent(
             state,

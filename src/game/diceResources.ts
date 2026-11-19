@@ -1,4 +1,11 @@
-import type { DiceReserve, DiceSymbol, RolledDie } from "../types/GameTypes";
+import type { DiceReserve, DiceSymbol, DieDefinition, RolledDie } from "../types/GameTypes";
+
+export function getRollableDieFaces(
+    die: DieDefinition,
+    excludeInvocation: boolean,
+): readonly DiceSymbol[] {
+    return excludeInvocation ? die.faces.filter((symbol) => symbol !== "invocation") : die.faces;
+}
 
 export function createEmptyDiceReserve(): DiceReserve {
     return { invocation: 0, attack: 0, movement: 0 };

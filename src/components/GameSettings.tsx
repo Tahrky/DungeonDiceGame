@@ -167,8 +167,8 @@ export function GameSettings({
                         />
                     </label>
                     <label className="settings-field">
-                        Monstres différents par deck ({MIN_DECK_SIZE} à{" "}
-                        {MAX_AVAILABLE_DECK_SIZE} disponibles, jusqu’à {MAX_DECK_SIZE} prévus)
+                        Monstres différents par deck ({MIN_DECK_SIZE} à {MAX_AVAILABLE_DECK_SIZE}{" "}
+                        disponibles, jusqu’à {MAX_DECK_SIZE} prévus)
                         <input
                             type="number"
                             min={MIN_DECK_SIZE}
@@ -254,6 +254,20 @@ export function GameSettings({
                             }}
                         />
                         Autoriser l’attaque de la base au tour d’apparition
+                    </label>
+                    <label className="settings-toggle">
+                        <input
+                            type="checkbox"
+                            checked={configuration.removeInvocationDiceWhenNoMonsters}
+                            onChange={(event) => {
+                                const checked = event.currentTarget.checked;
+                                setConfiguration((current) => ({
+                                    ...current,
+                                    removeInvocationDiceWhenNoMonsters: checked,
+                                }));
+                            }}
+                        />
+                        Retirer les symboles d’invocation quand la limite d’invocations est atteinte
                     </label>
                     <label className="settings-toggle">
                         <input

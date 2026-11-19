@@ -837,6 +837,21 @@ canvas {
     white-space: nowrap;
 }
 
+.simulation-table-sort-button {
+    border: 0;
+    padding: 0;
+    color: inherit;
+    background: transparent;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.simulation-table-sort-button:hover,
+.simulation-table-sort-button:focus-visible {
+    color: var(--accent-gold);
+}
+
 .simulation-table tbody th {
     color: #fff;
     font-weight: 600;
@@ -865,6 +880,11 @@ canvas {
 
 .simulation-player-label--2 {
     color: #8fc5ff;
+}
+
+.simulation-damaged-hp {
+    color: #ff9188;
+    font-weight: 700;
 }
 
 .simulation-match-inspector {

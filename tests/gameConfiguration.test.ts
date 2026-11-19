@@ -24,6 +24,8 @@ describe("configuration des règles de partie", () => {
             testBoard: GAME_OPTIONS.testBoard.default,
             initialPlayerHealth: GAME_OPTIONS.initialPlayerHealth.default,
             allowBaseAttackOnSummonTurn: GAME_OPTIONS.allowBaseAttackOnSummonTurn.default,
+            removeInvocationDiceWhenNoMonsters:
+                GAME_OPTIONS.removeInvocationDiceWhenNoMonsters.default,
             maxMonstersPerPlayer: GAME_OPTIONS.maxMonstersPerPlayer.default,
             monstersKilledForVictory: GAME_OPTIONS.monstersKilledForVictory.default,
         });
@@ -36,9 +38,7 @@ describe("configuration des règles de partie", () => {
         saved.monsters[0]!.hp += 1;
         vi.stubGlobal("localStorage", {
             getItem: (key: string) =>
-                key === GAME_CONFIGURATION_STORAGE_KEY
-                    ? serializeGameConfiguration(saved)
-                    : null,
+                key === GAME_CONFIGURATION_STORAGE_KEY ? serializeGameConfiguration(saved) : null,
         });
 
         try {
@@ -59,16 +59,19 @@ describe("configuration des règles de partie", () => {
         configuration.testBoard = true;
         configuration.initialPlayerHealth = 7;
         configuration.allowBaseAttackOnSummonTurn = false;
+        configuration.removeInvocationDiceWhenNoMonsters = true;
         configuration.maxMonstersPerPlayer = 4;
         configuration.monstersKilledForVictory = 6;
 
         expect(
             parseGameConfiguration(JSON.parse(serializeGameConfiguration(configuration))),
         ).toEqual(configuration);
-        expect(configuration.monsters.find((monster) => monster.id === "ghost")?.canPassHostiles)
-            .toBe(true);
-        expect(configuration.monsters.find((monster) => monster.id === "spectre")?.canPassHostiles)
-            .toBe(true);
+        expect(
+            configuration.monsters.find((monster) => monster.id === "ghost")?.canPassHostiles,
+        ).toBe(true);
+        expect(
+            configuration.monsters.find((monster) => monster.id === "spectre")?.canPassHostiles,
+        ).toBe(true);
         expect(MONSTERS.find((monster) => monster.id === "frost-mage")?.hp).toBe(5);
     });
 
@@ -94,6 +97,28 @@ describe("configuration des règles de partie", () => {
         legacyConfiguration.version = 5;
         delete legacyConfiguration.allowBaseAttackOnSummonTurn;
         expect(parseGameConfiguration(legacyConfiguration)?.allowBaseAttackOnSummonTurn).toBe(true);
+        expect(
+            parseGameConfiguration(legacyConfiguration)?.removeInvocationDiceWhenNoMonsters,
+        ).toBe(false);
+    });
+
+    it("migre la configuration v6 et conserve l’option de retrait des invocations", () => {
+        expect(getDefaultGameConfiguration().removeInvocationDiceWhenNoMonsters).toBe(false);
+        const legacyConfiguration: Record<string, unknown> = JSON.parse(
+            serializeGameConfiguration(getDefaultGameConfiguration()),
+        );
+        legacyConfiguration.version = 6;
+        delete legacyConfiguration.removeInvocationDiceWhenNoMonsters;
+
+        expect(
+            parseGameConfiguration(legacyConfiguration)?.removeInvocationDiceWhenNoMonsters,
+        ).toBe(false);
+        expect(
+            parseGameConfiguration({
+                ...legacyConfiguration,
+                removeInvocationDiceWhenNoMonsters: true,
+            })?.removeInvocationDiceWhenNoMonsters,
+        ).toBe(true);
     });
 
     it("valide et préserve l'attribut de haute altitude", () => {
@@ -103,14 +128,9 @@ describe("configuration des règles de partie", () => {
         if (!spectre) throw new Error("Profil du spectre introuvable.");
         expect(spectre.highAltitude).toBeUndefined();
         const highAltitudeSpectre = { ...spectre, highAltitude: true };
+        expect(parseMonsterConfiguration(highAltitudeSpectre, "spectre")?.highAltitude).toBe(true);
         expect(
-            parseMonsterConfiguration(highAltitudeSpectre, "spectre")?.highAltitude,
-        ).toBe(true);
-        expect(
-            parseMonsterConfiguration(
-                { ...highAltitudeSpectre, highAltitude: "true" },
-                "spectre",
-            ),
+            parseMonsterConfiguration({ ...highAltitudeSpectre, highAltitude: "true" }, "spectre"),
         ).toBeNull();
     });
 
@@ -204,12 +224,13 @@ describe("configuration des règles de partie", () => {
 
         const migrated = parseGameConfiguration(legacyConfiguration);
 
-        expect(migrated?.version).toBe(6);
+        expect(migrated?.version).toBe(7);
         expect(migrated?.deckSize).toBe(DEFAULT_DECK_SIZE);
         expect(migrated?.diceCount).toBe(3);
         expect(migrated?.monstersKilledForVictory).toBe(8);
-        expect(migrated?.monsters.find((monster) => monster.id === "priest")?.attacks[0].pattern)
-            .toEqual({ type: "radius", range: 4 });
+        expect(
+            migrated?.monsters.find((monster) => monster.id === "priest")?.attacks[0].pattern,
+        ).toEqual({ type: "radius", range: 4 });
     });
 
     it("migre les capacités par défaut enregistrées du Prêtre Buffer", () => {
@@ -249,8 +270,10 @@ describe("configuration des règles de partie", () => {
 
         const migrated = parseGameConfiguration(legacyConfiguration);
 
-        expect(migrated?.version).toBe(6);
-        expect(migrated?.monsters.find((monster) => monster.id === "priestBuffer")?.attacks).toMatchObject([
+        expect(migrated?.version).toBe(7);
+        expect(
+            migrated?.monsters.find((monster) => monster.id === "priestBuffer")?.attacks,
+        ).toMatchObject([
             { name: "Coup de baton", pattern: { type: "adjacent" } },
             { name: "Foulée bénie", movementRangeBonus: 1, movementCostReduction: 1 },
             { name: "Force sacrée", attackDamageBonus: 1, attackCostReduction: 1 },
@@ -266,7 +289,7 @@ describe("configuration des règles de partie", () => {
         delete legacyConfiguration.deckSize;
 
         expect(parseGameConfiguration(legacyConfiguration)).toMatchObject({
-            version: 6,
+            version: 7,
             deckSize: DEFAULT_DECK_SIZE,
             monstersKilledForVictory: 8,
         });
@@ -280,7 +303,7 @@ describe("configuration des règles de partie", () => {
         delete legacyConfiguration.deckSize;
 
         expect(parseGameConfiguration(legacyConfiguration)).toMatchObject({
-            version: 6,
+            version: 7,
             deckSize: DEFAULT_DECK_SIZE,
         });
     });
@@ -473,13 +496,15 @@ describe("configuration des règles de partie", () => {
     it("refuse les configurations de version ou de limites invalides", () => {
         const configuration = getDefaultGameConfiguration();
         expect(parseGameConfiguration({ ...configuration, version: 7 })).toBeNull();
-        expect(parseGameConfiguration({ ...configuration, deckSize: MIN_DECK_SIZE - 1 })).toBeNull();
+        expect(
+            parseGameConfiguration({ ...configuration, deckSize: MIN_DECK_SIZE - 1 }),
+        ).toBeNull();
         expect(
             parseGameConfiguration({ ...configuration, deckSize: MAX_AVAILABLE_DECK_SIZE + 1 }),
         ).toBeNull();
-        expect(parseGameConfiguration({ ...configuration, deckSize: MIN_DECK_SIZE })?.deckSize).toBe(
-            MIN_DECK_SIZE,
-        );
+        expect(
+            parseGameConfiguration({ ...configuration, deckSize: MIN_DECK_SIZE })?.deckSize,
+        ).toBe(MIN_DECK_SIZE);
         expect(
             parseGameConfiguration({
                 ...configuration,
@@ -490,8 +515,12 @@ describe("configuration des règles de partie", () => {
         expect(parseGameConfiguration({ ...configuration, diceCount: 9 })).toBeNull();
         expect(parseGameConfiguration({ ...configuration, diceCount: 2 })?.diceCount).toBe(2);
         expect(parseGameConfiguration({ ...configuration, diceCount: 8 })?.diceCount).toBe(8);
-        expect(parseGameConfiguration({ ...configuration, monstersKilledForVictory: 0 })).toBeNull();
-        expect(parseGameConfiguration({ ...configuration, monstersKilledForVictory: 21 })).toBeNull();
+        expect(
+            parseGameConfiguration({ ...configuration, monstersKilledForVictory: 0 }),
+        ).toBeNull();
+        expect(
+            parseGameConfiguration({ ...configuration, monstersKilledForVictory: 21 }),
+        ).toBeNull();
         expect(
             parseGameConfiguration({
                 ...configuration,

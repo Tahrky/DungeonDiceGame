@@ -67,6 +67,7 @@ export interface PlayerSimulationStats {
     movements: number;
     symbolsSpent: DiceReserve;
     conversionLosses: number;
+    lastMonsterSummonTurn: number | null;
     ineffectiveActions: number;
     decisionsWithoutImpact: number;
     decisionTimeMs: number;

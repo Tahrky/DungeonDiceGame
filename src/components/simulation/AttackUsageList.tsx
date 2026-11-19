@@ -5,7 +5,7 @@ interface AttackUsageListProps {
 }
 
 export function AttackUsageList({ attacks }: AttackUsageListProps) {
-    if (attacks.length === 0) return <>—</>;
+    if (attacks.length === 0) return null;
     return (
         <ul className="simulation-attack-list">
             {attacks.map((attack) => (

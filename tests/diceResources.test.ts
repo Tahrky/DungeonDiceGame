@@ -6,6 +6,7 @@ import {
     convertReservedSymbols,
     createEmptyDiceReserve,
     getAvailableSymbolCount,
+    getRollableDieFaces,
     spendSymbols,
     storeRemainingDice,
     storeRolledDie,
@@ -21,6 +22,11 @@ describe("dés", () => {
         expect(DICE[0].faces.filter((face) => face === "invocation")).toHaveLength(3);
         expect(DICE[0].faces.filter((face) => face === "attack")).toHaveLength(2);
         expect(DICE[0].faces.filter((face) => face === "movement")).toHaveLength(1);
+    });
+
+    it("retire les invocations des faces uniquement quand l’option le demande", () => {
+        expect(getRollableDieFaces(DICE[0], false)).toEqual(DICE[0].faces);
+        expect(getRollableDieFaces(DICE[0], true)).toEqual(["attack", "attack", "movement"]);
     });
 });
 
@@ -98,9 +104,9 @@ describe("réserve et dépense des symboles", () => {
         expect(reserve).toEqual({ invocation: 1, attack: 0, movement: 0 });
 
         reserve.invocation++;
-        expect(
-            convertReservedSymbols(reserve, ["invocation", "invocation"], "invocation"),
-        ).toBe(false);
+        expect(convertReservedSymbols(reserve, ["invocation", "invocation"], "invocation")).toBe(
+            false,
+        );
         expect(reserve).toEqual({ invocation: 2, attack: 0, movement: 0 });
         expect(convertReservedSymbols(reserve, ["invocation", "invocation"], "attack")).toBe(true);
         expect(reserve).toEqual({ invocation: 0, attack: 1, movement: 0 });
