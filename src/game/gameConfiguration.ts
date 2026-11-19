@@ -19,10 +19,10 @@ export const GAME_OPTIONS = {
     },
     randomBoard: { default: false },
     testBoard: { default: false },
-    initialPlayerHealth: { default: 10, min: 1, max: 20 },
+    initialPlayerHealth: { default: 6, min: 1, max: 20 },
     allowBaseAttackOnSummonTurn: { default: false },
     maxMonstersPerPlayer: { default: 8, min: 1, max: 20 },
-    monstersKilledForVictory: { default: 8, min: 1, max: 20 },
+    monstersKilledForVictory: { default: 6, min: 1, max: 20 },
 } as const;
 
 export const GAME_CONFIGURATION_STORAGE_KEY = "dungeon-dice.configuration";
@@ -37,16 +37,13 @@ export const MAX_AVAILABLE_DECK_SIZE: number = GAME_OPTIONS.deckSize.maxAvailabl
 export const DEFAULT_PLAYER_LIFE: number = GAME_OPTIONS.initialPlayerHealth.default;
 export const MIN_PLAYER_HEALTH: number = GAME_OPTIONS.initialPlayerHealth.min;
 export const MAX_PLAYER_HEALTH: number = GAME_OPTIONS.initialPlayerHealth.max;
-export const DEFAULT_MAX_MONSTERS_PER_PLAYER: number =
-    GAME_OPTIONS.maxMonstersPerPlayer.default;
+export const DEFAULT_MAX_MONSTERS_PER_PLAYER: number = GAME_OPTIONS.maxMonstersPerPlayer.default;
 export const MIN_MAX_MONSTERS_PER_PLAYER: number = GAME_OPTIONS.maxMonstersPerPlayer.min;
 export const MAX_MAX_MONSTERS_PER_PLAYER: number = GAME_OPTIONS.maxMonstersPerPlayer.max;
 export const DEFAULT_MONSTERS_KILLED_FOR_VICTORY: number =
     GAME_OPTIONS.monstersKilledForVictory.default;
-export const MIN_MONSTERS_KILLED_FOR_VICTORY: number =
-    GAME_OPTIONS.monstersKilledForVictory.min;
-export const MAX_MONSTERS_KILLED_FOR_VICTORY: number =
-    GAME_OPTIONS.monstersKilledForVictory.max;
+export const MIN_MONSTERS_KILLED_FOR_VICTORY: number = GAME_OPTIONS.monstersKilledForVictory.min;
+export const MAX_MONSTERS_KILLED_FOR_VICTORY: number = GAME_OPTIONS.monstersKilledForVictory.max;
 
 export interface GameConfiguration {
     version: typeof GAME_CONFIGURATION_VERSION;
@@ -232,7 +229,8 @@ function parseAttack(value: unknown): MonsterAttack | null {
             !isIntegerInRange(value.attackDamageBonus, 1, 50)) ||
         (value.attackCostReduction !== undefined &&
             !isIntegerInRange(value.attackCostReduction, 1, 20)) ||
-        (hasTurnBuff && (value.healAmount !== undefined || value.cooldownReduction !== undefined)) ||
+        (hasTurnBuff &&
+            (value.healAmount !== undefined || value.cooldownReduction !== undefined)) ||
         (hasAllyEffect && (value.damage !== 0 || value.targetsAlliesOnly !== true)) ||
         (value.targetsAlliesOnly === true && !hasAllyEffect) ||
         (value.movesToZone !== undefined && typeof value.movesToZone !== "boolean")
@@ -301,9 +299,9 @@ function migrateGameConfiguration(value: unknown): unknown {
 
     let monsters = value.monsters;
     if (value.version === 1) {
-        const defaultHealPattern = MONSTERS.find((monster) => monster.id === "priest")?.attacks.find(
-            (attack) => attack.name === "Soin",
-        )?.pattern;
+        const defaultHealPattern = MONSTERS.find(
+            (monster) => monster.id === "priest",
+        )?.attacks.find((attack) => attack.name === "Soin")?.pattern;
         monsters = value.monsters.map((monster) => {
             if (!isRecord(monster) || monster.id !== "priest" || !Array.isArray(monster.attacks)) {
                 return monster;
@@ -330,9 +328,7 @@ function migrateGameConfiguration(value: unknown): unknown {
             };
         });
     }
-    const defaultBuffAttacks = MONSTERS.find(
-        (monster) => monster.id === "priestBuffer",
-    )?.attacks;
+    const defaultBuffAttacks = MONSTERS.find((monster) => monster.id === "priestBuffer")?.attacks;
     monsters = monsters.map((monster) => {
         if (
             !isRecord(monster) ||
@@ -450,8 +446,7 @@ export function parseMonsterConfiguration(value: unknown, expectedId?: string): 
         typeof value.movementActionsPerTurn === "number" ? value.movementActionsPerTurn : undefined;
     const movementCost = typeof value.movementCost === "number" ? value.movementCost : undefined;
     const flying = typeof value.flying === "boolean" ? value.flying : undefined;
-    const highAltitude =
-        typeof value.highAltitude === "boolean" ? value.highAltitude : undefined;
+    const highAltitude = typeof value.highAltitude === "boolean" ? value.highAltitude : undefined;
     const canPassHostiles =
         typeof value.canPassHostiles === "boolean"
             ? value.canPassHostiles
@@ -556,9 +551,7 @@ export function getSavedGameConfiguration(): GameConfiguration {
         if (stored === null) return defaults;
         const savedValue: unknown = JSON.parse(stored);
         if (!isRecord(savedValue)) return defaults;
-        return (
-            parseGameConfiguration({ ...savedValue, monsters: defaults.monsters }) ?? defaults
-        );
+        return parseGameConfiguration({ ...savedValue, monsters: defaults.monsters }) ?? defaults;
     } catch {
         return defaults;
     }
