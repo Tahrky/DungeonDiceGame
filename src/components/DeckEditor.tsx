@@ -5,6 +5,7 @@ import { UnsavedChangesDialog, useBeforeUnloadWarning } from "./UnsavedChangesDi
 import {
     DECK_STORAGE_KEY,
     getDefaultDeck,
+    getRandomDeck,
     getSavedDeck,
     parseDeck,
     serializeDeck,
@@ -124,6 +125,13 @@ export function DeckEditor({ onBack, deckSize }: DeckEditorProps) {
         setSelectedDeck(nextDeck);
         setDeckJson(serializeDeck(nextDeck));
         setNotice("");
+    }
+
+    function generateRandomDeck(): void {
+        const deck = getRandomDeck(deckSize);
+        setSelectedDeck(deck);
+        setDeckJson(serializeDeck(deck));
+        setNotice("Deck aléatoire généré. Enregistrez-le pour le conserver.");
     }
 
     function saveDeck(): boolean {
@@ -287,6 +295,9 @@ export function DeckEditor({ onBack, deckSize }: DeckEditorProps) {
                         Copiez ce code ou collez un deck de cinq identifiants de monstres.
                     </small>
                     <div className="deck-actions">
+                        <button className="secondary-button" onClick={generateRandomDeck}>
+                            Générer un deck aléatoire
+                        </button>
                         <button className="secondary-button" onClick={applyDeckJson}>
                             Charger ce JSON
                         </button>

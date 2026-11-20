@@ -29,6 +29,18 @@ export function getDefaultDeck(deckSize = DEFAULT_DECK_SIZE): string[] {
         .map((monster) => monster.id);
 }
 
+export function getRandomDeck(
+    deckSize = DEFAULT_DECK_SIZE,
+    random: () => number = Math.random,
+): string[] {
+    const monsters = [...MONSTERS];
+    for (let index = monsters.length - 1; index > 0; index -= 1) {
+        const randomIndex = Math.floor(random() * (index + 1));
+        [monsters[index], monsters[randomIndex]] = [monsters[randomIndex], monsters[index]];
+    }
+    return monsters.slice(0, deckSize).map((monster) => monster.id);
+}
+
 export function getPlayerDecks(
     playerDeck: string[],
     opponentDeck: string[],

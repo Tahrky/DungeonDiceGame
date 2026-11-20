@@ -5,6 +5,7 @@ import {
     DECK_SIZE,
     getDefaultDeck,
     getPlayerDecks,
+    getRandomDeck,
     parseDeck,
     serializeDeck,
 } from "../src/game/decks";
@@ -35,6 +36,14 @@ describe("sélections de monstres", () => {
         expect(largestDeck).toHaveLength(MAX_AVAILABLE_DECK_SIZE);
         expect(parseDeck(largestDeck, MAX_AVAILABLE_DECK_SIZE)).toEqual(largestDeck);
         expect(parseDeck(deck, DECK_SIZE)).toBeNull();
+    });
+
+    it("génère un deck aléatoire de la taille demandée sans doublons", () => {
+        const deck = getRandomDeck(MIN_DECK_SIZE, () => 0);
+
+        expect(deck).toHaveLength(MIN_DECK_SIZE);
+        expect(new Set(deck).size).toBe(MIN_DECK_SIZE);
+        expect(parseDeck(deck, MIN_DECK_SIZE)).toEqual(deck);
     });
 
     it("associe les decks à leurs joueurs même quand le joueur local est le joueur 2", () => {
