@@ -25,7 +25,11 @@ import {
     clearStatusEffects,
     healMonster,
 } from "../game/statusEffects";
-import { scoreTacticalAttack, type TacticalAttackValue } from "../game/botStrategy";
+import {
+    DEFAULT_BOT_STRATEGY_WEIGHTS,
+    scoreTacticalAttack,
+    type TacticalAttackValue,
+} from "../game/botStrategy";
 import type {
     Monster,
     PlayerId,
@@ -49,6 +53,8 @@ interface AttackChoice {
     target: Position;
     cells: Position[];
     score: number;
+    features?: TacticalAttackValue;
+    isDefaultCandidate: boolean;
 }
 
 function isAreaAttack(attack: Monster["attacks"][number]): boolean {
@@ -249,19 +255,49 @@ function getAttackChoices(
             }
             return cells.some((cell) => isValidAttackCell(state, board, attacker, attack, cell));
         })
-        .map((option) => ({
-            attacker,
-            attackIndex,
-            ...option,
-            score: scoreTacticalAttack(
-                evaluateAttack(state, board, attacker, attackIndex, option.target, option.cells),
-                getAttackCost(attack, attacker.turnBuffs?.attackCostReduction ?? 0),
-                state.tactics[state.currentPlayer],
+        .map((option) => {
+            const features = evaluateAttack(
+                state,
+                board,
+                attacker,
+                attackIndex,
+                option.target,
+                option.cells,
+            );
+            const cost = getAttackCost(attack, attacker.turnBuffs?.attackCostReduction ?? 0);
+            const tactic = state.tactics[state.currentPlayer];
+            const profile = state.profiles[state.currentPlayer];
+            const weights =
+                state.strategyWeights?.[state.currentPlayer] ?? DEFAULT_BOT_STRATEGY_WEIGHTS;
+            const score = scoreTacticalAttack(
+                features,
+                cost,
+                tactic,
                 state.health[opposingPlayer(state.currentPlayer)],
-                state.profiles[state.currentPlayer],
-            ),
-        }))
-        .filter((choice) => choice.score > 0);
+                profile,
+                weights,
+            );
+            const defaultScore =
+                weights === DEFAULT_BOT_STRATEGY_WEIGHTS
+                    ? score
+                    : scoreTacticalAttack(
+                          features,
+                          cost,
+                          tactic,
+                          state.health[opposingPlayer(state.currentPlayer)],
+                          profile,
+                          DEFAULT_BOT_STRATEGY_WEIGHTS,
+                      );
+            return {
+                attacker,
+                attackIndex,
+                ...option,
+                ...(state.decisionTraces ? { features } : {}),
+                isDefaultCandidate: defaultScore > 0,
+                score,
+            };
+        })
+        .filter((choice) => choice.isDefaultCandidate);
     return choices;
 }
 
@@ -295,6 +331,7 @@ function getAvailableAttackChoices(state: MatchState, board: BoardDefinition): A
 }
 
 const MAX_ATTACK_SEARCH_BRANCHES = 3;
+const MAX_ADVANCED_ATTACK_SEARCH_BRANCHES = 8;
 
 function cloneMatchState(state: MatchState): MatchState {
     const cloneMonster = (monster: PlacedMonster): PlacedMonster => ({
@@ -364,12 +401,16 @@ function prepareOpponentReply(state: MatchState, player: PlayerId): void {
 function chooseAttack(state: MatchState, board: BoardDefinition): AttackChoice | null {
     const choices = getAvailableAttackChoices(state, board);
     const bestChoice = choices[0];
-    if (!bestChoice || choices.length === 1) return bestChoice ?? null;
+    if (!bestChoice) return null;
+    if (choices.length === 1) return recordAttackDecision(state, choices, bestChoice);
 
     const player = state.currentPlayer;
     const opponent: PlayerId = player === 1 ? 2 : 1;
     const baseline = evaluateStrategicState(createStrategicSnapshot(state, board, player));
-    const candidates = choices.slice(0, MAX_ATTACK_SEARCH_BRANCHES);
+    const candidates = choices.slice(
+        0,
+        state.advancedSearch ? MAX_ADVANCED_ATTACK_SEARCH_BRANCHES : MAX_ATTACK_SEARCH_BRANCHES,
+    );
     state.statistics[player].positionsExplored += candidates.length;
     let selected = bestChoice;
     let selectedScore = Number.NEGATIVE_INFINITY;
@@ -384,6 +425,7 @@ function chooseAttack(state: MatchState, board: BoardDefinition): AttackChoice |
             target: { ...candidate.target },
             cells: candidate.cells.map((cell) => ({ ...cell })),
         });
+        if (branch.winner === player) return recordAttackDecision(state, choices, candidate);
 
         if (branch.winner === null) {
             prepareOpponentReply(branch, opponent);
@@ -395,6 +437,8 @@ function chooseAttack(state: MatchState, board: BoardDefinition): AttackChoice |
             state.statistics[player].branchesExplored += replyPositionsExplored;
             if (reply) executeAttack(branch, board, reply);
         }
+        if (branch.winner === player) return recordAttackDecision(state, choices, candidate);
+        if (branch.winner === opponent) continue;
 
         const score =
             evaluateStrategicState(createStrategicSnapshot(branch, board, player)) -
@@ -404,6 +448,35 @@ function chooseAttack(state: MatchState, board: BoardDefinition): AttackChoice |
             selected = candidate;
             selectedScore = score;
         }
+    }
+    return recordAttackDecision(state, choices, selected);
+}
+
+function recordAttackDecision(
+    state: MatchState,
+    choices: readonly AttackChoice[],
+    selected: AttackChoice,
+): AttackChoice {
+    if (state.decisionTraces) {
+        const candidates = choices.map((choice) => {
+            if (!choice.features) {
+                throw new Error("Caractéristiques de décision absentes pendant l’enregistrement.");
+            }
+            return {
+                attackerMonsterId: choice.attacker.monster.id,
+                attackIndex: choice.attackIndex,
+                target: { ...choice.target },
+                features: { ...choice.features },
+                score: choice.score,
+            };
+        });
+        state.decisionTraces.push({
+            turn: state.turn,
+            player: state.currentPlayer,
+            action: "attack",
+            candidates,
+            selectedIndex: choices.indexOf(selected),
+        });
     }
     return selected;
 }
@@ -607,40 +680,52 @@ function executeAttack(state: MatchState, board: BoardDefinition, choice: Attack
         }
     }
 
-    const actionDescription = supportEffect
-        ? `${attacker.monster.name} ${supportEffect} sur ${actionTarget}.`
-        : `${attacker.monster.name} utilise « ${attack.name} » sur ${actionTarget}` +
-          `${actualDamage ? ` (${actualDamage} dégât(s))` : ""}.`;
+    const actionDescription = state.lightResults
+        ? ""
+        : supportEffect
+          ? `${attacker.monster.name} ${supportEffect} sur ${actionTarget}.`
+          : `${attacker.monster.name} utilise « ${attack.name} » sur ${actionTarget}` +
+            `${actualDamage ? ` (${actualDamage} dégât(s))` : ""}.`;
     if (actualDamage === 0 && !supportEffect) {
         stats.ineffectiveActions++;
     }
-    addEvent(state, player, "strategy", `Priorité d'action : score tactique ${choice.score}.`, {
-        monsterId: attacker.id,
-        monsterTypeId: attacker.monster.id,
-        monsterName: attacker.monster.name,
-        target: actionTarget,
-        ...(state.debug
-            ? {
-                  debug: {
-                      situation: `base J${player}=${state.health[player]}, base adverse=${state.health[opposingPlayer(player)]}`,
-                      candidates: 1,
-                      depth: 1,
-                      positionsExplored: state.monsters.length,
-                      selectedAction: actionDescription,
-                  },
-              }
-            : {}),
-    });
-    addEvent(state, player, "attack", actionDescription, {
-        monsterId: attacker.id,
-        monsterTypeId: attacker.monster.id,
-        monsterName: attacker.monster.name,
-        attackName: attack.name,
-        target: actionTarget,
-        cost,
-        damage: actualDamage,
-        to: target,
-    });
+    if (!state.lightResults) {
+        addEvent(state, {
+            turn: state.turn,
+            player,
+            type: "strategy",
+            description: `Priorité d'action : score tactique ${choice.score}.`,
+            monsterId: attacker.id,
+            monsterTypeId: attacker.monster.id,
+            monsterName: attacker.monster.name,
+            target: actionTarget,
+            ...(state.debug
+                ? {
+                      debug: {
+                          situation: `base J${player}=${state.health[player]}, base adverse=${state.health[opposingPlayer(player)]}`,
+                          candidates: 1,
+                          depth: 1,
+                          positionsExplored: state.monsters.length,
+                          selectedAction: actionDescription,
+                      },
+                  }
+                : {}),
+        });
+        addEvent(state, {
+            turn: state.turn,
+            player,
+            type: "attack",
+            description: actionDescription,
+            monsterId: attacker.id,
+            monsterTypeId: attacker.monster.id,
+            monsterName: attacker.monster.name,
+            attackName: attack.name,
+            target: actionTarget,
+            cost,
+            damage: actualDamage,
+            to: target,
+        });
+    }
     state.winner ??= getMonsterEliminationWinner(state.monsters, state.monstersKilledForVictory);
     if (state.winner !== null && state.finishReason !== "baseDestroyed") {
         state.finishReason = "monstersEliminated";
@@ -671,14 +756,14 @@ export function beginTurn(
             const actualDamage = Math.min(damage, healthBefore);
             state.statistics[player].damageReceived += actualDamage;
             if (source) state.statistics[source.owner].damageDealt += actualDamage;
-            addEvent(
-                state,
-                source?.owner ?? player,
-                "status",
-                source
-                    ? `${source.name} inflige ${actualDamage} dégât(s) de poison à ${monster.monster.name} (J${player}).`
-                    : `${monster.monster.name} subit ${actualDamage} dégât(s) d'effet de statut.`,
-                {
+            if (!state.lightResults) {
+                addEvent(state, {
+                    turn: state.turn,
+                    player: source?.owner ?? player,
+                    type: "status",
+                    description: source
+                        ? `${source.name} inflige ${actualDamage} dégât(s) de poison à ${monster.monster.name} (J${player}).`
+                        : `${monster.monster.name} subit ${actualDamage} dégât(s) d'effet de statut.`,
                     ...(source
                         ? {
                               monsterId: source.id,
@@ -688,8 +773,8 @@ export function beginTurn(
                         : {}),
                     target: `${monster.monster.name} (J${player})`,
                     damage: actualDamage,
-                },
-            );
+                });
+            }
         }
         monster.attacksUsedThisTurn = 0;
         monster.attackUsesThisTurn = getInitialAttackUses(monster.monster);
@@ -703,12 +788,26 @@ export function beginTurn(
         configuration.monstersKilledForVictory,
     );
     if (state.winner !== null) state.finishReason = "monstersEliminated";
-    addEvent(state, player, "turn", `Début du tour ${state.turn}.`);
+    if (!state.lightResults) {
+        addEvent(state, {
+            turn: state.turn,
+            player,
+            type: "turn",
+            description: `Début du tour ${state.turn}.`,
+        });
+    }
 }
 
 export function finishPlayerTurn(state: MatchState, player: PlayerId): void {
     for (const monster of state.monsters) {
         if (monster.owner === player) clearMonsterTurnBuff(monster);
     }
-    addEvent(state, player, "turnEnd", `Fin du tour ${state.turn}.`);
+    if (!state.lightResults) {
+        addEvent(state, {
+            turn: state.turn,
+            player,
+            type: "turnEnd",
+            description: `Fin du tour ${state.turn}.`,
+        });
+    }
 }

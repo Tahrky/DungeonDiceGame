@@ -17,7 +17,12 @@ import {
     type SimulationWorkerRequest,
     type SimulationWorkerResponse,
 } from "../../simulation/workerPool";
-import type { SimulationBatchResult, SimulationOptions } from "../../simulation/types";
+import {
+    DEFAULT_MAX_TURNS,
+    type SimulationBatchResult,
+    type SimulationOptions,
+} from "../../simulation/types";
+import { formatElapsedDuration } from "../../simulation/formatElapsedDuration";
 import { SimulationSettingsFields } from "./SimulationSettingsFields";
 
 interface RunSimulationPanelProps {
@@ -38,11 +43,14 @@ export function RunSimulationPanel({
     const [profile1, setProfile1] = useState<BotProfile>("cheap");
     const [profile2, setProfile2] = useState<BotProfile>("offensive");
     const [crossProfileMode, setCrossProfileMode] = useState(false);
+    const [advanced, setAdvanced] = useState(false);
     const [gameCount, setGameCount] = useState("100");
     const [repetitionCount, setRepetitionCount] = useState("1");
     const [seed, setSeed] = useState(() => String(Date.now() >>> 0));
-    const [maxTurns, setMaxTurns] = useState("100");
+    const [maxTurns, setMaxTurns] = useState(String(DEFAULT_MAX_TURNS));
     const [debug, setDebug] = useState(false);
+    const [lightResults, setLightResults] = useState(false);
+    const [recordDecisionTraces, setRecordDecisionTraces] = useState(false);
     const [isRunning, setIsRunning] = useState(false);
     const [notice, setNotice] = useState("");
     const [error, setError] = useState("");
@@ -66,9 +74,16 @@ export function RunSimulationPanel({
             completedChunks: Awaited<ReturnType<typeof loadSimulationChunks>>,
             isResuming: boolean,
         ): Promise<void> => {
+            const startedAt = performance.now();
             setError("");
             setIsRunning(true);
             onRunningChange(true);
+
+            function announceCompletion(matches: number): void {
+                setNotice(
+                    `${matches} matchs terminés avec la seed ${options.seed} en ${formatElapsedDuration(performance.now() - startedAt)}.`,
+                );
+            }
 
             try {
                 if (!isResuming) {
@@ -128,10 +143,8 @@ export function RunSimulationPanel({
 
                 if (pendingChunks.length === 0) {
                     const result = mergeSimulationResults(results, options);
+                    announceCompletion(result.summary.matches);
                     onResult(result);
-                    setNotice(
-                        `${result.summary.matches} matchs terminés avec la seed ${options.seed}.`,
-                    );
                     setIsRunning(false);
                     onRunningChange(false);
                     void clearSimulationRun(sessionId).catch((clearError: unknown) =>
@@ -178,9 +191,7 @@ export function RunSimulationPanel({
                     onRunningChange(false);
                     try {
                         const result = mergeSimulationResults(results, options);
-                        setNotice(
-                            `${result.summary.matches} matchs terminés avec la seed ${options.seed}.`,
-                        );
+                        announceCompletion(result.summary.matches);
                         onResult(result);
                         void clearSimulationRun(sessionId).catch((clearError: unknown) =>
                             setError(
@@ -310,9 +321,12 @@ export function RunSimulationPanel({
                 );
                 setProfile1(saved.options.profile1);
                 setProfile2(saved.options.profile2);
+                setAdvanced(saved.options.advanced ?? false);
                 setSeed(String(saved.options.seed));
                 setMaxTurns(String(saved.options.maxTurns));
-                setDebug(saved.options.debug ?? false);
+                setLightResults(saved.options.lightResults ?? false);
+                setRecordDecisionTraces(saved.options.recordDecisionTraces ?? false);
+                setDebug((saved.options.debug ?? false) && !saved.options.lightResults);
                 setNotice("Reprise de la simulation après rechargement…");
                 await runSimulation(
                     saved.options,
@@ -366,7 +380,10 @@ export function RunSimulationPanel({
                 profile1,
                 profile2,
                 ...(profilePairs === undefined ? {} : { profilePairs }),
+                advanced,
                 debug,
+                lightResults,
+                recordDecisionTraces,
             };
             const workerCount = getSimulationWorkerCount(games, navigator.hardwareConcurrency ?? 2);
             const chunks = createSimulationChunks(games, workerCount);
@@ -390,17 +407,26 @@ export function RunSimulationPanel({
                 profile1={profile1}
                 profile2={profile2}
                 crossProfileMode={crossProfileMode}
+                advanced={advanced}
                 count={crossProfileMode ? repetitionCount : gameCount}
                 seed={seed}
                 maxTurns={maxTurns}
                 debug={debug}
+                lightResults={lightResults}
+                recordDecisionTraces={recordDecisionTraces}
                 onProfile1Change={setProfile1}
                 onProfile2Change={setProfile2}
                 onCrossProfileModeChange={setCrossProfileMode}
+                onAdvancedChange={setAdvanced}
                 onCountChange={crossProfileMode ? setRepetitionCount : setGameCount}
                 onSeedChange={setSeed}
                 onMaxTurnsChange={setMaxTurns}
                 onDebugChange={setDebug}
+                onLightResultsChange={(enabled) => {
+                    setLightResults(enabled);
+                    if (enabled) setDebug(false);
+                }}
+                onRecordDecisionTracesChange={setRecordDecisionTraces}
             />
             <div className="deck-actions">
                 <button

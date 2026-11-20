@@ -16,12 +16,12 @@ import { getInvokedMonsterCount } from "../game/matchRules";
 import {
     canDeployMonsterForProfile,
     chooseBotObjective,
+    createTerritoryExpansionScorer,
     createDefensivePlacementScorer,
     createPathBlockadeScorer,
     findObjectiveMovement,
     scoreMonsterForProfile,
     scoreTacticalAttack,
-    scoreTerritoryExpansion,
     type TacticalAttackValue,
 } from "../game/botStrategy";
 import {
@@ -193,6 +193,12 @@ export abstract class GameSceneComputer extends GameSceneComputerConversion {
                       enemyPositions,
                       this.startingPositions[2],
                   );
+        const territoryExpansionScore = createTerritoryExpansionScorer(
+            2,
+            computerPathCells,
+            this.startingPositions[2],
+            expansionObjective,
+        );
         const blockingCells = [
             ...this.board.blockedCells,
             ...this.obstacles.map(({ position }) => position),
@@ -265,13 +271,7 @@ export abstract class GameSceneComputer extends GameSceneComputerConversion {
                 );
             },
             scorePlacement: (position, cells) =>
-                scoreTerritoryExpansion(
-                    2,
-                    cells,
-                    computerPathCells,
-                    this.startingPositions[2],
-                    expansionObjective,
-                ) +
+                territoryExpansionScore(cells) +
                 (tactic === "defense" || tactic === "hunt" ? defensivePlacementScore(position) : 0) +
                 pathBlockadeScore(cells) +
                 strategicCellScore(position) * 0.5,

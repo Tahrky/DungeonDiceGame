@@ -3,17 +3,23 @@ import { getInitialAttackCooldowns, getInitialAttackUses } from "../game/monster
 import type { GameConfiguration } from "../game/gameConfiguration";
 import { getStartingPositions, type BoardDefinition } from "../game/boards";
 import { getInvokedMonsterCount } from "../game/matchRules";
-import { findValidPlacement } from "../game/placement";
-import type { PlayerId, PlacedMonster, Position } from "../types/GameTypes";
+import {
+    findValidPlacement,
+    hasValidPlacement,
+    type PlacementSearchOptions,
+} from "../game/placement";
+import type { Monster, PlayerId, PlacedMonster, Position } from "../types/GameTypes";
 import {
     canDeployMonsterForProfile,
     chooseBotObjective,
+    createTerritoryExpansionScorer,
     createDefensivePlacementScorer,
     createPathBlockadeScorer,
     describeDeploymentChoice,
     scoreMonsterForProfile,
-    scoreTerritoryExpansion,
     type BotTactic,
+    type BotStrategyWeights,
+    DEFAULT_BOT_STRATEGY_WEIGHTS,
 } from "../game/botStrategy";
 import { getMonsterSymbol } from "../game/monsterSymbols";
 import type {
@@ -22,6 +28,7 @@ import type {
     MatchResult,
     PlayerSimulationStats,
     SimulationEvent,
+    TacticalDecisionTrace,
 } from "./types";
 import { createStrategicCellScorer, type StrategicSnapshot } from "../game/ai";
 
@@ -29,6 +36,10 @@ export interface MatchState {
     turn: number;
     currentPlayer: PlayerId;
     debug?: boolean;
+    advancedSearch?: boolean;
+    lightResults?: boolean;
+    strategyWeights?: Record<PlayerId, Readonly<BotStrategyWeights>>;
+    decisionTraces?: TacticalDecisionTrace[];
     profiles: Record<PlayerId, BotProfile>;
     tactics: Record<PlayerId, BotTactic>;
     allowBaseAttackOnSummonTurn: boolean;
@@ -65,14 +76,8 @@ export function createStats(): PlayerSimulationStats {
     };
 }
 
-export function addEvent(
-    state: MatchState,
-    player: PlayerId,
-    type: SimulationEvent["type"],
-    description: string,
-    details: Partial<SimulationEvent> = {},
-): void {
-    state.history.push({ turn: state.turn, player, type, description, ...details });
+export function addEvent(state: MatchState, event: SimulationEvent): void {
+    state.history.push(event);
 }
 
 export function opposingPlayer(player: PlayerId): PlayerId {
@@ -90,19 +95,28 @@ export function buildMatchBoard(
     monsterDefinitions: readonly { id: string; name: string }[],
 ): FinalBoard {
     const starts = getStartingPositions(board);
+    const livingMonstersByPosition = new Map<string, PlacedMonster>();
+    const territoryOwnerByCell = new Map<string, PlayerId>();
+    for (const monster of state.monsters) {
+        for (const cell of monster.cells) {
+            const key = `${cell.x},${cell.y}`;
+            if (!territoryOwnerByCell.has(key)) territoryOwnerByCell.set(key, monster.owner);
+        }
+        if (monster.currentHp > 0) {
+            const key = `${monster.position.x},${monster.position.y}`;
+            if (!livingMonstersByPosition.has(key)) livingMonstersByPosition.set(key, monster);
+        }
+    }
+    const blockedCells = new Set(board.blockedCells.map(({ x, y }) => `${x},${y}`));
     const rows = Array.from({ length: board.height }, (_, y) =>
         Array.from({ length: board.width }, (_, x) => {
-            const placed = state.monsters.find(
-                (monster) =>
-                    monster.currentHp > 0 && monster.position.x === x && monster.position.y === y,
-            );
+            const key = `${x},${y}`;
+            const placed = livingMonstersByPosition.get(key);
             if (placed) return getMonsterSymbol(monsterSymbols, placed.monster.id);
-            if (board.blockedCells.some((cell) => cell.x === x && cell.y === y)) return "#";
+            if (blockedCells.has(key)) return "#";
             if (starts[1].x === x && starts[1].y === y) return "1";
             if (starts[2].x === x && starts[2].y === y) return "2";
-            const territoryOwner = state.monsters.find((monster) =>
-                monster.cells.some((cell) => cell.x === x && cell.y === y),
-            )?.owner;
+            const territoryOwner = territoryOwnerByCell.get(key);
             return territoryOwner === 1 ? "a" : territoryOwner === 2 ? "b" : ".";
         }).join(""),
     );
@@ -125,11 +139,18 @@ export function buildMatchBoard(
     };
 }
 
-function findPlacement(
+interface PlacementSearchContext {
+    starts: Record<PlayerId, Position>;
+    ownCells: Position[];
+    enemyPositions: Position[];
+    options: Omit<PlacementSearchOptions, "scorePlacement">;
+}
+
+function createPlacementSearchContext(
     state: MatchState,
     board: BoardDefinition,
     player: PlayerId,
-): { position: Position; cells: Position[] } | null {
+): PlacementSearchContext {
     const starts = getStartingPositions(board);
     const occupiedCells = [...Object.values(starts), ...state.monsters.flatMap((m) => m.cells)];
     const ownCells = state.monsters
@@ -141,12 +162,64 @@ function findPlacement(
     const enemyPositions = state.monsters
         .filter((monster) => monster.owner !== player && monster.currentHp > 0)
         .map((monster) => monster.position);
+    const ownKeys = new Set([starts[player], ...ownCells].map(({ x, y }) => `${x},${y}`));
+    const enemyKeys = new Set(
+        [starts[opposingPlayer(player)], ...opponentCells].map(({ x, y }) => `${x},${y}`),
+    );
+    const livingMonsterKeys = new Set(
+        state.monsters
+            .filter((monster) => monster.currentHp > 0)
+            .map(({ position }) => `${position.x},${position.y}`),
+    );
+    return {
+        starts,
+        ownCells,
+        enemyPositions,
+        options: {
+            patterns: PLACEMENT_PATTERNS,
+            boardWidth: board.width,
+            boardHeight: board.height,
+            start: starts[player],
+            occupiedCells,
+            connectedCells: [starts[player], ...ownCells],
+            overlappingCells: ownCells,
+            blockedCells: board.blockedCells,
+            isPlacementAllowed: (position, cells) => {
+                const key = `${position.x},${position.y}`;
+                return (
+                    !enemyKeys.has(key) &&
+                    !livingMonsterKeys.has(key) &&
+                    cells.some((cell) => !ownKeys.has(`${cell.x},${cell.y}`)) &&
+                    !cells.some((cell) => enemyKeys.has(`${cell.x},${cell.y}`))
+                );
+            },
+        },
+    };
+}
+
+function findPlacement(
+    state: MatchState,
+    board: BoardDefinition,
+    player: PlayerId,
+): { position: Position; cells: Position[] } | null {
+    const { starts, ownCells, enemyPositions, options } = createPlacementSearchContext(
+        state,
+        board,
+        player,
+    );
+    const opponent = opposingPlayer(player);
     const expansionObjective = chooseBotObjective(
         state.tactics[player],
         starts[player],
-        starts[opposingPlayer(player)],
+        starts[opponent],
         enemyPositions,
         starts[player],
+    );
+    const territoryExpansionScore = createTerritoryExpansionScorer(
+        player,
+        ownCells,
+        starts[player],
+        expansionObjective,
     );
     const blockingCells = [
         ...board.blockedCells,
@@ -165,20 +238,11 @@ function findPlacement(
                   board.width,
                   board.height,
                   starts[player],
-                  starts[opposingPlayer(player)],
+                  starts[opponent],
                   ownCells,
                   board.blockedCells,
               )
             : () => 0;
-    const ownKeys = new Set([starts[player], ...ownCells].map(({ x, y }) => `${x},${y}`));
-    const enemyKeys = new Set(
-        [starts[opposingPlayer(player)], ...opponentCells].map(({ x, y }) => `${x},${y}`),
-    );
-    const livingMonsterKeys = new Set(
-        state.monsters
-            .filter((monster) => monster.currentHp > 0)
-            .map(({ position }) => `${position.x},${position.y}`),
-    );
     const snapshot: StrategicSnapshot = {
         board,
         health: { ...state.health },
@@ -194,38 +258,17 @@ function findPlacement(
         turn: state.turn,
     };
     const strategicCellScore = createStrategicCellScorer(snapshot, player);
+    const weights = state.strategyWeights?.[player] ?? DEFAULT_BOT_STRATEGY_WEIGHTS;
     return findValidPlacement({
-        patterns: PLACEMENT_PATTERNS,
-        boardWidth: board.width,
-        boardHeight: board.height,
-        start: starts[player],
-        occupiedCells,
-        connectedCells: [starts[player], ...ownCells],
-        overlappingCells: ownCells,
-        blockedCells: [...board.blockedCells],
-        isPlacementAllowed: (position, cells) => {
-            const key = `${position.x},${position.y}`;
-            return (
-                !enemyKeys.has(key) &&
-                !livingMonsterKeys.has(key) &&
-                cells.some((cell) => !ownKeys.has(`${cell.x},${cell.y}`)) &&
-                !cells.some((cell) => enemyKeys.has(`${cell.x},${cell.y}`))
-            );
-        },
+        ...options,
         scorePlacement: (position, cells) => {
             return (
-                scoreTerritoryExpansion(
-                    player,
-                    cells,
-                    ownCells,
-                    starts[player],
-                    expansionObjective,
-                ) +
+                territoryExpansionScore(cells) * weights.territoryExpansion +
                 (state.tactics[player] === "defense" || state.tactics[player] === "hunt"
-                    ? defensivePlacementScore(position)
+                    ? defensivePlacementScore(position) * weights.defensivePlacement
                     : 0) +
-                pathBlockadeScore(cells) +
-                strategicCellScore(position) * 0.5
+                pathBlockadeScore(cells) * weights.pathBlockade +
+                strategicCellScore(position) * 0.5 * weights.strategicPlacement
             );
         },
     });
@@ -236,7 +279,8 @@ export function hasAvailablePlacement(
     board: BoardDefinition,
     player: PlayerId,
 ): boolean {
-    return findPlacement(state, board, player) !== null;
+    const { options } = createPlacementSearchContext(state, board, player);
+    return hasValidPlacement(options);
 }
 
 export function canSpend(
@@ -265,15 +309,14 @@ export function deployMonsters(
     configuration: GameConfiguration,
     board: BoardDefinition,
     profile: BotProfile,
-    deck: readonly string[],
+    deckMonsters: readonly Monster[],
 ): void {
-    const deckMonsters = deck.map((id) => {
-        const monster = configuration.monsters.find((candidate) => candidate.id === id);
-        if (!monster) throw new Error(`Monstre inconnu dans le deck : ${id}`);
-        return monster;
-    });
+    const weights = state.strategyWeights?.[state.currentPlayer] ?? DEFAULT_BOT_STRATEGY_WEIGHTS;
     const profileScores = new Map(
-        deckMonsters.map((monster) => [monster.id, scoreMonsterForProfile(monster, profile)]),
+        deckMonsters.map((monster) => [
+            monster.id,
+            scoreMonsterForProfile(monster, profile, weights),
+        ]),
     );
 
     while (
@@ -330,12 +373,12 @@ export function deployMonsters(
             stats.lastMonsterSummonTurn = state.turn;
         }
         stats.summonedByMonster[monster.id] = (stats.summonedByMonster[monster.id] ?? 0) + 1;
-        addEvent(
-            state,
-            state.currentPlayer,
-            "strategy",
-            describeDeploymentChoice(monster, profile),
-            {
+        if (!state.lightResults) {
+            addEvent(state, {
+                turn: state.turn,
+                player: state.currentPlayer,
+                type: "strategy",
+                description: describeDeploymentChoice(monster, profile),
                 monsterId: placed.id,
                 monsterName: monster.name,
                 ...(state.debug
@@ -349,20 +392,18 @@ export function deployMonsters(
                           },
                       }
                     : {}),
-            },
-        );
-        addEvent(
-            state,
-            state.currentPlayer,
-            "invocation",
-            `${monster.name} invoqué pour ${monster.cost} symbole(s).`,
-            {
+            });
+            addEvent(state, {
+                turn: state.turn,
+                player: state.currentPlayer,
+                type: "invocation",
+                description: `${monster.name} invoqué pour ${monster.cost} symbole(s).`,
                 monsterId: placed.id,
                 monsterTypeId: monster.id,
                 monsterName: monster.name,
                 cost: monster.cost,
                 to: placement.position,
-            },
-        );
+            });
+        }
     }
 }

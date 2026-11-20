@@ -239,7 +239,7 @@ export class MonsterSpriteView {
         const animation = currentHp <= 0 ? "death" : "hit";
         if (currentHp <= 0) {
             this.updateStatusTint(state, null);
-            state.sprite.setAlpha(0.3);
+            state.sprite.setAlpha(0.2);
         }
         if (!MONSTER_SPRITES[state.monster.id]?.animations[animation]) return;
 

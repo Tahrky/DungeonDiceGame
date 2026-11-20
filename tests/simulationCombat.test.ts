@@ -23,7 +23,7 @@ function createMatchState(allowBaseAttackOnSummonTurn: boolean): MatchState {
         finishReason: "turnLimit",
         health: { 1: 3, 2: 3 },
         reserves: {
-            1: { invocation: 0, attack: 1, movement: 0 },
+            1: { invocation: 0, attack: monster.attacks[0]?.cost ?? 1, movement: 0 },
             2: { invocation: 0, attack: 0, movement: 0 },
         },
         monsters: [
@@ -63,6 +63,29 @@ describe("combat de simulation", () => {
         expect(forbidden.health[2]).toBe(3);
     });
 
+    it("choisit la destruction immédiate de la base plutôt qu’une élimination non décisive", () => {
+        const board = createCustomBoard(7, 7);
+        const state = createMatchState(true);
+        const attacker = state.monsters[0]!;
+        state.profiles[1] = "tracker";
+        state.tactics[1] = "hunt";
+        state.health[2] = 1;
+        state.monsters.push({
+            ...attacker,
+            id: "enemy",
+            owner: 2,
+            position: { x: attacker.position.x - 1, y: attacker.position.y },
+            cells: [{ x: attacker.position.x - 1, y: attacker.position.y }],
+            currentHp: 1,
+        });
+
+        performAttacks(state, board);
+
+        expect(state.winner).toBe(1);
+        expect(state.statistics[1].baseDamage).toBe(1);
+        expect(state.monsters[1]?.currentHp).toBe(1);
+    });
+
     it("explore un nombre plafonné de réponses tactiques avant de choisir une attaque", () => {
         const board = createCustomBoard(7, 7);
         const state = createMatchState(true);
@@ -82,11 +105,47 @@ describe("combat de simulation", () => {
             cells: [{ x: ghost.position.x, y: ghost.position.y - 1 }],
         };
         state.monsters.push(enemy, secondEnemy);
-        state.reserves[2].attack = 1;
+        state.reserves[2].attack = ghost.monster.attacks[0]?.cost ?? 1;
 
         performAttacks(state, board);
 
         expect(state.statistics[1].positionsExplored).toBeGreaterThan(3);
         expect(state.statistics[1].positionsExplored).toBeLessThan(20);
+    });
+
+    it("explore davantage de réponses tactiques quand la recherche avancée est activée", () => {
+        const board = createCustomBoard(7, 7);
+        const standard = createMatchState(true);
+        const advanced = createMatchState(true);
+
+        for (const state of [standard, advanced]) {
+            const attacker = state.monsters[0]!;
+            attacker.position = { x: 3, y: 3 };
+            attacker.cells = [attacker.position];
+            state.monsters.push(
+                ...[
+                    { x: 2, y: 3 },
+                    { x: 4, y: 3 },
+                    { x: 3, y: 2 },
+                    { x: 3, y: 4 },
+                ].map((position, index) => ({
+                    ...attacker,
+                    id: `enemy-${index}`,
+                    owner: 2 as const,
+                    position,
+                    facing: "west" as const,
+                    cells: [position],
+                })),
+            );
+            state.reserves[2].attack = attacker.monster.attacks[0]?.cost ?? 1;
+        }
+        advanced.advancedSearch = true;
+
+        performAttacks(standard, board);
+        performAttacks(advanced, board);
+
+        expect(advanced.statistics[1].positionsExplored).toBeGreaterThan(
+            standard.statistics[1].positionsExplored,
+        );
     });
 });

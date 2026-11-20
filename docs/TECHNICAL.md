@@ -165,3 +165,39 @@ Les tests Vitest présents dans `tests/` couvrent les règles de placement, les 
 monstres, les conditions de victoire, la configuration, les ressources de dés, les decks et les
 plateaux. Lancer l’ensemble avec `npm test`. La commande `npm run build` valide également la
 compilation TypeScript de l’application, de l’API et des tests.
+
+## Simulation et réglage hors ligne des bots
+
+Le simulateur reproductible s’exécute sans interface :
+
+```sh
+npm run simulate -- --games 20 --seed 731 --profile1 tracker --profile2 defensive --light-results
+```
+
+Le réglage hors ligne explore les multiplicateurs des heuristiques de combat, de sélection des
+monstres, de placement, de déplacement et de priorité d’invocation. Il ne modifie ni les règles ni
+les options légales. Le score d’optimisation vaut une victoire = 1, une nulle = 0,5 et une défaite =
+0; les métriques secondaires sont uniquement diagnostiques. Les candidats sont sélectionnés sur
+les seeds d’entraînement. Des seeds générées dans un flux séparé servent ensuite à comparer la
+référence et le candidat; elles ne participent pas au réglage.
+
+Exemple avec un budget réduit :
+
+```sh
+npm run simulate -- --train-bots --seed 731 --max-turns 10 --training-seeds 3 --validation-seeds 3 --generations 2 --population 3 --output simulation-results/bot-training.json
+```
+
+Par défaut, tous les profils sont réglés séparément contre trois profils adverses représentatifs;
+`--training-profiles balanced,tracker` permet de limiter l’expérience. Le rapport contient les
+seeds, adversaires, résultats avant/après et poids candidats. L’entraînement n’écrase jamais les
+valeurs par défaut. Pour tester explicitement un rapport dans une simulation :
+
+```sh
+npm run simulate -- --games 20 --seed 9001 --profile1 tracker --profile2 defensive --strategy-weights simulation-results/bot-training.json
+```
+
+Les poids ne sont à adopter que si le candidat améliore aussi la validation et ne dégrade pas
+sensiblement les profils concernés; les petits échantillons, notamment ceux riches en nulles, ne
+suffisent pas à établir un progrès. `--record-decisions` ajoute aux résultats légers un journal
+compact des options d’attaque examinées, de leurs caractéristiques observables, de leurs scores et
+du choix. Cette instrumentation est désactivée par défaut.

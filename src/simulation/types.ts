@@ -8,10 +8,12 @@ import type {
     Position,
 } from "../types/GameTypes";
 
-import type { BotProfile } from "../game/botStrategy";
+import type { BotProfile, BotStrategyWeightMap, TacticalAttackValue } from "../game/botStrategy";
 
 export { BOT_PROFILES } from "../game/botStrategy";
-export type { BotProfile } from "../game/botStrategy";
+export type { BotProfile, BotStrategyWeightMap } from "../game/botStrategy";
+
+export const DEFAULT_MAX_TURNS = 30;
 
 export interface ProfilePair {
     profile1: BotProfile;
@@ -25,7 +27,11 @@ export interface SimulationOptions {
     profile1: BotProfile;
     profile2: BotProfile;
     profilePairs?: readonly ProfilePair[];
+    advanced?: boolean;
     debug?: boolean;
+    lightResults?: boolean;
+    recordDecisionTraces?: boolean;
+    strategyWeights?: BotStrategyWeightMap;
     configurationFile?: string;
     deck1?: string[];
     deck2?: string[];
@@ -111,6 +117,21 @@ export interface MatchResult {
     finalMonsters: FinalMonster[];
     remainingResources: Record<PlayerId, DiceReserve>;
     history: SimulationEvent[];
+    decisionTraces?: TacticalDecisionTrace[];
+}
+
+export interface TacticalDecisionTrace {
+    turn: number;
+    player: PlayerId;
+    action: "attack";
+    candidates: Array<{
+        attackerMonsterId: string;
+        attackIndex: number;
+        target: Position;
+        features: TacticalAttackValue;
+        score: number;
+    }>;
+    selectedIndex: number;
 }
 
 export interface SimulationBatchResult {

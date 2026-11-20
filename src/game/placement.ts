@@ -20,10 +20,11 @@ interface ScoredPlacement {
 }
 
 interface PlacementValidationContext {
-    blockedKeys: ReadonlySet<string>;
-    occupiedKeys: ReadonlySet<string>;
-    overlappingKeys: ReadonlySet<string>;
-    connectedKeys: ReadonlySet<string>;
+    blockedIndices: ReadonlySet<number>;
+    occupiedIndices: ReadonlySet<number>;
+    overlappingIndices: ReadonlySet<number>;
+    connectedIndices: ReadonlySet<number>;
+    connectedOutsideKeys: ReadonlySet<string>;
     isPlacementAllowed: NonNullable<PlacementSearchOptions["isPlacementAllowed"]>;
     scorePlacement: NonNullable<PlacementSearchOptions["scorePlacement"]>;
 }
@@ -39,6 +40,29 @@ const scoreNothing: NonNullable<PlacementSearchOptions["scorePlacement"]> = () =
 
 function getPositionKey({ x, y }: Position): string {
     return `${x},${y}`;
+}
+
+function getBoardIndex(
+    x: number,
+    y: number,
+    boardWidth: number,
+    boardHeight: number,
+): number | undefined {
+    if (x < 0 || y < 0 || x >= boardWidth || y >= boardHeight) return undefined;
+    return y * boardWidth + x;
+}
+
+function getBoardIndices(
+    cells: readonly Position[],
+    boardWidth: number,
+    boardHeight: number,
+): Set<number> {
+    const indices = new Set<number>();
+    for (const { x, y } of cells) {
+        const index = getBoardIndex(x, y, boardWidth, boardHeight);
+        if (index !== undefined) indices.add(index);
+    }
+    return indices;
 }
 
 function getNearestFirstIndices(length: number, origin: number): number[] {
@@ -145,13 +169,49 @@ export function canPlaceCells(
 export function findValidPlacement(
     options: PlacementSearchOptions,
 ): { position: Position; cells: Position[] } | null {
+    return searchPlacement(options, false);
+}
+
+export function hasValidPlacement(options: Omit<PlacementSearchOptions, "scorePlacement">): boolean {
+    return searchPlacement({ ...options, scorePlacement: scoreNothing }, true) !== null;
+}
+
+function searchPlacement(
+    options: PlacementSearchOptions,
+    firstValid: boolean,
+): { position: Position; cells: Position[] } | null {
     const columns = getNearestFirstIndices(options.boardWidth, options.start.x);
     const rows = getNearestFirstIndices(options.boardHeight, options.start.y);
     const context: PlacementValidationContext = {
-        blockedKeys: new Set((options.blockedCells ?? []).map(getPositionKey)),
-        occupiedKeys: new Set(options.occupiedCells.map(getPositionKey)),
-        overlappingKeys: new Set((options.overlappingCells ?? []).map(getPositionKey)),
-        connectedKeys: new Set(options.connectedCells.map(getPositionKey)),
+        blockedIndices: getBoardIndices(
+            options.blockedCells ?? [],
+            options.boardWidth,
+            options.boardHeight,
+        ),
+        occupiedIndices: getBoardIndices(
+            options.occupiedCells,
+            options.boardWidth,
+            options.boardHeight,
+        ),
+        overlappingIndices: getBoardIndices(
+            options.overlappingCells ?? [],
+            options.boardWidth,
+            options.boardHeight,
+        ),
+        connectedIndices: getBoardIndices(
+            options.connectedCells,
+            options.boardWidth,
+            options.boardHeight,
+        ),
+        connectedOutsideKeys: new Set(
+            options.connectedCells
+                .filter(
+                    ({ x, y }) =>
+                        getBoardIndex(x, y, options.boardWidth, options.boardHeight) ===
+                        undefined,
+                )
+                .map(getPositionKey),
+        ),
         isPlacementAllowed: options.isPlacementAllowed ?? allowAnyPlacement,
         scorePlacement: options.scorePlacement ?? scoreNothing,
     };
@@ -165,7 +225,9 @@ export function findValidPlacement(
             context,
             columns,
             rows,
+            firstValid,
         );
+        if (placement && firstValid) return { position: placement.position, cells: placement.cells };
         if (placement && (!bestPlacement || placement.score > bestPlacement.score)) {
             bestPlacement = placement;
         }
@@ -182,6 +244,7 @@ function findBestPatternPlacement(
     context: PlacementValidationContext,
     columns: readonly number[],
     rows: readonly number[],
+    firstValid: boolean,
 ): ScoredPlacement | null {
     let bestPlacement: ScoredPlacement | null = null;
     for (const pattern of transformedPatterns) {
@@ -191,9 +254,12 @@ function findBestPatternPlacement(
                     pattern,
                     options,
                     context,
-                    { x, y },
+                    x,
+                    y,
+                    firstValid,
                 );
                 if (!placement) continue;
+                if (firstValid) return placement;
                 if (bestPlacement && placement.score <= bestPlacement.score) continue;
                 bestPlacement = placement;
             }
@@ -207,31 +273,37 @@ function scoreTransformedPatternPlacement(
     transformedPattern: readonly Position[],
     options: PlacementSearchOptions,
     context: PlacementValidationContext,
-    origin: Position,
+    originX: number,
+    originY: number,
+    firstValid: boolean,
 ): ScoredPlacement | null {
     if (transformedPattern.length !== 6 || !hasUniqueCells(transformedPattern)) return null;
 
     let hasConnection = false;
     for (const offset of transformedPattern) {
-        const x = origin.x + offset.x;
-        const y = origin.y + offset.y;
-        const key = `${x},${y}`;
+        const x = originX + offset.x;
+        const y = originY + offset.y;
+        if (x < 0 || y < 0 || x >= options.boardWidth || y >= options.boardHeight) return null;
+
+        const index = y * options.boardWidth + x;
         if (
-            x < 0 ||
-            y < 0 ||
-            x >= options.boardWidth ||
-            y >= options.boardHeight ||
-            context.blockedKeys.has(key) ||
-            (context.occupiedKeys.has(key) && !context.overlappingKeys.has(key))
+            context.blockedIndices.has(index) ||
+            (context.occupiedIndices.has(index) && !context.overlappingIndices.has(index))
         ) {
             return null;
         }
 
         if (
-            context.connectedKeys.has(`${x + 1},${y}`) ||
-            context.connectedKeys.has(`${x - 1},${y}`) ||
-            context.connectedKeys.has(`${x},${y + 1}`) ||
-            context.connectedKeys.has(`${x},${y - 1}`)
+            (x + 1 < options.boardWidth && context.connectedIndices.has(index + 1)) ||
+            (x > 0 && context.connectedIndices.has(index - 1)) ||
+            (y + 1 < options.boardHeight &&
+                context.connectedIndices.has(index + options.boardWidth)) ||
+            (y > 0 && context.connectedIndices.has(index - options.boardWidth)) ||
+            (x + 1 === options.boardWidth && context.connectedOutsideKeys.has(`${x + 1},${y}`)) ||
+            (x === 0 && context.connectedOutsideKeys.has(`${x - 1},${y}`)) ||
+            (y + 1 === options.boardHeight &&
+                context.connectedOutsideKeys.has(`${x},${y + 1}`)) ||
+            (y === 0 && context.connectedOutsideKeys.has(`${x},${y - 1}`))
         ) {
             hasConnection = true;
         }
@@ -239,8 +311,8 @@ function scoreTransformedPatternPlacement(
     if (!hasConnection) return null;
 
     const cells = transformedPattern.map((cell) => ({
-        x: origin.x + cell.x,
-        y: origin.y + cell.y,
+        x: originX + cell.x,
+        y: originY + cell.y,
     }));
     let position: Position | undefined;
     for (const cell of cells) {
@@ -250,5 +322,5 @@ function scoreTransformedPatternPlacement(
     }
     if (!position) return null;
 
-    return { position, cells, score: context.scorePlacement(position, cells) };
+    return { position, cells, score: firstValid ? 0 : context.scorePlacement(position, cells) };
 }

@@ -8,12 +8,17 @@ import {
     findObjectiveMovement,
     scoreDefensivePlacement,
     createPathBlockadeScorer,
+    createTerritoryExpansionScorer,
     scoreTacticalAttack,
     scoreTerritoryExpansion,
+    parseBotStrategyWeightMap,
+    DEFAULT_BOT_STRATEGY_WEIGHTS,
+    scoreMonsterForProfile,
 } from "../src/game/botStrategy";
 import type { MovementOptions } from "../src/game/monsterActions";
 import type { TacticalAttackValue } from "../src/game/botStrategy";
 import { getDefaultGameConfiguration } from "../src/game/gameConfiguration";
+import type { Position } from "../src/types/GameTypes";
 
 function createRandom(seed: number): () => number {
     let value = seed;
@@ -21,6 +26,90 @@ function createRandom(seed: number): () => number {
         value = (value * 1664525 + 1013904223) >>> 0;
         return value / 0x1_0000_0000;
     };
+}
+
+function getReferenceRouteLength(
+    boardWidth: number,
+    boardHeight: number,
+    ownBase: Position,
+    enemyBase: Position,
+    blockedCells: readonly Position[],
+): number | null {
+    const ownBaseKey = `${ownBase.x},${ownBase.y}`;
+    const enemyBaseKey = `${enemyBase.x},${enemyBase.y}`;
+    const blocked = new Set(
+        blockedCells
+            .filter(
+                ({ x, y }) =>
+                    x >= 0 &&
+                    y >= 0 &&
+                    x < boardWidth &&
+                    y < boardHeight &&
+                    `${x},${y}` !== ownBaseKey &&
+                    `${x},${y}` !== enemyBaseKey,
+            )
+            .map(({ x, y }) => `${x},${y}`),
+    );
+    const distances = new Map<string, number>([[enemyBaseKey, 0]]);
+    const queue = [enemyBase];
+
+    for (let queueIndex = 0; queueIndex < queue.length; queueIndex++) {
+        const current = queue[queueIndex]!;
+        const currentKey = `${current.x},${current.y}`;
+        if (currentKey === ownBaseKey) return distances.get(currentKey)!;
+
+        const nextDistance = distances.get(currentKey)! + 1;
+        const neighbors = [
+            { x: current.x - 1, y: current.y },
+            { x: current.x + 1, y: current.y },
+            { x: current.x, y: current.y - 1 },
+            { x: current.x, y: current.y + 1 },
+        ];
+        for (const neighbor of neighbors) {
+            const key = `${neighbor.x},${neighbor.y}`;
+            if (
+                neighbor.x < 0 ||
+                neighbor.y < 0 ||
+                neighbor.x >= boardWidth ||
+                neighbor.y >= boardHeight ||
+                blocked.has(key) ||
+                distances.has(key)
+            ) {
+                continue;
+            }
+            distances.set(key, nextDistance);
+            queue.push(neighbor);
+        }
+    }
+
+    return null;
+}
+
+function getReferencePathBlockadeScore(
+    boardWidth: number,
+    boardHeight: number,
+    ownBase: Position,
+    enemyBase: Position,
+    ownPathCells: readonly Position[],
+    blockedCells: readonly Position[],
+    candidateCells: readonly Position[],
+): number {
+    const fixedBlocks = [...ownPathCells, ...blockedCells];
+    const currentRouteLength = getReferenceRouteLength(
+        boardWidth,
+        boardHeight,
+        ownBase,
+        enemyBase,
+        fixedBlocks,
+    );
+    if (currentRouteLength === null) return 0;
+
+    const nextRouteLength = getReferenceRouteLength(boardWidth, boardHeight, ownBase, enemyBase, [
+        ...fixedBlocks,
+        ...candidateCells,
+    ]);
+    if (nextRouteLength === null) return 500;
+    return Math.max(0, nextRouteLength - currentRouteLength) * 80;
 }
 
 describe("stratégie des bots", () => {
@@ -105,6 +194,20 @@ describe("stratégie des bots", () => {
         });
     });
 
+    it("permet de régler la valeur offensive des monstres", () => {
+        const ghost = getDefaultGameConfiguration().monsters.find(
+            (monster) => monster.id === "ghost",
+        );
+        if (!ghost) throw new Error("Monstre de test introuvable.");
+
+        expect(
+            scoreMonsterForProfile(ghost, "offensive", {
+                ...DEFAULT_BOT_STRATEGY_WEIGHTS,
+                monsterOffense: 1.5,
+            }),
+        ).toBeGreaterThan(scoreMonsterForProfile(ghost, "offensive"));
+    });
+
     it("continue vers l’objectif au-delà de la frontière de son territoire", () => {
         const deployedCells = [
             { x: 14, y: 7 },
@@ -138,6 +241,38 @@ describe("stratégie des bots", () => {
         expect(towardBase).toBeGreaterThan(awayFromBase);
     });
 
+    it("préserve le score d’expansion avec un calcul précompilé", () => {
+        const ownedCells = [
+            { x: 7, y: 1 },
+            { x: 6, y: 1 },
+        ];
+        const candidates = [
+            { x: 5, y: 2 },
+            { x: 5, y: 3 },
+            { x: 6, y: 2 },
+        ];
+        for (const player of [1, 2] as const) {
+            const startingPosition = player === 1 ? { x: 0, y: 1 } : { x: 7, y: 1 };
+            const enemyStartingPosition = player === 1 ? { x: 7, y: 1 } : { x: 0, y: 1 };
+            const score = createTerritoryExpansionScorer(
+                player,
+                ownedCells,
+                startingPosition,
+                enemyStartingPosition,
+            );
+
+            expect(score(candidates)).toBe(
+                scoreTerritoryExpansion(
+                    player,
+                    candidates,
+                    ownedCells,
+                    startingPosition,
+                    enemyStartingPosition,
+                ),
+            );
+        }
+    });
+
     it("valorise un chemin qui allonge la route adverse vers sa base", () => {
         const scoreBlockade = createPathBlockadeScorer(
             7,
@@ -148,9 +283,99 @@ describe("stratégie des bots", () => {
             [],
         );
 
-        expect(scoreBlockade([{ x: 3, y: 3 }])).toBeGreaterThan(
-            scoreBlockade([{ x: 1, y: 1 }]),
+        expect(scoreBlockade([{ x: 3, y: 3 }])).toBeGreaterThan(scoreBlockade([{ x: 1, y: 1 }]));
+        expect(scoreBlockade([{ x: 3, y: 3 }])).toBe(160);
+    });
+
+    it("détecte une route coupée sans confondre les cases hors plateau", () => {
+        const scoreBlockade = createPathBlockadeScorer(
+            7,
+            7,
+            { x: 6, y: 3 },
+            { x: 0, y: 3 },
+            [],
+            [],
         );
+
+        expect(
+            scoreBlockade([
+                { x: 5, y: 3 },
+                { x: 6, y: 2 },
+                { x: 6, y: 4 },
+            ]),
+        ).toBe(500);
+        expect(scoreBlockade([{ x: 7, y: 0 }])).toBe(0);
+    });
+
+    it("préserve les scores de route pour détours, obstacles et routes coupées", () => {
+        const scenarios = [
+            {
+                boardWidth: 7,
+                boardHeight: 7,
+                ownBase: { x: 6, y: 3 },
+                enemyBase: { x: 0, y: 3 },
+                ownPathCells: [],
+                blockedCells: [],
+                candidates: [
+                    [{ x: 1, y: 1 }],
+                    [{ x: 3, y: 3 }],
+                    [
+                        { x: 5, y: 3 },
+                        { x: 6, y: 2 },
+                        { x: 6, y: 4 },
+                    ],
+                    [{ x: 7, y: 0 }],
+                    [{ x: 6, y: 3 }],
+                ],
+            },
+            {
+                boardWidth: 11,
+                boardHeight: 7,
+                ownBase: { x: 10, y: 3 },
+                enemyBase: { x: 0, y: 3 },
+                ownPathCells: [
+                    { x: 3, y: 3 },
+                    { x: 4, y: 3 },
+                ],
+                blockedCells: [
+                    { x: 5, y: 2 },
+                    { x: 5, y: 4 },
+                ],
+                candidates: [
+                    [{ x: 5, y: 3 }],
+                    [
+                        { x: 8, y: 2 },
+                        { x: 9, y: 2 },
+                        { x: 9, y: 3 },
+                    ],
+                    [{ x: 5, y: 5 }],
+                ],
+            },
+        ];
+
+        for (const scenario of scenarios) {
+            const scoreBlockade = createPathBlockadeScorer(
+                scenario.boardWidth,
+                scenario.boardHeight,
+                scenario.ownBase,
+                scenario.enemyBase,
+                scenario.ownPathCells,
+                scenario.blockedCells,
+            );
+            for (const candidates of scenario.candidates) {
+                expect(scoreBlockade(candidates)).toBe(
+                    getReferencePathBlockadeScore(
+                        scenario.boardWidth,
+                        scenario.boardHeight,
+                        scenario.ownBase,
+                        scenario.enemyBase,
+                        scenario.ownPathCells,
+                        scenario.blockedCells,
+                        candidates,
+                    ),
+                );
+            }
+        }
     });
 
     it("applique les priorités de victoire et respecte les profils", () => {
@@ -175,6 +400,9 @@ describe("stratégie des bots", () => {
         expect(
             scoreTacticalAttack({ ...damage, baseDamage: 1 }, 1, "offensive", 3, "offensive"),
         ).toBeGreaterThan(scoreTacticalAttack(finishingBlow, 1, "offensive", 3, "offensive"));
+        expect(scoreTacticalAttack({ ...damage, baseDamage: 1 }, 1, "tracker", 1)).toBeGreaterThan(
+            scoreTacticalAttack(finishingBlow, 1, "tracker", 1),
+        );
         expect(scoreTacticalAttack(finishingBlow, 1, "tracker", 3)).toBeGreaterThan(
             scoreTacticalAttack({ ...damage, baseDamage: 1 }, 1, "tracker", 3),
         );
@@ -190,6 +418,33 @@ describe("stratégie des bots", () => {
         expect(
             scoreTacticalAttack({ ...damage, baseDamage: 1 }, 1, "defensive", 3),
         ).toBeGreaterThan(0);
+    });
+
+    it("applique les poids tactiques configurés et rejette les poids hors bornes", () => {
+        const attack: TacticalAttackValue = {
+            damage: 2,
+            kills: 0,
+            statusDamage: 0,
+            baseDamage: 0,
+            healing: 0,
+            clearedEffects: 0,
+            buffs: 0,
+            cooldownsReduced: 0,
+            friendlyDamage: 0,
+        };
+        const weighted = {
+            ...DEFAULT_BOT_STRATEGY_WEIGHTS,
+            damage: 1.5,
+        };
+
+        expect(scoreTacticalAttack(attack, 1, "balanced", 3, undefined, weighted)).toBeGreaterThan(
+            scoreTacticalAttack(attack, 1, "balanced", 3),
+        );
+        expect(parseBotStrategyWeightMap({ balanced: { damage: 1.5 } })).toEqual({
+            balanced: weighted,
+        });
+        expect(parseBotStrategyWeightMap({ balanced: { damage: 2.1 } })).toBeNull();
+        expect(parseBotStrategyWeightMap({ unknown: { damage: 1 } })).toBeNull();
     });
 
     it("sélectionne des decks distincts selon les profils", () => {

@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import { PLACEMENT_PATTERNS } from "../src/data/placementPatterns";
-import { canPlaceCells, findValidPlacement, getPatternCells } from "../src/game/placement";
+import {
+    canPlaceCells,
+    findValidPlacement,
+    getPatternCells,
+    hasValidPlacement,
+    type PlacementSearchOptions,
+} from "../src/game/placement";
+import { getDefaultBoard, getStartingPositions } from "../src/game/boards";
 import type { Position } from "../src/types/GameTypes";
 
 const positionKey = ({ x, y }: Position) => `${x},${y}`;
@@ -29,6 +36,59 @@ function freeShapeKey(cells: readonly Position[]): string {
     ];
 
     return transforms.map((transform) => normalizedKey(cells.map(transform))).sort()[0];
+}
+
+function getNearestFirstIndices(length: number, origin: number): number[] {
+    return Array.from({ length }, (_, index) => index).sort(
+        (first, second) => Math.abs(first - origin) - Math.abs(second - origin),
+    );
+}
+
+function findReferencePlacement(
+    options: PlacementSearchOptions,
+): { position: Position; cells: Position[] } | null {
+    const columns = getNearestFirstIndices(options.boardWidth, options.start.x);
+    const rows = getNearestFirstIndices(options.boardHeight, options.start.y);
+    let best: { position: Position; cells: Position[]; score: number } | null = null;
+    for (const pattern of options.patterns) {
+        for (let rotation = 0; rotation < 4; rotation++) {
+            for (const mirrored of [false, true]) {
+                const transformed = getPatternCells(pattern, { x: 0, y: 0 }, rotation, mirrored);
+                for (const y of rows) {
+                    for (const x of columns) {
+                        const cells = transformed.map((cell) => ({
+                            x: x + cell.x,
+                            y: y + cell.y,
+                        }));
+                        if (
+                            !canPlaceCells(
+                                cells,
+                                options.boardWidth,
+                                options.occupiedCells,
+                                options.connectedCells,
+                                options.overlappingCells,
+                                options.boardHeight,
+                                options.blockedCells,
+                            )
+                        ) {
+                            continue;
+                        }
+
+                        const position = cells.find((cell) =>
+                            options.isPlacementAllowed?.(cell, cells) ?? true,
+                        );
+                        if (!position) continue;
+
+                        const score = options.scorePlacement?.(position, cells) ?? 0;
+                        if (best && score <= best.score) continue;
+                        best = { position, cells, score };
+                    }
+                }
+            }
+        }
+    }
+
+    return best ? { position: best.position, cells: best.cells } : null;
 }
 
 describe("patrons de placement", () => {
@@ -128,6 +188,55 @@ describe("règles de pose", () => {
         ).toBe(false);
     });
 
+    it("préserve le choix exhaustif, l’ordre des scores et les égalités", () => {
+        const scoreCalls: string[][] = [[], []];
+        const scoreValues: number[][] = [[], []];
+        const baseOptions = {
+            patterns: PLACEMENT_PATTERNS,
+            boardWidth: 15,
+            boardHeight: 19,
+            start: { x: 14, y: 9 },
+            occupiedCells: [{ x: 0, y: 9 }, { x: 14, y: 9 }, { x: 12, y: 9 }],
+            connectedCells: [{ x: 14, y: 9 }, { x: 13, y: 9 }],
+            overlappingCells: [{ x: 12, y: 9 }],
+            blockedCells: [{ x: 13, y: 8 }],
+            isPlacementAllowed: (position: Position, cells: readonly Position[]) =>
+                position.x > 0 && cells.some((cell) => cell.x !== 12 || cell.y !== 9),
+        };
+        const createOptions = (index: number): PlacementSearchOptions => ({
+            ...baseOptions,
+            scorePlacement: (position, cells) => {
+                scoreCalls[index]!.push(
+                    `${position.x},${position.y}:${cells.map(positionKey).join(";")}`,
+                );
+                const score = (position.x + position.y) % 2;
+                scoreValues[index]!.push(score);
+                return score;
+            },
+        });
+        const options = createOptions(0);
+        const expected = findReferencePlacement(createOptions(1));
+
+        expect(findValidPlacement(options)).toEqual(expected);
+        expect(scoreCalls[0]).toEqual(scoreCalls[1]);
+        expect(scoreValues[0]).toEqual(scoreValues[1]);
+        expect(scoreValues[0]!.filter((score) => score === 1).length).toBeGreaterThan(1);
+        const scoredCellSets = scoreCalls[1]!.map((call) =>
+            call.slice(call.indexOf(":") + 1).split(";"),
+        );
+        expect(scoredCellSets.some((cells) => cells.includes("12,9"))).toBe(true);
+        expect(scoredCellSets.every((cells) => !cells.includes("13,8"))).toBe(true);
+    });
+
+    it("réutilise les départs du plateau sans exposer l’état mis en cache", () => {
+        const board = getDefaultBoard();
+        const expected = getStartingPositions(board);
+        const firstRead = getStartingPositions(board);
+        firstRead[1].x = -1;
+
+        expect(getStartingPositions(board)).toEqual(expected);
+    });
+
     describe("pose de l'ordinateur", () => {
         it("choisit une zone valide adjacente au départ du joueur 2", () => {
             const playerOneStart = { x: 0, y: 9 };
@@ -157,6 +266,20 @@ describe("règles de pose", () => {
             ).toBe(true);
             expect(placement!.cells).not.toContainEqual(playerOneStart);
             expect(placement!.cells).not.toContainEqual(computerStart);
+        });
+
+        it("détecte l’existence d’une pose sans calculer le meilleur score", () => {
+            const options = {
+                patterns: PLACEMENT_PATTERNS,
+                boardWidth: 15,
+                boardHeight: 19,
+                start: { x: 14, y: 9 },
+                occupiedCells: [{ x: 0, y: 9 }, { x: 14, y: 9 }],
+                connectedCells: [{ x: 14, y: 9 }],
+            };
+
+            expect(hasValidPlacement(options)).toBe(true);
+            expect(hasValidPlacement({ ...options, isPlacementAllowed: () => false })).toBe(false);
         });
 
         it("étend sa zone depuis ses cases déjà posées, sans chevaucher celle de l'adversaire", () => {

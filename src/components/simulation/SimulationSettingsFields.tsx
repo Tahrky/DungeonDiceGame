@@ -6,34 +6,46 @@ interface SimulationSettingsFieldsProps {
     readonly profile1: BotProfile;
     readonly profile2: BotProfile;
     readonly crossProfileMode: boolean;
+    readonly advanced: boolean;
     readonly count: string;
     readonly seed: string;
     readonly maxTurns: string;
     readonly debug: boolean;
+    readonly lightResults: boolean;
+    readonly recordDecisionTraces: boolean;
     readonly onProfile1Change: (profile: BotProfile) => void;
     readonly onProfile2Change: (profile: BotProfile) => void;
     readonly onCrossProfileModeChange: (enabled: boolean) => void;
+    readonly onAdvancedChange: (enabled: boolean) => void;
     readonly onCountChange: (count: string) => void;
     readonly onSeedChange: (seed: string) => void;
     readonly onMaxTurnsChange: (maxTurns: string) => void;
     readonly onDebugChange: (enabled: boolean) => void;
+    readonly onLightResultsChange: (enabled: boolean) => void;
+    readonly onRecordDecisionTracesChange: (enabled: boolean) => void;
 }
 
 export function SimulationSettingsFields({
     profile1,
     profile2,
     crossProfileMode,
+    advanced,
     count,
     seed,
     maxTurns,
     debug,
+    lightResults,
+    recordDecisionTraces,
     onProfile1Change,
     onProfile2Change,
     onCrossProfileModeChange,
+    onAdvancedChange,
     onCountChange,
     onSeedChange,
     onMaxTurnsChange,
     onDebugChange,
+    onLightResultsChange,
+    onRecordDecisionTracesChange,
 }: SimulationSettingsFieldsProps) {
     return (
         <>
@@ -125,11 +137,50 @@ export function SimulationSettingsFields({
             <label className="settings-toggle">
                 <input
                     type="checkbox"
+                    checked={advanced}
+                    onChange={(event) => onAdvancedChange(event.currentTarget.checked)}
+                />
+                Recherche tactique avancée (8 possibilités au lieu de 3, plus lente)
+            </label>
+            <label className="settings-toggle">
+                <input
+                    type="checkbox"
+                    checked={lightResults}
+                    onChange={(event) => onLightResultsChange(event.currentTarget.checked)}
+                />
+                Résultats légers (sans historique détaillé)
+            </label>
+            <label className="settings-toggle">
+                <input
+                    type="checkbox"
+                    checked={recordDecisionTraces}
+                    onChange={(event) =>
+                        onRecordDecisionTracesChange(event.currentTarget.checked)
+                    }
+                />
+                Enregistrer les évolutions des bots
+            </label>
+            <label className="settings-toggle">
+                <input
+                    type="checkbox"
                     checked={debug}
+                    disabled={lightResults}
                     onChange={(event) => onDebugChange(event.currentTarget.checked)}
                 />
                 Activer les détails IA dans l’historique
             </label>
+            {lightResults && (
+                <p className="simulation-description">
+                    Les détails de l’historique ne sont pas conservés ; les choix de l’IA restent
+                    inchangés.
+                </p>
+            )}
+            {recordDecisionTraces && (
+                <p className="simulation-description">
+                    Les attaques examinées, leurs scores et les choix retenus seront inclus dans
+                    l’export JSON, même avec les résultats légers.
+                </p>
+            )}
         </>
     );
 }

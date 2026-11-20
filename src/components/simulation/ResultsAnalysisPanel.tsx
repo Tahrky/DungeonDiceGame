@@ -37,8 +37,11 @@ function MetricCard({ label, value }: { label: string; value: string }) {
     );
 }
 
-function getMonsterColumns(totalMatches: number): SortableColumn<MonsterAnalysis>[] {
-    return [
+function getMonsterColumns(
+    totalMatches: number,
+    includeActionDetails: boolean,
+): SortableColumn<MonsterAnalysis>[] {
+    const columns: SortableColumn<MonsterAnalysis>[] = [
         { key: "name", label: "Monstre", getValue: (monster) => monster.name, rowHeader: true },
         { key: "appearances", label: "Invocations", getValue: (monster) => monster.appearances },
         {
@@ -50,37 +53,42 @@ function getMonsterColumns(totalMatches: number): SortableColumn<MonsterAnalysis
                     ? `${((monster.matchesSeen / totalMatches) * 100).toFixed(1)} %`
                     : "",
         },
-        {
-            key: "attacks",
-            label: "Attaques",
-            getValue: (monster) => monster.attacks,
-            render: (monster) => (monster.attacks > 0 ? monster.attacks : ""),
-        },
-        {
-            key: "totalDamage",
-            label: "Dégâts totaux",
-            getValue: (monster) => monster.totalDamage,
-            render: (monster) => (monster.totalDamage > 0 ? monster.totalDamage : ""),
-        },
-        {
-            key: "movements",
-            label: "Déplacements cumulés",
-            getValue: (monster) => monster.movements,
-        },
-        {
-            key: "averageMovements",
-            label: "Déplacements moyens / invocation",
-            getValue: (monster) => monster.averageMovements,
-            render: (monster) => monster.averageMovements.toFixed(2),
-        },
-        {
-            key: "attackUsage",
-            label: "Attaques les plus utilisées",
-            getValue: (monster) =>
-                monster.attackUsage.reduce((total, attack) => total + attack.uses, 0),
-            render: (monster) => <AttackUsageList attacks={monster.attackUsage} />,
-        },
     ];
+    if (includeActionDetails) {
+        columns.push(
+            {
+                key: "attacks",
+                label: "Attaques",
+                getValue: (monster) => monster.attacks,
+                render: (monster) => (monster.attacks > 0 ? monster.attacks : ""),
+            },
+            {
+                key: "totalDamage",
+                label: "Dégâts totaux",
+                getValue: (monster) => monster.totalDamage,
+                render: (monster) => (monster.totalDamage > 0 ? monster.totalDamage : ""),
+            },
+            {
+                key: "movements",
+                label: "Déplacements cumulés",
+                getValue: (monster) => monster.movements,
+            },
+            {
+                key: "averageMovements",
+                label: "Déplacements moyens / invocation",
+                getValue: (monster) => monster.averageMovements,
+                render: (monster) => monster.averageMovements.toFixed(2),
+            },
+            {
+                key: "attackUsage",
+                label: "Attaques les plus utilisées",
+                getValue: (monster) =>
+                    monster.attackUsage.reduce((total, attack) => total + attack.uses, 0),
+                render: (monster) => <AttackUsageList attacks={monster.attackUsage} />,
+            },
+        );
+    }
+    return columns;
 }
 
 export function ResultsAnalysisPanel({ generatedResult }: ResultsAnalysisPanelProps) {
@@ -91,6 +99,7 @@ export function ResultsAnalysisPanel({ generatedResult }: ResultsAnalysisPanelPr
     const [activeTab, setActiveTab] = useState<"general" | "match">("general");
     const [fileName, setFileName] = useState("");
     const [error, setError] = useState("");
+    const hasDetailedHistory = data?.matches.every((match) => match.history.length > 0) ?? true;
 
     useEffect(() => {
         if (!generatedResult) return;
@@ -158,6 +167,12 @@ export function ResultsAnalysisPanel({ generatedResult }: ResultsAnalysisPanelPr
                 <output className="simulation-notice is-error" role="alert">
                     {error}
                 </output>
+            )}
+            {data && !hasDetailedHistory && (
+                <p className="simulation-description" role="status">
+                    Les résultats légers ne conservent pas les actions détaillées. Les statistiques
+                    d’attaques, de dégâts et de déplacements par monstre ne sont pas disponibles.
+                </p>
             )}
 
             {data && analytics ? (
@@ -257,24 +272,29 @@ export function ResultsAnalysisPanel({ generatedResult }: ResultsAnalysisPanelPr
                                         value: monster.appearances,
                                     }))}
                                 />
-                                <MetricBarChart
-                                    title="Dégâts totaux par monstre"
-                                    valueLabel="dégâts"
-                                    bars={analytics.monsters
-                                        .filter((monster) => monster.totalDamage > 0)
-                                        .map((monster) => ({
-                                            label: monster.name,
-                                            value: monster.totalDamage,
-                                        }))
-                                        .sort((first, second) => second.value - first.value)}
-                                />
+                                {hasDetailedHistory && (
+                                    <MetricBarChart
+                                        title="Dégâts totaux par monstre"
+                                        valueLabel="dégâts"
+                                        bars={analytics.monsters
+                                            .filter((monster) => monster.totalDamage > 0)
+                                            .map((monster) => ({
+                                                label: monster.name,
+                                                value: monster.totalDamage,
+                                            }))
+                                            .sort((first, second) => second.value - first.value)}
+                                    />
+                                )}
                             </div>
 
                             <div className="simulation-table-wrap">
                                 <h4>Tableau général par monstre</h4>
                                 <SortableTable
                                     rows={analytics.monsters}
-                                    columns={getMonsterColumns(data.matches.length)}
+                                    columns={getMonsterColumns(
+                                        data.matches.length,
+                                        hasDetailedHistory,
+                                    )}
                                     getRowKey={(monster) => monster.id}
                                 />
                             </div>

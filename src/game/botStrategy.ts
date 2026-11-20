@@ -20,6 +20,117 @@ export const BOT_PROFILES = [
 export type BotProfile = (typeof BOT_PROFILES)[number];
 export type BotTactic = "offense" | "hunt" | "balanced" | "defense";
 
+export interface BotStrategyWeights {
+    baseDamage: number;
+    damage: number;
+    statusDamage: number;
+    kills: number;
+    support: number;
+    friendlyDamage: number;
+    costEfficiency: number;
+    monsterOffense: number;
+    monsterSupport: number;
+    monsterDurability: number;
+    monsterCost: number;
+    invocationPriority: number;
+    territoryExpansion: number;
+    defensivePlacement: number;
+    pathBlockade: number;
+    strategicPlacement: number;
+    movementObjective: number;
+    movementHunt: number;
+    movementRoute: number;
+    movementThreat: number;
+}
+
+export type BotStrategyWeightMap = Partial<Record<BotProfile, BotStrategyWeights>>;
+
+export const BOT_STRATEGY_WEIGHT_KEYS = [
+    "baseDamage",
+    "damage",
+    "statusDamage",
+    "kills",
+    "support",
+    "friendlyDamage",
+    "costEfficiency",
+    "monsterOffense",
+    "monsterSupport",
+    "monsterDurability",
+    "monsterCost",
+    "invocationPriority",
+    "territoryExpansion",
+    "defensivePlacement",
+    "pathBlockade",
+    "strategicPlacement",
+    "movementObjective",
+    "movementHunt",
+    "movementRoute",
+    "movementThreat",
+] as const satisfies readonly (keyof BotStrategyWeights)[];
+
+export const DEFAULT_BOT_STRATEGY_WEIGHTS: Readonly<BotStrategyWeights> = Object.freeze({
+    baseDamage: 1,
+    damage: 1,
+    statusDamage: 1,
+    kills: 1,
+    support: 1,
+    friendlyDamage: 1,
+    costEfficiency: 1,
+    monsterOffense: 1,
+    monsterSupport: 1,
+    monsterDurability: 1,
+    monsterCost: 1,
+    invocationPriority: 1,
+    territoryExpansion: 1,
+    defensivePlacement: 1,
+    pathBlockade: 1,
+    strategicPlacement: 1,
+    movementObjective: 1,
+    movementHunt: 1,
+    movementRoute: 1,
+    movementThreat: 1,
+});
+
+export const MIN_BOT_STRATEGY_WEIGHT = 0.25;
+export const MAX_BOT_STRATEGY_WEIGHT = 2;
+
+export function parseBotStrategyWeightMap(value: unknown): BotStrategyWeightMap | null {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+
+    const weights: BotStrategyWeightMap = {};
+    for (const [profile, rawWeights] of Object.entries(value)) {
+        if (!BOT_PROFILES.includes(profile as BotProfile)) return null;
+        if (typeof rawWeights !== "object" || rawWeights === null || Array.isArray(rawWeights)) {
+            return null;
+        }
+
+        const record = rawWeights as Record<string, unknown>;
+        if (
+            Object.keys(record).some(
+                (key) => !BOT_STRATEGY_WEIGHT_KEYS.some((weightKey) => weightKey === key),
+            )
+        ) {
+            return null;
+        }
+        const profileWeights = { ...DEFAULT_BOT_STRATEGY_WEIGHTS };
+        for (const key of BOT_STRATEGY_WEIGHT_KEYS) {
+            const weight = record[key];
+            if (weight === undefined) continue;
+            if (
+                typeof weight !== "number" ||
+                !Number.isFinite(weight) ||
+                weight < MIN_BOT_STRATEGY_WEIGHT ||
+                weight > MAX_BOT_STRATEGY_WEIGHT
+            ) {
+                return null;
+            }
+            profileWeights[key] = weight;
+        }
+        weights[profile as BotProfile] = profileWeights;
+    }
+    return weights;
+}
+
 export const BOT_PROFILE_LABELS: Record<BotProfile, string> = {
     balanced: "Polyvalent — adaptatif",
     cheap: "Monstres peu chers — adaptatif",
@@ -186,22 +297,46 @@ function offenseValue(monster: Monster): number {
     }, 0);
 }
 
-export function scoreMonsterForProfile(monster: Monster, profile: BotProfile): number {
+export function scoreMonsterForProfile(
+    monster: Monster,
+    profile: BotProfile,
+    weights: Readonly<BotStrategyWeights> = DEFAULT_BOT_STRATEGY_WEIGHTS,
+): number {
     switch (profile) {
         case "cheap":
-            return -monster.cost;
+            return -monster.cost * weights.monsterCost;
         case "expensive":
-            return monster.cost;
+            return monster.cost * weights.monsterCost;
         case "offensive":
-            return offenseValue(monster) * 4 + monster.hp * 0.1 - monster.cost * 0.15;
+            return (
+                offenseValue(monster) * 4 * weights.monsterOffense +
+                monster.hp * 0.1 * weights.monsterDurability -
+                monster.cost * 0.15 * weights.monsterCost
+            );
         case "support":
-            return supportValue(monster) * 10 + offenseValue(monster) * 0.1 - monster.cost * 0.1;
+            return (
+                supportValue(monster) * 10 * weights.monsterSupport +
+                offenseValue(monster) * 0.1 * weights.monsterOffense -
+                monster.cost * 0.1 * weights.monsterCost
+            );
         case "defensive":
-            return offenseValue(monster) * 2 + monster.hp * 0.6 - monster.cost * 0.1;
+            return (
+                offenseValue(monster) * 2 * weights.monsterOffense +
+                monster.hp * 0.6 * weights.monsterDurability -
+                monster.cost * 0.1 * weights.monsterCost
+            );
         case "tracker":
-            return offenseValue(monster) * 4 + monster.hp * 0.1 - monster.cost * 0.15;
+            return (
+                offenseValue(monster) * 4 * weights.monsterOffense +
+                monster.hp * 0.1 * weights.monsterDurability -
+                monster.cost * 0.15 * weights.monsterCost
+            );
         case "balanced":
-            return 5 - Math.abs(monster.cost - 4) + monster.hp * 0.1;
+            return (
+                5 -
+                Math.abs(monster.cost - 4) * weights.monsterCost +
+                monster.hp * 0.1 * weights.monsterDurability
+            );
     }
 }
 
@@ -210,10 +345,12 @@ export function chooseDeck(
     profile: BotProfile,
     deckSize: number,
     random: () => number = Math.random,
+    weights: Readonly<BotStrategyWeights> = DEFAULT_BOT_STRATEGY_WEIGHTS,
 ): string[] {
     const remaining = [...monsters].sort(
         (first, second) =>
-            scoreMonsterForProfile(second, profile) - scoreMonsterForProfile(first, profile) ||
+            scoreMonsterForProfile(second, profile, weights) -
+                scoreMonsterForProfile(first, profile, weights) ||
             first.id.localeCompare(second.id),
     );
     const deck: string[] = [];
@@ -231,8 +368,7 @@ export function chooseDeck(
                           ? monster.cost === 2 || monster.cost === 3
                           : monster.cost > previousCost,
                   );
-        const candidates =
-            preferredCandidates.length > 0 ? preferredCandidates : remaining;
+        const candidates = preferredCandidates.length > 0 ? preferredCandidates : remaining;
         if (candidates.length === 0) break;
         const totalWeight = candidates.reduce((total, _monster, rank) => total + 1 / (rank + 1), 0);
         let selection = Math.max(0, Math.min(1 - Number.EPSILON, random())) * totalWeight;
@@ -279,31 +415,47 @@ export function scoreTerritoryExpansion(
     startingPosition: Position,
     enemyStartingPosition: Position,
 ): number {
+    return createTerritoryExpansionScorer(
+        player,
+        ownedCells,
+        startingPosition,
+        enemyStartingPosition,
+    )(candidateCells);
+}
+
+export function createTerritoryExpansionScorer(
+    player: PlayerId,
+    ownedCells: readonly Position[],
+    startingPosition: Position,
+    enemyStartingPosition: Position,
+): (candidateCells: readonly Position[]) => number {
     const ownedKeys = new Set([startingPosition, ...ownedCells].map(({ x, y }) => `${x},${y}`));
-    const newCells = candidateCells.filter(({ x, y }) => !ownedKeys.has(`${x},${y}`));
-    if (newCells.length === 0) return Number.NEGATIVE_INFINITY;
+    let currentDistance = getGridDistance(startingPosition, enemyStartingPosition);
+    let currentFrontier = startingPosition.x;
+    for (const cell of ownedCells) {
+        currentDistance = Math.min(currentDistance, getGridDistance(cell, enemyStartingPosition));
+        currentFrontier =
+            player === 1 ? Math.max(currentFrontier, cell.x) : Math.min(currentFrontier, cell.x);
+    }
 
-    const currentDistance = Math.min(
-        getGridDistance(startingPosition, enemyStartingPosition),
-        ...ownedCells.map((cell) => getGridDistance(cell, enemyStartingPosition)),
-    );
-    const nextDistance = Math.min(
-        ...newCells.map((cell) => getGridDistance(cell, enemyStartingPosition)),
-    );
-    const objectiveProgress = currentDistance - nextDistance;
+    return (candidateCells) => {
+        let nextDistance = Number.POSITIVE_INFINITY;
+        let nextFrontier = player === 1 ? Number.NEGATIVE_INFINITY : Number.POSITIVE_INFINITY;
+        let newCells = 0;
+        for (const cell of candidateCells) {
+            if (ownedKeys.has(`${cell.x},${cell.y}`)) continue;
+            newCells++;
+            nextDistance = Math.min(nextDistance, getGridDistance(cell, enemyStartingPosition));
+            nextFrontier =
+                player === 1 ? Math.max(nextFrontier, cell.x) : Math.min(nextFrontier, cell.x);
+        }
+        if (newCells === 0) return Number.NEGATIVE_INFINITY;
 
-    const currentFrontier =
-        player === 1
-            ? Math.max(startingPosition.x, ...ownedCells.map(({ x }) => x))
-            : Math.min(startingPosition.x, ...ownedCells.map(({ x }) => x));
-    const nextFrontier =
-        player === 1
-            ? Math.max(...newCells.map(({ x }) => x))
-            : Math.min(...newCells.map(({ x }) => x));
-    const forwardProgress =
-        player === 1 ? nextFrontier - currentFrontier : currentFrontier - nextFrontier;
-
-    return objectiveProgress * 100 + forwardProgress * 5 + newCells.length;
+        const objectiveProgress = currentDistance - nextDistance;
+        const forwardProgress =
+            player === 1 ? nextFrontier - currentFrontier : currentFrontier - nextFrontier;
+        return objectiveProgress * 100 + forwardProgress * 5 + newCells;
+    };
 }
 
 export function scoreDefensivePlacement(
@@ -347,51 +499,130 @@ export function createPathBlockadeScorer(
     ownPathCells: readonly Position[],
     blockedCells: readonly Position[],
 ): (candidateCells: readonly Position[]) => number {
-    const getKey = ({ x, y }: Position): string => `${x},${y}`;
-    const ownBaseKey = getKey(ownBase);
-    const enemyBaseKey = getKey(enemyBase);
-    const baseBlockedCells = [...ownPathCells, ...blockedCells];
+    const cellCount = boardWidth * boardHeight;
+    const ownBaseIndex = ownBase.y * boardWidth + ownBase.x;
+    const enemyBaseIndex = enemyBase.y * boardWidth + enemyBase.x;
+    const getCellIndex = ({ x, y }: Position): number =>
+        x < 0 || y < 0 || x >= boardWidth || y >= boardHeight ? -1 : y * boardWidth + x;
+    const blocked = new Uint8Array(cellCount);
+    for (const cell of [...ownPathCells, ...blockedCells]) {
+        const index = getCellIndex(cell);
+        if (index >= 0 && index !== ownBaseIndex && index !== enemyBaseIndex) blocked[index] = 1;
+    }
+    const addedIndexes = new Uint32Array(cellCount);
 
-    const getRouteLength = (additionalBlocks: readonly Position[]): number | null => {
-        const blocked = new Set([...baseBlockedCells, ...additionalBlocks].map(getKey));
-        blocked.delete(ownBaseKey);
-        blocked.delete(enemyBaseKey);
-        const distances = new Map<string, number>([[enemyBaseKey, 0]]);
-        const queue: Position[] = [enemyBase];
+    const neighbors = Array.from({ length: cellCount }, (_, index) => {
+        const x = index % boardWidth;
+        const y = Math.floor(index / boardWidth);
+        const adjacent: number[] = [];
+        if (x > 0) adjacent.push(index - 1);
+        if (x + 1 < boardWidth) adjacent.push(index + 1);
+        if (y > 0) adjacent.push(index - boardWidth);
+        if (y + 1 < boardHeight) adjacent.push(index + boardWidth);
+        return adjacent;
+    });
+    const visited = new Uint32Array(cellCount);
+    const distances = new Uint32Array(cellCount);
+    const queue = new Uint32Array(cellCount);
+    const shortestRoute = new Uint8Array(cellCount);
+    let generation = 0;
 
-        for (let index = 0; index < queue.length; index++) {
-            const position = queue[index]!;
-            const key = getKey(position);
-            const distance = distances.get(key)!;
-            if (key === ownBaseKey) return distance;
+    const getRouteLength = (
+        additionalBlocks: readonly Position[],
+        routeMask?: Uint8Array,
+    ): number | null => {
+        let addedCount = 0;
+        for (const cell of additionalBlocks) {
+            const index = getCellIndex(cell);
+            if (
+                index < 0 ||
+                index === ownBaseIndex ||
+                index === enemyBaseIndex ||
+                blocked[index] === 1
+            ) {
+                continue;
+            }
+            blocked[index] = 1;
+            addedIndexes[addedCount++] = index;
+        }
 
-            for (const neighbor of [
-                { x: position.x - 1, y: position.y },
-                { x: position.x + 1, y: position.y },
-                { x: position.x, y: position.y - 1 },
-                { x: position.x, y: position.y + 1 },
-            ]) {
-                if (
-                    neighbor.x < 0 ||
-                    neighbor.y < 0 ||
-                    neighbor.x >= boardWidth ||
-                    neighbor.y >= boardHeight
-                ) {
-                    continue;
+        generation = (generation + 1) >>> 0;
+        if (generation === 0) {
+            visited.fill(0);
+            generation = 1;
+        }
+        let queueStart = 0;
+        let queueEnd = 0;
+        queue[queueEnd++] = enemyBaseIndex;
+        visited[enemyBaseIndex] = generation;
+        distances[enemyBaseIndex] = 0;
+        let routeLength: number | null = null;
+
+        while (queueStart < queueEnd) {
+            const current = queue[queueStart++]!;
+            if (current === ownBaseIndex) {
+                routeLength = distances[current]!;
+                if (routeMask) {
+                    let pathIndex = current;
+                    routeMask[pathIndex] = 1;
+                    while (pathIndex !== enemyBaseIndex) {
+                        const previousDistance = distances[pathIndex]! - 1;
+                        let previousIndex = -1;
+                        for (const neighbor of neighbors[pathIndex]!) {
+                            if (
+                                visited[neighbor] === generation &&
+                                distances[neighbor] === previousDistance
+                            ) {
+                                previousIndex = neighbor;
+                                break;
+                            }
+                        }
+                        if (previousIndex < 0) {
+                            throw new Error("Unable to reconstruct the shortest blockade route.");
+                        }
+                        pathIndex = previousIndex;
+                        routeMask[pathIndex] = 1;
+                    }
                 }
-                const neighborKey = getKey(neighbor);
-                if (blocked.has(neighborKey) || distances.has(neighborKey)) continue;
-                distances.set(neighborKey, distance + 1);
-                queue.push(neighbor);
+                break;
+            }
+            const nextDistance = distances[current]! + 1;
+            for (const neighbor of neighbors[current]!) {
+                if (blocked[neighbor] === 1 || visited[neighbor] === generation) continue;
+                visited[neighbor] = generation;
+                distances[neighbor] = nextDistance;
+                queue[queueEnd++] = neighbor;
             }
         }
-        return null;
+
+        for (let index = 0; index < addedCount; index++) {
+            blocked[addedIndexes[index]!] = 0;
+        }
+        return routeLength;
     };
 
-    const currentRouteLength = getRouteLength([]);
+    const currentRouteLength = getRouteLength([], shortestRoute);
     if (currentRouteLength === null) return () => 0;
 
     return (candidateCells) => {
+        let blocksShortestRoute = false;
+        for (const cell of candidateCells) {
+            const index = getCellIndex(cell);
+            if (
+                index < 0 ||
+                index === ownBaseIndex ||
+                index === enemyBaseIndex ||
+                blocked[index] === 1
+            ) {
+                continue;
+            }
+            if (shortestRoute[index] === 1) {
+                blocksShortestRoute = true;
+                break;
+            }
+        }
+        if (!blocksShortestRoute) return 0;
+
         const nextRouteLength = getRouteLength(candidateCells);
         if (nextRouteLength === null) return 500;
         return Math.max(0, nextRouteLength - currentRouteLength) * 80;
@@ -425,7 +656,12 @@ export function scoreTacticalAttack(
     tactic: BotTactic | BotProfile,
     enemyBaseHealth: number,
     profile?: BotProfile,
+    weights: Readonly<BotStrategyWeights> = DEFAULT_BOT_STRATEGY_WEIGHTS,
 ): number {
+    if (value.baseDamage > 0 && value.baseDamage >= enemyBaseHealth) {
+        return Number.MAX_SAFE_INTEGER;
+    }
+
     const isOffense = tactic === "offense" || tactic === "offensive" || profile === "offensive";
     const isHunt = tactic === "hunt" || tactic === "tracker" || profile === "tracker";
     const isSupport = tactic === "support" || profile === "support";
@@ -437,18 +673,18 @@ export function scoreTacticalAttack(
     const supportValue =
         value.healing * 2 + value.clearedEffects * 2 + value.buffs * 2 + value.cooldownsReduced * 2;
     const score =
-        value.baseDamage * baseUrgency * basePreference +
-        value.damage * damagePreference +
-        value.statusDamage * 1.5 +
-        value.kills * killPreference +
-        supportValue * supportPreference -
-        value.friendlyDamage * 4;
+        value.baseDamage * baseUrgency * basePreference * weights.baseDamage +
+        value.damage * damagePreference * weights.damage +
+        value.statusDamage * 1.5 * weights.statusDamage +
+        value.kills * killPreference * weights.kills +
+        supportValue * supportPreference * weights.support -
+        value.friendlyDamage * 4 * weights.friendlyDamage;
     const effectiveProfile =
         profile ?? (tactic === "cheap" || tactic === "expensive" ? tactic : undefined);
     const costBias =
         effectiveProfile === "cheap" ? 1.5 : effectiveProfile === "expensive" ? 0.25 : 0.5;
 
-    return Math.max(0, score) / (Math.max(0, cost) + costBias);
+    return Math.max(0, score) / (Math.max(0, cost) + costBias * weights.costEfficiency);
 }
 
 export function findObjectiveMovement(
@@ -458,6 +694,7 @@ export function findObjectiveMovement(
     enemyPositions: readonly Position[] = [],
     tactic: BotTactic = "balanced",
     threatScores: ReadonlyMap<string, number> = new Map(),
+    weights: Readonly<BotStrategyWeights> = DEFAULT_BOT_STRATEGY_WEIGHTS,
 ): ObjectiveMovement | null {
     const getKey = ({ x, y }: Position): string => `${x},${y}`;
     const occupied = new Set(options.occupiedCells.map(getKey));
@@ -514,7 +751,11 @@ export function findObjectiveMovement(
         if (path.length < 2) continue;
 
         const threat = threatScores.get(getKey(destination)) ?? 0;
-        const score = objectiveProgress * 100 + enemyProgress * 60 + routeProgress * 10 - threat * 20;
+        const score =
+            objectiveProgress * 100 * weights.movementObjective +
+            enemyProgress * 60 * weights.movementHunt +
+            routeProgress * 10 * weights.movementRoute -
+            threat * 20 * weights.movementThreat;
         if (score <= bestScore) continue;
         bestScore = score;
         best = { position: destination, path, routeProgress };

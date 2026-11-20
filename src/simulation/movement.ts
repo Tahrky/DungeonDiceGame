@@ -8,10 +8,7 @@ import {
     getMovementRange,
     type MovementOptions,
 } from "../game/monsterActions";
-import {
-    getStartingPositions,
-    type BoardDefinition,
-} from "../game/boards";
+import { getStartingPositions, type BoardDefinition } from "../game/boards";
 import type { PlacedMonster } from "../types/GameTypes";
 import {
     addEvent,
@@ -22,11 +19,8 @@ import {
     type MatchState,
 } from "./matchState";
 import { chooseBotObjective, findObjectiveMovement } from "../game/botStrategy";
-import {
-    assignMonsterRoles,
-    createThreatScores,
-    type StrategicSnapshot,
-} from "../game/ai";
+import { DEFAULT_BOT_STRATEGY_WEIGHTS } from "../game/botStrategy";
+import { assignMonsterRoles, createThreatScores, type StrategicSnapshot } from "../game/ai";
 
 export function performMovements(state: MatchState, board: BoardDefinition): void {
     if (state.winner !== null) return;
@@ -96,6 +90,7 @@ export function performMovements(state: MatchState, board: BoardDefinition): voi
                 enemyPositions,
                 state.tactics[player],
                 createThreatScores(board, state.monsters, monster.id),
+                state.strategyWeights?.[player] ?? DEFAULT_BOT_STRATEGY_WEIGHTS,
             );
             if (!best || !spend(state, player, "movement", cost)) break;
 
@@ -111,40 +106,34 @@ export function performMovements(state: MatchState, board: BoardDefinition): voi
             monster.position = best.position;
             monster.movementsUsedThisTurn++;
             state.statistics[player].movements++;
-            addEvent(
-                state,
-                player,
-                "strategy",
-                `Suit le chemin vers ${movementGoal} : ${best.routeProgress} case(s) plus près.`,
-                {
+            if (!state.lightResults) {
+                addEvent(state, {
+                    turn: state.turn,
+                    player,
+                    type: "strategy",
+                    description: `Suit le chemin vers ${movementGoal} : ${best.routeProgress} case(s) plus près.`,
                     monsterId: monster.id,
                     monsterTypeId: monster.monster.id,
                     monsterName: monster.monster.name,
-                },
-            );
-            addEvent(
-                state,
-                player,
-                "movement",
-                `${monster.monster.name} se déplace de ${best.path.length - 1} case(s).`,
-                {
+                });
+                addEvent(state, {
+                    turn: state.turn,
+                    player,
+                    type: "movement",
+                    description: `${monster.monster.name} se déplace de ${best.path.length - 1} case(s).`,
                     monsterId: monster.id,
                     monsterTypeId: monster.monster.id,
                     monsterName: monster.monster.name,
                     from,
                     to: best.position,
                     cost,
-                },
-            );
+                });
+            }
         }
     }
 }
 
-function createMovementOptions(
-    state: MatchState,
-    board: BoardDefinition,
-    monster: PlacedMonster,
-) {
+function createMovementOptions(state: MatchState, board: BoardDefinition, monster: PlacedMonster) {
     return {
         source: monster.position,
         deployedCells: state.monsters.flatMap((placed) => placed.cells),
@@ -157,10 +146,7 @@ function createMovementOptions(
             .map((placed) => placed.position),
         canPassHostiles: canPassHostileMonsters(monster.monster),
         canPassUndeployedCells: monster.monster.flying === true,
-        range: getMovementRange(
-            monster.monster,
-            monster.turnBuffs?.movementRangeBonus ?? 0,
-        ),
+        range: getMovementRange(monster.monster, monster.turnBuffs?.movementRangeBonus ?? 0),
         boardWidth: board.width,
         boardHeight: board.height,
     };

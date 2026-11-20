@@ -4,8 +4,9 @@ import { getDefaultGameConfiguration, type GameConfiguration } from "../game/gam
 import { getInvokedMonsterCount } from "../game/matchRules";
 import { getRollableDieFaces } from "../game/diceResources";
 import { getAttackCost, getMovementCost } from "../game/monsterActions";
-import type { PlayerId } from "../types/GameTypes";
+import type { Monster, PlayerId } from "../types/GameTypes";
 import {
+    addEvent,
     buildMatchBoard,
     createStats,
     deployMonsters,
@@ -19,6 +20,8 @@ import {
     canDeployMonsterForProfile,
     chooseBotTactic,
     chooseSymbolConversion,
+    DEFAULT_BOT_STRATEGY_WEIGHTS,
+    parseBotStrategyWeightMap,
     scoreMonsterForProfile,
 } from "../game/botStrategy";
 import { convertReservedSymbols } from "../game/diceResources";
@@ -43,11 +46,16 @@ function createMatch(
     options: SimulationOptions,
     configuration: GameConfiguration,
     board: BoardDefinition,
+    monstersById: ReadonlyMap<string, Monster>,
 ): MatchResult {
     const random = createRandom(seed);
     const profiles: Record<PlayerId, BotProfile> = {
         1: options.profile1,
         2: options.profile2,
+    };
+    const strategyWeights = {
+        1: options.strategyWeights?.[profiles[1]] ?? DEFAULT_BOT_STRATEGY_WEIGHTS,
+        2: options.strategyWeights?.[profiles[2]] ?? DEFAULT_BOT_STRATEGY_WEIGHTS,
     };
     const deckRandom: Record<PlayerId, () => number> = {
         1: createRandom((seed ^ 0x9e3779b9) >>> 0),
@@ -61,6 +69,7 @@ function createMatch(
                 options.profile1,
                 configuration.deckSize,
                 deckRandom[1],
+                strategyWeights[1],
             ),
         2:
             options.deck2 ??
@@ -69,13 +78,22 @@ function createMatch(
                 options.profile2,
                 configuration.deckSize,
                 deckRandom[2],
+                strategyWeights[2],
             ),
+    };
+    const deckMonsters: Record<PlayerId, Monster[]> = {
+        1: resolveDeck(decks[1], monstersById),
+        2: resolveDeck(decks[2], monstersById),
     };
     const monsterSymbols = getUniqueMonsterSymbols(configuration.monsters);
     const state: MatchState = {
         turn: 1,
         currentPlayer: startingPlayer,
         debug: options.debug ?? false,
+        advancedSearch: options.advanced ?? false,
+        lightResults: options.lightResults ?? false,
+        strategyWeights,
+        ...(options.recordDecisionTraces ? { decisionTraces: [] } : {}),
         profiles,
         tactics: {
             1: chooseBotTactic(profiles[1], profiles[2]).tactic,
@@ -117,26 +135,30 @@ function createMatch(
                 return faces[Math.floor(random() * faces.length)]!;
             });
             for (const symbol of rolled) state.reserves[player][symbol]++;
-            state.history.push({
-                turn,
-                player,
-                type: "dice",
-                description: `Dés : ${rolled.join(", ")}. Ressources conservées en réserve.`,
-            });
-            state.history.push({
-                turn,
-                player,
-                type: "strategy",
-                description: `Profil « ${profiles[player]} » ; deck : ${decks[player].join(", ")}.`,
-            });
+            if (!state.lightResults) {
+                addEvent(state, {
+                    turn,
+                    player,
+                    type: "dice",
+                    description: `Dés : ${rolled.join(", ")}. Ressources conservées en réserve.`,
+                });
+                addEvent(state, {
+                    turn,
+                    player,
+                    type: "strategy",
+                    description: `Profil « ${profiles[player]} » ; deck : ${decks[player].join(", ")}.`,
+                });
+            }
             const decision = chooseBotTactic(profiles[player], profiles[player === 1 ? 2 : 1]);
             state.tactics[player] = decision.tactic;
-            state.history.push({
-                turn,
-                player,
-                type: "strategy",
-                description: `Décision stratégique : ${decision.description}.`,
-            });
+            if (!state.lightResults) {
+                addEvent(state, {
+                    turn,
+                    player,
+                    type: "strategy",
+                    description: `Décision stratégique : ${decision.description}.`,
+                });
+            }
 
             const deployedCosts = state.monsters
                 .filter((monster) => monster.owner === player)
@@ -145,17 +167,9 @@ function createMatch(
                 getInvokedMonsterCount(state.monsters, player) <
                     configuration.maxMonstersPerPlayer &&
                 hasAvailablePlacement(state, board, player)
-                    ? decks[player]
-                          .map((id) => configuration.monsters.find((monster) => monster.id === id))
-                          .filter(
-                              (monster) =>
-                                  monster !== undefined &&
-                                  canDeployMonsterForProfile(
-                                      monster,
-                                      profiles[player],
-                                      deployedCosts,
-                                  ),
-                          )
+                    ? deckMonsters[player].filter((monster) =>
+                          canDeployMonsterForProfile(monster, profiles[player], deployedCosts),
+                      )
                     : [];
 
             for (let conversion = 0; conversion < 3; conversion++) {
@@ -163,7 +177,16 @@ function createMatch(
                 const opportunities = {
                     invocation: invocableMonsters.reduce((best, monster) => {
                         return monster.cost > reserve.invocation
-                            ? Math.max(best, scoreMonsterForProfile(monster, profiles[player]) + 1)
+                            ? Math.max(
+                                  best,
+                                  scoreMonsterForProfile(
+                                      monster,
+                                      profiles[player],
+                                      strategyWeights[player],
+                                  ) *
+                                      strategyWeights[player].invocationPriority +
+                                      1,
+                              )
                             : best;
                     }, 0),
                     attack: state.monsters
@@ -213,15 +236,17 @@ function createMatch(
                 if (!convertReservedSymbols(reserve, choice.sourceSymbols, choice.targetSymbol))
                     break;
                 state.statistics[player].conversionLosses++;
-                state.history.push({
-                    turn,
-                    player,
-                    type: "strategy",
-                    description: `Conversion tactique : ${choice.sourceSymbols.join(" + ")} vers ${choice.targetSymbol}.`,
-                });
+                if (!state.lightResults) {
+                    addEvent(state, {
+                        turn,
+                        player,
+                        type: "strategy",
+                        description: `Conversion tactique : ${choice.sourceSymbols.join(" + ")} vers ${choice.targetSymbol}.`,
+                    });
+                }
             }
 
-            deployMonsters(state, configuration, board, profiles[player], decks[player]);
+            deployMonsters(state, configuration, board, profiles[player], deckMonsters[player]);
             performAttacks(state, board);
             performMovements(state, board);
             performAttacks(state, board);
@@ -256,7 +281,19 @@ function createMatch(
         })),
         remainingResources: state.reserves,
         history: state.history,
+        ...(state.decisionTraces === undefined ? {} : { decisionTraces: state.decisionTraces }),
     };
+}
+
+function resolveDeck(
+    deck: readonly string[],
+    monstersById: ReadonlyMap<string, Monster>,
+): Monster[] {
+    return deck.map((id) => {
+        const monster = monstersById.get(id);
+        if (!monster) throw new Error(`Monstre inconnu dans le deck : ${id}`);
+        return monster;
+    });
 }
 
 export function runSimulations(
@@ -270,6 +307,12 @@ export function runSimulations(
     }
     if (!Number.isInteger(options.maxTurns) || options.maxTurns < 1) {
         throw new RangeError("La limite de tours doit être un entier positif.");
+    }
+    if (options.lightResults && options.debug) {
+        throw new RangeError("--debug ne peut pas être combiné avec --light-results.");
+    }
+    if (options.strategyWeights && !parseBotStrategyWeightMap(options.strategyWeights)) {
+        throw new RangeError("Les poids stratégiques sont invalides.");
     }
     if (!Number.isInteger(options.seed) || options.seed < 0 || options.seed > 0xffff_ffff) {
         throw new RangeError("La seed doit être un entier non signé de 32 bits.");
@@ -288,6 +331,10 @@ export function runSimulations(
         throw new RangeError("L’index de départ doit être un entier non négatif.");
     }
 
+    const monstersById = new Map<string, Monster>();
+    for (const monster of configuration.monsters) {
+        if (!monstersById.has(monster.id)) monstersById.set(monster.id, monster);
+    }
     const matches = Array.from({ length: options.games }, (_, index) => {
         const matchIndex = startIndex + index;
         const profilePairCount = options.profilePairs?.length ?? 1;
@@ -301,23 +348,22 @@ export function runSimulations(
             profilePair ? { ...options, ...profilePair } : options,
             configuration,
             board,
+            monstersById,
         );
     });
-    const wins: Record<PlayerId, number> = {
-        1: matches.filter((match) => match.winner === 1).length,
-        2: matches.filter((match) => match.winner === 2).length,
-    };
-    const winsByStartingPlayer: Record<PlayerId, number> = {
-        1: matches.filter(
-            (match) => match.winner === match.startingPlayer && match.startingPlayer === 1,
-        ).length,
-        2: matches.filter(
-            (match) => match.winner === match.startingPlayer && match.startingPlayer === 2,
-        ).length,
-    };
+    const wins: Record<PlayerId, number> = { 1: 0, 2: 0 };
+    const winsByStartingPlayer: Record<PlayerId, number> = { 1: 0, 2: 0 };
     const winsByProfile: Partial<Record<BotProfile, number>> = {};
+    let draws = 0;
+    let totalTurns = 0;
     for (const match of matches) {
-        if (match.winner === null) continue;
+        totalTurns += match.turns;
+        if (match.winner === null) {
+            draws++;
+            continue;
+        }
+        wins[match.winner]++;
+        if (match.winner === match.startingPlayer) winsByStartingPlayer[match.startingPlayer]++;
         const winnerProfile = match.profiles[match.winner];
         winsByProfile[winnerProfile] = (winsByProfile[winnerProfile] ?? 0) + 1;
     }
@@ -332,8 +378,8 @@ export function runSimulations(
             matches: matches.length,
             wins,
             winsByStartingPlayer,
-            draws: matches.filter((match) => match.winner === null).length,
-            averageTurns: matches.reduce((sum, match) => sum + match.turns, 0) / matches.length,
+            draws,
+            averageTurns: totalTurns / matches.length,
             winsByProfile,
         },
         matches,

@@ -66,6 +66,7 @@ const BOARD_PRESETS: readonly BoardDefinition[] = [
 ];
 
 const MIN_PLAYABLE_CELLS = 14;
+const startingPositionCache = new WeakMap<BoardDefinition, Record<PlayerId, Position>>();
 
 function cloneBoard(board: BoardDefinition): BoardDefinition {
     return {
@@ -143,7 +144,10 @@ export function parseBoardDefinition(value: unknown): BoardDefinition | null {
     }
 
     const board = { id: value.id, width: value.width, height: value.height, blockedCells };
-    return getStartingPositionsOrNull(board) ? board : null;
+    const startingPositions = getStartingPositionsOrNull(board);
+    if (!startingPositions) return null;
+    startingPositionCache.set(board, startingPositions);
+    return board;
 }
 
 function isValidDimension(value: unknown): value is number {
@@ -209,9 +213,13 @@ function getStartingPositionsOrNull(
 }
 
 export function getStartingPositions(board: BoardDefinition): Record<PlayerId, Position> {
-    const positions = getStartingPositionsOrNull(board);
+    let positions = startingPositionCache.get(board);
+    if (!positions) {
+        positions = getStartingPositionsOrNull(board) ?? undefined;
+        if (positions) startingPositionCache.set(board, positions);
+    }
     if (!positions) throw new Error("Le plateau doit contenir deux cases de départ distinctes.");
-    return positions;
+    return { 1: { ...positions[1] }, 2: { ...positions[2] } };
 }
 
 export function getBoardOrigin(board: BoardDefinition): Position {

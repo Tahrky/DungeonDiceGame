@@ -118,7 +118,11 @@ function isSimulationOptions(value: unknown): value is SimulationOptions {
         !Number.isInteger(value.seed) ||
         !Number.isInteger(value.maxTurns) ||
         !isProfile(value.profile1) ||
-        !isProfile(value.profile2)
+        !isProfile(value.profile2) ||
+        (value.advanced !== undefined && typeof value.advanced !== "boolean") ||
+        (value.lightResults !== undefined && typeof value.lightResults !== "boolean") ||
+        (value.recordDecisionTraces !== undefined &&
+            typeof value.recordDecisionTraces !== "boolean")
     ) {
         return false;
     }

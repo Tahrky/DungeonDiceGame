@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { getDefaultGameConfiguration } from "../src/game/gameConfiguration";
 import { getUniqueMonsterSymbols } from "../src/game/monsterSymbols";
+import { DEFAULT_BOT_STRATEGY_WEIGHTS } from "../src/game/botStrategy";
 import { chooseDeck } from "../src/simulation/strategies";
 import { runSimulations } from "../src/simulation/simulator";
 import { parseSimulationData } from "../src/simulation/analysis";
@@ -48,6 +49,72 @@ describe("simulation de matchs", () => {
         );
         expect(match?.finalMonsters.every((monster) => /^[A-Z]$/.test(monster.symbol))).toBe(true);
         expect(first.matches).toEqual(second.matches);
+    });
+
+    it("allège les résultats sans modifier le déroulement du match", () => {
+        const options: SimulationOptions = {
+            games: 1,
+            seed: 42,
+            maxTurns: 1,
+            profile1: "cheap",
+            profile2: "offensive",
+        };
+        const fullResult = runSimulations(options);
+        const lightResult = runSimulations({ ...options, lightResults: true });
+        const fullMatch = fullResult.matches[0];
+        const lightMatch = lightResult.matches[0];
+        if (!fullMatch || !lightMatch) throw new Error("Matchs de test attendus.");
+
+        expect(lightMatch).toEqual({ ...fullMatch, history: [] });
+        expect(lightResult.summary).toEqual(fullResult.summary);
+        expect(fullMatch.history.length).toBeGreaterThan(0);
+        expect(parseSimulationData(lightResult)).not.toBeNull();
+        expect(() => runSimulations({ ...options, debug: true, lightResults: true })).toThrow(
+            "--debug ne peut pas être combiné avec --light-results.",
+        );
+    });
+
+    it("ne trace les attaques que sur demande et conserve les options légales avec d’autres poids", () => {
+        const options: SimulationOptions = {
+            games: 1,
+            seed: 731,
+            maxTurns: 10,
+            profile1: "balanced",
+            profile2: "defensive",
+            lightResults: true,
+        };
+        const withoutTrace = runSimulations(options).matches[0];
+        const baseline = runSimulations({ ...options, recordDecisionTraces: true }).matches[0];
+        const weighted = runSimulations({
+            ...options,
+            recordDecisionTraces: true,
+            strategyWeights: {
+                balanced: { ...DEFAULT_BOT_STRATEGY_WEIGHTS, damage: 1.5 },
+            },
+        }).matches[0];
+        if (!withoutTrace || !baseline || !weighted) throw new Error("Matchs de test attendus.");
+
+        expect(withoutTrace).not.toHaveProperty("decisionTraces");
+        expect(baseline.decisionTraces?.length).toBeGreaterThan(0);
+        const baselineDecision = baseline.decisionTraces?.[0];
+        const weightedDecision = weighted.decisionTraces?.[0];
+        expect(baselineDecision).toBeDefined();
+        expect(weightedDecision).toBeDefined();
+        expect(
+            baselineDecision?.candidates
+                .map(
+                    ({ attackerMonsterId, attackIndex, target }) =>
+                        `${attackerMonsterId}:${attackIndex}:${target.x},${target.y}`,
+                )
+                .sort(),
+        ).toEqual(
+            weightedDecision?.candidates
+                .map(
+                    ({ attackerMonsterId, attackIndex, target }) =>
+                        `${attackerMonsterId}:${attackIndex}:${target.x},${target.y}`,
+                )
+                .sort(),
+        );
     });
 
     it("utilise la paire de profils correspondant à l’index global du match", () => {
@@ -179,10 +246,8 @@ describe("simulation de matchs", () => {
         const legacyResult = {
             ...result,
             matches: result.matches.map((match) => {
-                const { lastMonsterSummonTurn: _lastTurn1, ...player1Stats } =
-                    match.statistics[1];
-                const { lastMonsterSummonTurn: _lastTurn2, ...player2Stats } =
-                    match.statistics[2];
+                const { lastMonsterSummonTurn: _lastTurn1, ...player1Stats } = match.statistics[1];
+                const { lastMonsterSummonTurn: _lastTurn2, ...player2Stats } = match.statistics[2];
                 void _lastTurn1;
                 void _lastTurn2;
                 return {

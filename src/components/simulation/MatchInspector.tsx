@@ -30,6 +30,7 @@ export function MatchInspector({
 }: MatchInspectorProps) {
     const match = matches.find((candidate) => candidate.id === Number(selectedMatchId));
     const visibleHistory = match?.history.slice(-500) ?? [];
+    const hasDetailedHistory = (match?.history.length ?? 0) > 0;
     const monsterStats = match ? analyzeMatchMonsters(match) : [];
     const monsterSymbols = getUniqueMonsterSymbols(configuration.monsters);
     const monsterColumns: SortableColumn<MatchMonsterAnalysis>[] = [
@@ -76,26 +77,30 @@ export function MatchInspector({
             getValue: (monster) => `${monster.position.x}, ${monster.position.y}`,
             render: (monster) => `${monster.position.x}, ${monster.position.y}`,
         },
-        {
-            key: "attacks",
-            label: "Attaques",
-            getValue: (monster) => monster.attacks,
-            render: (monster) => (monster.attacks > 0 ? monster.attacks : ""),
-        },
-        {
-            key: "totalDamage",
-            label: "Dégâts infligés",
-            getValue: (monster) => monster.totalDamage,
-            render: (monster) => (monster.totalDamage > 0 ? monster.totalDamage : ""),
-        },
-        {
-            key: "attackUsage",
-            label: "Attaques les plus utilisées",
-            getValue: (monster) =>
-                monster.attackUsage.reduce((total, attack) => total + attack.uses, 0),
-            render: (monster) => <AttackUsageList attacks={monster.attackUsage} />,
-        },
     ];
+    if (hasDetailedHistory) {
+        monsterColumns.push(
+            {
+                key: "attacks",
+                label: "Attaques",
+                getValue: (monster) => monster.attacks,
+                render: (monster) => (monster.attacks > 0 ? monster.attacks : ""),
+            },
+            {
+                key: "totalDamage",
+                label: "Dégâts infligés",
+                getValue: (monster) => monster.totalDamage,
+                render: (monster) => (monster.totalDamage > 0 ? monster.totalDamage : ""),
+            },
+            {
+                key: "attackUsage",
+                label: "Attaques les plus utilisées",
+                getValue: (monster) =>
+                    monster.attackUsage.reduce((total, attack) => total + attack.uses, 0),
+                render: (monster) => <AttackUsageList attacks={monster.attackUsage} />,
+            },
+        );
+    }
     const historyRows = visibleHistory.map((event, index) => ({ event, index }));
     const historyColumns: SortableColumn<MatchHistoryEntry>[] = [
         { key: "turn", label: "Tour", getValue: ({ event }) => event.turn },
@@ -166,19 +171,27 @@ export function MatchInspector({
                     )}
                     <div className="simulation-history">
                         <h4>Historique du match</h4>
-                        {match.history.length > visibleHistory.length && (
+                        {hasDetailedHistory ? (
+                            <>
+                                {match.history.length > visibleHistory.length && (
+                                    <p className="simulation-description">
+                                        Les 500 événements les plus récents sont affichés. Le JSON
+                                        conserve l’historique complet.
+                                    </p>
+                                )}
+                                <SortableTable
+                                    rows={historyRows}
+                                    columns={historyColumns}
+                                    getRowKey={({ event, index }) =>
+                                        `${event.turn}-${event.player}-${index}`
+                                    }
+                                />
+                            </>
+                        ) : (
                             <p className="simulation-description">
-                                Les 500 événements les plus récents sont affichés. Le JSON conserve
-                                l’historique complet.
+                                L’historique détaillé n’a pas été conservé pour ce match.
                             </p>
                         )}
-                        <SortableTable
-                            rows={historyRows}
-                            columns={historyColumns}
-                            getRowKey={({ event, index }) =>
-                                `${event.turn}-${event.player}-${index}`
-                            }
-                        />
                     </div>
                 </>
             )}
