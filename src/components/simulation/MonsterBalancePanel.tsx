@@ -1,0 +1,302 @@
+import { useMemo, useState } from "react";
+import { MONSTERS } from "../../data/monsters";
+import { analyzeMonsters, type MonsterBalance } from "../../simulation/monsterBalance";
+import { SortableTable, type SortableColumn } from "./SortableTable";
+
+interface ComparisonRow {
+    label: string;
+    first: number | null;
+    second: number | null;
+    lowerIsBetter?: boolean;
+}
+
+function format(value: number | null): string {
+    return value !== null && Number.isFinite(value) ? value.toFixed(2) : "";
+}
+
+function isBetter(value: number | null, other: number | null, lowerIsBetter = false): boolean {
+    return (
+        value !== null &&
+        Number.isFinite(value) &&
+        other !== null &&
+        Number.isFinite(other) &&
+        (lowerIsBetter ? value < other : value > other)
+    );
+}
+
+const BALANCE_COLUMNS: SortableColumn<MonsterBalance>[] = [
+    { key: "name", label: "Monstre", getValue: (monster) => monster.name, rowHeader: true },
+    {
+        key: "total",
+        label: "Score global / 10",
+        getValue: (monster) => monster.scores.total,
+        render: (monster) => format(monster.scores.total),
+    },
+    { key: "summonCost", label: "Coût d’invocation", getValue: (monster) => monster.summonCost },
+    { key: "hp", label: "PV", getValue: (monster) => monster.hp },
+    {
+        key: "durability",
+        label: "Robustesse",
+        getValue: (monster) => monster.scores.durability,
+        render: (monster) => format(monster.scores.durability),
+    },
+    {
+        key: "entryCost",
+        label: "Coût d’entrée",
+        getValue: (monster) => monster.economy.standardEntryCost,
+        render: (monster) => format(monster.economy.standardEntryCost),
+    },
+    {
+        key: "operatingCost",
+        label: "Coût opérationnel / tour",
+        getValue: (monster) => monster.economy.averageOperatingCostPerTurn,
+        render: (monster) => format(monster.economy.averageOperatingCostPerTurn),
+    },
+    {
+        key: "grossCost",
+        label: "Coût équivalent / tour",
+        getValue: (monster) => monster.economy.grossEquivalentCostPerTurn,
+        render: (monster) => format(monster.economy.grossEquivalentCostPerTurn),
+    },
+    {
+        key: "pressure",
+        label: "Pression sur les ressources",
+        getValue: (monster) => monster.economy.grossEquivalentPressurePercent,
+        render: (monster) => `${format(monster.economy.grossEquivalentPressurePercent)} %`,
+    },
+    {
+        key: "efficiency",
+        label: "Efficacité d’invocation",
+        getValue: (monster) => monster.economy.invocationEfficiency,
+        render: (monster) => format(monster.economy.invocationEfficiency),
+    },
+    {
+        key: "offense",
+        label: "Attaque",
+        getValue: (monster) => monster.scores.offense,
+        render: (monster) => format(monster.scores.offense),
+    },
+    {
+        key: "range",
+        label: "Portée / zone",
+        getValue: (monster) => monster.scores.rangeControl,
+        render: (monster) => format(monster.scores.rangeControl),
+    },
+    {
+        key: "mobility",
+        label: "Mobilité",
+        getValue: (monster) => monster.scores.mobility,
+        render: (monster) => format(monster.scores.mobility),
+    },
+    {
+        key: "utility",
+        label: "Utilité",
+        getValue: (monster) => monster.scores.utility,
+        render: (monster) => format(monster.scores.utility),
+    },
+    {
+        key: "actionEconomy",
+        label: "Économie d’actions",
+        getValue: (monster) => monster.scores.actionEconomy,
+        render: (monster) => format(monster.scores.actionEconomy),
+    },
+    {
+        key: "warnings",
+        label: "Avertissements",
+        getValue: (monster) => monster.warnings.join(" | "),
+    },
+];
+
+export function MonsterBalancePanel() {
+    const reports = useMemo(() => analyzeMonsters(MONSTERS), []);
+    const [selectedId, setSelectedId] = useState(MONSTERS[0]?.id ?? "");
+    const [comparisonId, setComparisonId] = useState(
+        MONSTERS.find((monster) => monster.id !== MONSTERS[0]?.id)?.id ?? "",
+    );
+    const selected = reports.find((report) => report.id === selectedId) ?? reports[0];
+    const comparison =
+        reports.find((report) => report.id === comparisonId && report.id !== selected?.id) ??
+        reports.find((report) => report.id !== selected?.id);
+    if (!selected || !comparison) return null;
+
+    const comparisonRows: ComparisonRow[] = [
+        { label: "PV", first: selected.hp, second: comparison.hp },
+        {
+            label: "Coût d’invocation",
+            first: selected.summonCost,
+            second: comparison.summonCost,
+            lowerIsBetter: true,
+        },
+        {
+            label: "Portée de déplacement",
+            first: selected.movementRange,
+            second: comparison.movementRange,
+        },
+        {
+            label: "Robustesse / 10",
+            first: selected.scores.durability,
+            second: comparison.scores.durability,
+        },
+        {
+            label: "Attaque / 10",
+            first: selected.scores.offense,
+            second: comparison.scores.offense,
+        },
+        {
+            label: "Portée et zone / 10",
+            first: selected.scores.rangeControl,
+            second: comparison.scores.rangeControl,
+        },
+        {
+            label: "Mobilité / 10",
+            first: selected.scores.mobility,
+            second: comparison.scores.mobility,
+        },
+        {
+            label: "Utilité / 10",
+            first: selected.scores.utility,
+            second: comparison.scores.utility,
+        },
+        {
+            label: "Économie d’actions / 10",
+            first: selected.scores.actionEconomy,
+            second: comparison.scores.actionEconomy,
+        },
+        {
+            label: "Score global / 10",
+            first: selected.scores.total,
+            second: comparison.scores.total,
+        },
+        {
+            label: "Coût d’entrée standard",
+            first: selected.economy.standardEntryCost,
+            second: comparison.economy.standardEntryCost,
+            lowerIsBetter: true,
+        },
+        {
+            label: "Coût du premier tour complet",
+            first: selected.economy.fullFirstTurnCost,
+            second: comparison.economy.fullFirstTurnCost,
+            lowerIsBetter: true,
+        },
+        {
+            label: "Coût opérationnel moyen / tour",
+            first: selected.economy.averageOperatingCostPerTurn,
+            second: comparison.economy.averageOperatingCostPerTurn,
+            lowerIsBetter: true,
+        },
+        {
+            label: "Coût équivalent moyen / tour",
+            first: selected.economy.grossEquivalentCostPerTurn,
+            second: comparison.economy.grossEquivalentCostPerTurn,
+            lowerIsBetter: true,
+        },
+        {
+            label: "Pression sur les ressources (%)",
+            first: selected.economy.grossEquivalentPressurePercent,
+            second: comparison.economy.grossEquivalentPressurePercent,
+            lowerIsBetter: true,
+        },
+        {
+            label: "Efficacité des dégâts à long terme",
+            first: selected.economy.longTermDamageEfficiency,
+            second: comparison.economy.longTermDamageEfficiency,
+        },
+    ];
+
+    return (
+        <section className="simulation-analysis" aria-labelledby="monster-balance-title">
+            <h3 id="monster-balance-title">Équilibrage des monstres</h3>
+            <p className="simulation-description">
+                Analyse calculée depuis les caractéristiques de <code>monsters.ts</code> et les
+                hypothèses par défaut de l’analyseur fourni.
+            </p>
+            <div className="simulation-table-wrap">
+                <h4>Indicateurs globaux — tous les monstres</h4>
+                <SortableTable
+                    rows={reports}
+                    columns={BALANCE_COLUMNS}
+                    getRowKey={(monster) => monster.id}
+                />
+            </div>
+            <div className="simulation-balance-grid">
+                <label className="simulation-balance-select">
+                    Monstre
+                    <select
+                        value={selected.id}
+                        onChange={(event) => {
+                            const nextId = event.currentTarget.value;
+                            setSelectedId(nextId);
+                            if (comparison.id === nextId) {
+                                const nextComparison = MONSTERS.find(
+                                    (monster) => monster.id !== nextId,
+                                );
+                                if (nextComparison) setComparisonId(nextComparison.id);
+                            }
+                        }}
+                    >
+                        {MONSTERS.map((monster) => (
+                            <option key={monster.id} value={monster.id}>
+                                {monster.name}
+                            </option>
+                        ))}
+                    </select>
+                </label>
+                <label className="simulation-balance-select">
+                    Comparer avec
+                    <select
+                        value={comparison.id}
+                        onChange={(event) => setComparisonId(event.currentTarget.value)}
+                    >
+                        {MONSTERS.filter((monster) => monster.id !== selected.id).map((monster) => (
+                            <option key={monster.id} value={monster.id}>
+                                {monster.name}
+                            </option>
+                        ))}
+                    </select>
+                </label>
+            </div>
+
+            <div className="simulation-table-wrap">
+                <table className="simulation-table simulation-comparison-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">Indicateur</th>
+                            <th scope="col">{selected.name}</th>
+                            <th scope="col">{comparison.name}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {comparisonRows.map((row) => (
+                            <tr key={row.label}>
+                                <th scope="row">{row.label}</th>
+                                <td>
+                                    {isBetter(row.first, row.second, row.lowerIsBetter) && (
+                                        <strong className="simulation-comparison-maximum">
+                                            {format(row.first)}
+                                        </strong>
+                                    )}
+                                    {!isBetter(row.first, row.second, row.lowerIsBetter) &&
+                                        format(row.first)}
+                                </td>
+                                <td>
+                                    {isBetter(row.second, row.first, row.lowerIsBetter) && (
+                                        <strong className="simulation-comparison-maximum">
+                                            {format(row.second)}
+                                        </strong>
+                                    )}
+                                    {!isBetter(row.second, row.first, row.lowerIsBetter) &&
+                                        format(row.second)}
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+            <p className="simulation-footnote">
+                Estimations basées sur un plateau 19 × 13, 5 ressources par tour, 15 % d’ennemis, 10
+                % d’alliés et un horizon de 12 tours.
+            </p>
+        </section>
+    );
+}

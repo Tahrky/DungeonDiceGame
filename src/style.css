@@ -695,6 +695,46 @@ canvas {
     font-weight: 500;
 }
 
+.simulation-table-wrap h4 {
+    margin: 24px 0 12px;
+    color: var(--accent-gold);
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.simulation-balance-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+    margin: 22px 0 8px;
+}
+
+.simulation-balance-select {
+    display: grid;
+    gap: 7px;
+    color: #c2ccd6;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.simulation-balance-select select {
+    min-height: 42px;
+    border: 1px solid #576779;
+    border-radius: 6px;
+    padding: 8px 10px;
+    color: #fff;
+    background: #202c38;
+    font: inherit;
+}
+
+.simulation-balance-warnings {
+    margin: 12px 0 0;
+    padding-left: 20px;
+    color: #f0c974;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
 .simulation-description,
 .simulation-footnote {
     color: #aab5c2;
@@ -834,7 +874,9 @@ canvas {
     color: #aab5c2;
     font-size: 11px;
     letter-spacing: 0.4px;
-    white-space: nowrap;
+    line-height: 1.25;
+    max-width: 135px;
+    white-space: normal;
 }
 
 .simulation-table-sort-button {
@@ -844,6 +886,7 @@ canvas {
     background: transparent;
     font: inherit;
     text-align: left;
+    white-space: normal;
     cursor: pointer;
 }
 
@@ -864,9 +907,29 @@ canvas {
 .simulation-attack-list {
     display: grid;
     gap: 3px;
-    min-width: 150px;
+    min-width: 220px;
     margin: 0;
     padding-left: 18px;
+}
+
+.simulation-comparison-table {
+    table-layout: fixed;
+}
+
+.simulation-comparison-table th:first-child {
+    width: 50%;
+}
+
+.simulation-comparison-table td {
+    width: 25%;
+}
+
+.simulation-comparison-table td strong {
+    font-weight: 700;
+}
+
+.simulation-comparison-maximum {
+    color: #76e6a2;
 }
 
 .simulation-player-label {

@@ -37,45 +37,51 @@ function MetricCard({ label, value }: { label: string; value: string }) {
     );
 }
 
-const MONSTER_COLUMNS: SortableColumn<MonsterAnalysis>[] = [
-    { key: "name", label: "Monstre", getValue: (monster) => monster.name, rowHeader: true },
-    { key: "appearances", label: "Invocations", getValue: (monster) => monster.appearances },
-    {
-        key: "matchesSeen",
-        label: "Matchs avec apparition",
-        getValue: (monster) => monster.matchesSeen,
-    },
-    {
-        key: "attacks",
-        label: "Attaques",
-        getValue: (monster) => monster.attacks,
-        render: (monster) => (monster.attacks > 0 ? monster.attacks : ""),
-    },
-    {
-        key: "totalDamage",
-        label: "Dégâts totaux",
-        getValue: (monster) => monster.totalDamage,
-        render: (monster) => (monster.totalDamage > 0 ? monster.totalDamage : ""),
-    },
-    {
-        key: "movements",
-        label: "Déplacements cumulés",
-        getValue: (monster) => monster.movements,
-    },
-    {
-        key: "averageMovements",
-        label: "Déplacements moyens / invocation",
-        getValue: (monster) => monster.averageMovements,
-        render: (monster) => monster.averageMovements.toFixed(2),
-    },
-    {
-        key: "attackUsage",
-        label: "Attaques les plus utilisées",
-        getValue: (monster) =>
-            monster.attackUsage.reduce((total, attack) => total + attack.uses, 0),
-        render: (monster) => <AttackUsageList attacks={monster.attackUsage} />,
-    },
-];
+function getMonsterColumns(totalMatches: number): SortableColumn<MonsterAnalysis>[] {
+    return [
+        { key: "name", label: "Monstre", getValue: (monster) => monster.name, rowHeader: true },
+        { key: "appearances", label: "Invocations", getValue: (monster) => monster.appearances },
+        {
+            key: "matchesSeen",
+            label: "Matchs avec apparition",
+            getValue: (monster) => monster.matchesSeen,
+            render: (monster) =>
+                totalMatches > 0
+                    ? `${((monster.matchesSeen / totalMatches) * 100).toFixed(1)} %`
+                    : "",
+        },
+        {
+            key: "attacks",
+            label: "Attaques",
+            getValue: (monster) => monster.attacks,
+            render: (monster) => (monster.attacks > 0 ? monster.attacks : ""),
+        },
+        {
+            key: "totalDamage",
+            label: "Dégâts totaux",
+            getValue: (monster) => monster.totalDamage,
+            render: (monster) => (monster.totalDamage > 0 ? monster.totalDamage : ""),
+        },
+        {
+            key: "movements",
+            label: "Déplacements cumulés",
+            getValue: (monster) => monster.movements,
+        },
+        {
+            key: "averageMovements",
+            label: "Déplacements moyens / invocation",
+            getValue: (monster) => monster.averageMovements,
+            render: (monster) => monster.averageMovements.toFixed(2),
+        },
+        {
+            key: "attackUsage",
+            label: "Attaques les plus utilisées",
+            getValue: (monster) =>
+                monster.attackUsage.reduce((total, attack) => total + attack.uses, 0),
+            render: (monster) => <AttackUsageList attacks={monster.attackUsage} />,
+        },
+    ];
+}
 
 export function ResultsAnalysisPanel({ generatedResult }: ResultsAnalysisPanelProps) {
     const inputRef = useRef<HTMLInputElement>(null);
@@ -268,7 +274,7 @@ export function ResultsAnalysisPanel({ generatedResult }: ResultsAnalysisPanelPr
                                 <h4>Tableau général par monstre</h4>
                                 <SortableTable
                                     rows={analytics.monsters}
-                                    columns={MONSTER_COLUMNS}
+                                    columns={getMonsterColumns(data.matches.length)}
                                     getRowKey={(monster) => monster.id}
                                 />
                             </div>

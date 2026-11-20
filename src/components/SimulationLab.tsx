@@ -3,6 +3,7 @@ import type { GameConfiguration } from "../game/gameConfiguration";
 import type { SimulationBatchResult } from "../simulation/types";
 import { ResultsAnalysisPanel } from "./simulation/ResultsAnalysisPanel";
 import { RunSimulationPanel } from "./simulation/RunSimulationPanel";
+import { MonsterBalancePanel } from "./simulation/MonsterBalancePanel";
 
 interface SimulationLabProps {
     readonly sessionId: string;
@@ -11,7 +12,7 @@ interface SimulationLabProps {
 }
 
 export function SimulationLab({ sessionId, configuration, onBack }: SimulationLabProps) {
-    const [activeTab, setActiveTab] = useState<"run" | "analysis">("run");
+    const [activeTab, setActiveTab] = useState<"run" | "analysis" | "balance">("run");
     const [isRunning, setIsRunning] = useState(false);
     const [generatedResult, setGeneratedResult] = useState<SimulationBatchResult | null>(null);
 
@@ -45,6 +46,14 @@ export function SimulationLab({ sessionId, configuration, onBack }: SimulationLa
                     >
                         Analyser un JSON
                     </button>
+                    <button
+                        className={activeTab === "balance" ? "is-active" : ""}
+                        aria-pressed={activeTab === "balance"}
+                        disabled={isRunning}
+                        onClick={() => setActiveTab("balance")}
+                    >
+                        Équilibrage des monstres
+                    </button>
                 </nav>
                 <div hidden={activeTab !== "run"}>
                     <RunSimulationPanel
@@ -56,6 +65,9 @@ export function SimulationLab({ sessionId, configuration, onBack }: SimulationLa
                 </div>
                 <div hidden={activeTab !== "analysis"}>
                     <ResultsAnalysisPanel generatedResult={generatedResult} />
+                </div>
+                <div hidden={activeTab !== "balance"}>
+                    <MonsterBalancePanel />
                 </div>
             </section>
         </section>
