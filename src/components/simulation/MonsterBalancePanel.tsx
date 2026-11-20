@@ -11,7 +11,8 @@ interface ComparisonRow {
 }
 
 function format(value: number | null): string {
-    return value !== null && Number.isFinite(value) ? value.toFixed(2) : "";
+    if (value === null || !Number.isFinite(value) || value === 0) return "";
+    return value.toFixed(2).replace(/\.?0+$/, "");
 }
 
 function isBetter(value: number | null, other: number | null, lowerIsBetter = false): boolean {
@@ -29,11 +30,23 @@ const BALANCE_COLUMNS: SortableColumn<MonsterBalance>[] = [
     {
         key: "total",
         label: "Score global / 10",
+        headerTitle:
+            "Moyenne pondérée des six sous-scores, chacun ramené sur 10 :\n\nRobustesse : 20 %\nAttaque : 25 %\nPortée / zone : 15 %\nMobilité : 15 %\nUtilité : 15 %\nÉconomie d’actions : 10 %",
         getValue: (monster) => monster.scores.total,
         render: (monster) => format(monster.scores.total),
     },
-    { key: "summonCost", label: "Coût d’invocation", getValue: (monster) => monster.summonCost },
-    { key: "hp", label: "PV", getValue: (monster) => monster.hp },
+    {
+        key: "summonCost",
+        label: "Coût invoc",
+        getValue: (monster) => monster.summonCost,
+        render: (monster) => format(monster.summonCost),
+    },
+    {
+        key: "hp",
+        label: "PV",
+        getValue: (monster) => monster.hp,
+        render: (monster) => format(monster.hp),
+    },
     {
         key: "durability",
         label: "Robustesse",
@@ -42,31 +55,46 @@ const BALANCE_COLUMNS: SortableColumn<MonsterBalance>[] = [
     },
     {
         key: "entryCost",
-        label: "Coût d’entrée",
+        label: "Coût d’entrée estimé",
+        headerTitle:
+            "coût d’invocation + le coût d’une attaque immédiatement disponible + le coût d’un déplacement. L’attaque retenue est celle que le calculateur juge la plus intéressante par ressource parmi celles sans temps de recharge initial.",
         getValue: (monster) => monster.economy.standardEntryCost,
         render: (monster) => format(monster.economy.standardEntryCost),
     },
     {
         key: "operatingCost",
         label: "Coût opérationnel / tour",
+        headerTitle:
+            "Coût moyen des attaques retenues sur 12 tours, plus le coût de tous les déplacements que le monstre peut effectuer dans un tour.",
         getValue: (monster) => monster.economy.averageOperatingCostPerTurn,
         render: (monster) => format(monster.economy.averageOperatingCostPerTurn),
     },
     {
         key: "grossCost",
         label: "Coût équivalent / tour",
+        headerTitle: "Coût opérationnel + coût d'invocation + déficit par catégorie de symbole.",
         getValue: (monster) => monster.economy.grossEquivalentCostPerTurn,
         render: (monster) => format(monster.economy.grossEquivalentCostPerTurn),
     },
     {
-        key: "pressure",
-        label: "Pression sur les ressources",
-        getValue: (monster) => monster.economy.grossEquivalentPressurePercent,
-        render: (monster) => `${format(monster.economy.grossEquivalentPressurePercent)} %`,
+        key: "optimum",
+        label: "Optimum / tour",
+        headerTitle:
+            "Nombre de fois ou un monstre peut effectuer la totalité de ses actions par tour avec 5 ressources.",
+        getValue: (monster) =>
+            monster.economy.grossEquivalentPressurePercent > 0
+                ? 100 / monster.economy.grossEquivalentPressurePercent
+                : null,
+        render: (monster) =>
+            monster.economy.grossEquivalentPressurePercent > 0
+                ? format(100 / monster.economy.grossEquivalentPressurePercent)
+                : "",
     },
     {
         key: "efficiency",
-        label: "Efficacité d’invocation",
+        label: "Efficacité d’invocation / tour",
+        headerTitle:
+            "Score tactique global divisé par le coût d’invocation. C’est un score relatif par symbole d’invocation.",
         getValue: (monster) => monster.economy.invocationEfficiency,
         render: (monster) => format(monster.economy.invocationEfficiency),
     },
@@ -93,17 +121,6 @@ const BALANCE_COLUMNS: SortableColumn<MonsterBalance>[] = [
         label: "Utilité",
         getValue: (monster) => monster.scores.utility,
         render: (monster) => format(monster.scores.utility),
-    },
-    {
-        key: "actionEconomy",
-        label: "Économie d’actions",
-        getValue: (monster) => monster.scores.actionEconomy,
-        render: (monster) => format(monster.scores.actionEconomy),
-    },
-    {
-        key: "warnings",
-        label: "Avertissements",
-        getValue: (monster) => monster.warnings.join(" | "),
     },
 ];
 

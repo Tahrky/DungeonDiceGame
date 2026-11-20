@@ -7,6 +7,7 @@ import {
     clearMonsterTurnBuff,
     canPassHostileMonsters,
     canUseActionThisTurn,
+    consumeMovementTurnBuff,
     getFacingFromMovement,
     getGridDistance,
     getInitialAttackUses,
@@ -62,6 +63,7 @@ export abstract class GameSceneMovement extends GameSceneCombat {
         ) {
             return;
         }
+        consumeMovementTurnBuff(monster);
         monster.movementsUsedThisTurn++;
 
         const distance = path.length - 1;

@@ -10,6 +10,8 @@ import {
     canTargetMonsterOwner,
     canUseMonsterAttackThisTurn,
     clearMonsterTurnBuff,
+    consumeAttackTurnBuff,
+    consumeMovementTurnBuff,
     getAttackCost,
     getAttackDamage,
     getAttackZones,
@@ -121,6 +123,45 @@ describe("portée des actions de monstre", () => {
 
         clearMonsterTurnBuff(target);
         expect(target.turnBuffs).toBeUndefined();
+    });
+
+    it("consomme les bonus de déplacement et d'attaque séparément après une utilisation", () => {
+        const target = {
+            turnBuffs: {
+                movementRangeBonus: 1,
+                movementCostReduction: 1,
+                attackDamageBonus: 1,
+                attackCostReduction: 1,
+            },
+        };
+
+        consumeMovementTurnBuff(target);
+        expect(target.turnBuffs).toEqual({
+            movementRangeBonus: 0,
+            movementCostReduction: 0,
+            attackDamageBonus: 1,
+            attackCostReduction: 1,
+        });
+
+        consumeAttackTurnBuff(target);
+        expect(target.turnBuffs).toEqual({
+            movementRangeBonus: 0,
+            movementCostReduction: 0,
+            attackDamageBonus: 0,
+            attackCostReduction: 0,
+        });
+    });
+
+    it("décrit l'action unique concernée par chaque bonus du Prêtre Buffer", () => {
+        const priestBuffer = MONSTERS.find((monster) => monster.id === "priestBuffer");
+        if (!priestBuffer) throw new Error("Profil du Prêtre Buffer indisponible.");
+
+        expect(describeMonsterAttack(priestBuffer.attacks[1])).toContain(
+            "le prochain déplacement",
+        );
+        expect(describeMonsterAttack(priestBuffer.attacks[2])).toContain(
+            "la prochaine attaque",
+        );
     });
 
     it("affiche les coûts en symboles avant le nom et les caractéristiques", () => {

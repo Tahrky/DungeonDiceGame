@@ -59,7 +59,6 @@ export interface MonsterAttackBalance {
     rangeControlScore: number;
     maximumReach: number;
     expectedEnemyHits: number;
-    warnings: string[];
 }
 
 export interface MonsterBalance {
@@ -90,7 +89,6 @@ export interface MonsterBalance {
     };
     bestAttackName: string | null;
     attacks: MonsterAttackBalance[];
-    warnings: string[];
 }
 
 interface Geometry {
@@ -344,19 +342,6 @@ function analyzeMonsterAttack(
             attack.cooldownReduction * OPTIONS.cooldownReductionValue * allyTargetChance;
     }
 
-    const warnings: string[] = [];
-    if (!geometry.known) warnings.push(`Pattern « ${attack.pattern.type} » non pris en charge.`);
-    if (
-        attack.statusEffect?.type === "damageOverTime" &&
-        attack.statusEffect.duration === "untilDeath"
-    ) {
-        warnings.push(
-            `Dégâts sur la durée plafonnés à ${OPTIONS.dotHorizonTurns} tours et ${OPTIONS.referenceEnemyHp} PV.`,
-        );
-    }
-    if (attack.hitsAllies && isArea) {
-        warnings.push(`Dégâts alliés estimés avec une densité de ${OPTIONS.allyDensity}.`);
-    }
     return {
         name: attack.name,
         cost: attack.cost,
@@ -369,7 +354,6 @@ function analyzeMonsterAttack(
         rangeControlScore: geometry.rangeControlScore,
         maximumReach: geometry.maximumReach,
         expectedEnemyHits: enemyHits,
-        warnings,
     };
 }
 
@@ -538,12 +522,6 @@ export function analyzeMonster(monster: Monster): MonsterBalance {
         0.15 * utility +
         0.1 * actionEconomy;
 
-    const warnings = [...new Set(attacks.flatMap((attack) => attack.warnings))];
-    if ((monster.bonusDamageFromBehind ?? 0) > 0) {
-        warnings.push(
-            `Bonus arrière estimé avec une probabilité de ${OPTIONS.backstabProbability * 100} %.`,
-        );
-    }
     return {
         id: monster.id,
         name: monster.name,
@@ -569,7 +547,6 @@ export function analyzeMonster(monster: Monster): MonsterBalance {
         },
         bestAttackName: bestAttack?.name ?? null,
         attacks,
-        warnings,
     };
 }
 

@@ -1,6 +1,7 @@
 import {
     canPassHostileMonsters,
     canUseActionThisTurn,
+    consumeMovementTurnBuff,
     getFacingFromMovement,
     getMovementActionsPerTurn,
     getMovementCost,
@@ -98,6 +99,7 @@ export function performMovements(state: MatchState, board: BoardDefinition): voi
             );
             if (!best || !spend(state, player, "movement", cost)) break;
 
+            consumeMovementTurnBuff(monster);
             const from = monster.position;
             const movementGoal =
                 state.tactics[player] === "defense"

@@ -6,6 +6,7 @@ import {
     canUseActionThisTurn,
     canUseMonsterAttackThisTurn,
     clearMonsterTurnBuff,
+    consumeAttackTurnBuff,
     getAttackActionsPerTurn,
     getAttackCost,
     getAttackDamage,
@@ -485,8 +486,10 @@ function executeAttack(state: MatchState, board: BoardDefinition, choice: Attack
             monster.position.x === target.x &&
             monster.position.y === target.y,
     );
+    const attackDamageBonus = attacker.turnBuffs?.attackDamageBonus ?? 0;
     const cost = getAttackCost(attack, attacker.turnBuffs?.attackCostReduction ?? 0);
     if (!spend(state, player, "attack", cost)) return;
+    consumeAttackTurnBuff(attacker);
     attacker.facing = getFacingFromMovement(attacker.position, target, attacker.facing);
     attacker.attacksUsedThisTurn++;
     attacker.attackUsesThisTurn[attackIndex] = (attacker.attackUsesThisTurn[attackIndex] ?? 0) + 1;
@@ -544,7 +547,7 @@ function executeAttack(state: MatchState, board: BoardDefinition, choice: Attack
             ) {
                 continue;
             }
-            const damage = getAttackDamage(attack, attacker.turnBuffs?.attackDamageBonus ?? 0);
+            const damage = getAttackDamage(attack, attackDamageBonus);
             victim.currentHp -= damage;
             actualDamage += damage;
             stats.damageDealt += damage;
@@ -574,7 +577,7 @@ function executeAttack(state: MatchState, board: BoardDefinition, choice: Attack
             (attacker.monster.bonusDamageFromBehind ?? 0) > 0 &&
             isBehind(targetMonster.position, attacker.position, targetMonster.facing);
         const damage =
-            getAttackDamage(attack, attacker.turnBuffs?.attackDamageBonus ?? 0) +
+            getAttackDamage(attack, attackDamageBonus) +
             (backstab ? (attacker.monster.bonusDamageFromBehind ?? 0) : 0);
         targetMonster.currentHp -= damage;
         actualDamage = damage;

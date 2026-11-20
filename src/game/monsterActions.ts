@@ -155,6 +155,18 @@ export function applyMonsterTurnBuff(
     };
 }
 
+export function consumeMovementTurnBuff(monster: Pick<PlacedMonster, "turnBuffs">): void {
+    if (!monster.turnBuffs) return;
+    monster.turnBuffs.movementRangeBonus = 0;
+    monster.turnBuffs.movementCostReduction = 0;
+}
+
+export function consumeAttackTurnBuff(monster: Pick<PlacedMonster, "turnBuffs">): void {
+    if (!monster.turnBuffs) return;
+    monster.turnBuffs.attackDamageBonus = 0;
+    monster.turnBuffs.attackCostReduction = 0;
+}
+
 export function clearMonsterTurnBuff(monster: Pick<PlacedMonster, "turnBuffs">): void {
     monster.turnBuffs = undefined;
 }

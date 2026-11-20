@@ -64,21 +64,28 @@ export function getAttackPatternDescription(pattern: AttackPattern): string {
 
 function describeTurnBuff(attack: MonsterAttack): string | undefined {
     const effects: string[] = [];
+    const actions: string[] = [];
     if (attack.movementRangeBonus !== undefined) {
         effects.push(
             `déplacement +${attack.movementRangeBonus} case${attack.movementRangeBonus === 1 ? "" : "s"}`,
         );
+        actions.push("le prochain déplacement");
     }
     if (attack.movementCostReduction !== undefined) {
         effects.push(`-${attack.movementCostReduction}${DICE_SYMBOL_PRESENTATION.movement.emoji}`);
+        if (!actions.includes("le prochain déplacement")) actions.push("le prochain déplacement");
     }
     if (attack.attackDamageBonus !== undefined) {
         effects.push(`dégâts +${attack.attackDamageBonus}`);
+        actions.push("la prochaine attaque");
     }
     if (attack.attackCostReduction !== undefined) {
         effects.push(`-${attack.attackCostReduction}${DICE_SYMBOL_PRESENTATION.attack.emoji}`);
+        if (!actions.includes("la prochaine attaque")) actions.push("la prochaine attaque");
     }
-    return effects.length > 0 ? `${effects.join(" et ")} pour ce tour` : undefined;
+    return effects.length > 0
+        ? `${effects.join(" et ")} pour ${actions.join(" et ")} ce tour`
+        : undefined;
 }
 
 export function describeMonsterAttack(attack: MonsterAttack): string {
@@ -106,10 +113,10 @@ export function describeMonsterAttack(attack: MonsterAttack): string {
             ? `soigne ${attack.healAmount} PV`
             : attack.cooldownReduction !== undefined
               ? `réduit les recharges de ${attack.cooldownReduction} tour${attack.cooldownReduction === 1 ? "" : "s"}`
-              : (describeTurnBuff(attack) ??
-                  (attack.statusEffect?.type === "damageOverTime"
-                      ? `${attack.damage} dégât initial, puis ${attack.statusEffect.damagePerTurn} dégâts au début du tour de la cible (${attack.statusEffect.duration === "untilDeath" ? "jusqu'à sa mort" : `${attack.statusEffect.duration} tour${attack.statusEffect.duration === 1 ? "" : "s"}`})`
-                      : `${attack.damage} dégâts`));
+              :               (describeTurnBuff(attack) ??
+                (attack.statusEffect?.type === "damageOverTime"
+                    ? `${attack.damage} dégât initial, puis ${attack.statusEffect.damagePerTurn} dégâts au début du tour de la cible (${attack.statusEffect.duration === "untilDeath" ? "jusqu'à sa mort" : `${attack.statusEffect.duration} tour${attack.statusEffect.duration === 1 ? "" : "s"}`})`
+                    : `${attack.damage} dégâts`));
     return `${formatCost(attack.cost, DICE_SYMBOL_PRESENTATION.attack.emoji)} ${attack.name} : ${effect} (${getAttackPatternDescription(
         attack.pattern,
     )}${special}${friendlyFire}${statusCleanup}${targetRestriction}${usesPerTurn})${cooldown}`;

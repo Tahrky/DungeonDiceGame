@@ -4,6 +4,7 @@ import { getMonsterEliminationWinner } from "../game/matchRules";
 import {
     applyMonsterTurnBuff,
     canAttackMonster,
+    consumeAttackTurnBuff,
     getAttackCost,
     getAttackDamage,
     getFacingFromMovement,
@@ -47,15 +48,18 @@ export abstract class GameSceneAttackExecution extends GameSceneAttackTargeting 
             return;
         }
         const zone = this.getAttackZoneForTarget(attacker, attack, targetPosition);
+        const attackCostReduction = attacker.turnBuffs?.attackCostReduction ?? 0;
+        const attackDamageBonus = attacker.turnBuffs?.attackDamageBonus ?? 0;
         if (
             !zone ||
             !this.spendCurrentSymbol(
                 "attack",
-                getAttackCost(attack, attacker.turnBuffs?.attackCostReduction ?? 0),
+                getAttackCost(attack, attackCostReduction),
             )
         ) {
             return;
         }
+        consumeAttackTurnBuff(attacker);
         const attackFacing = getFacingFromMovement(
             attacker.position,
             targetPosition,
@@ -86,7 +90,7 @@ export abstract class GameSceneAttackExecution extends GameSceneAttackTargeting 
             attack.pattern.type === "directionalArea" ||
             attack.pattern.type === "selfRadius"
         ) {
-            this.executeAreaAttack(attacker, attack, zone.cells);
+            this.executeAreaAttack(attacker, attack, zone.cells, attackDamageBonus);
             return;
         }
 
@@ -96,6 +100,7 @@ export abstract class GameSceneAttackExecution extends GameSceneAttackTargeting 
             targetPosition,
             clickedMonster,
             isBackstab,
+            attackDamageBonus,
         );
     }
 
@@ -131,25 +136,34 @@ export abstract class GameSceneAttackExecution extends GameSceneAttackTargeting 
         ) {
             applyMonsterTurnBuff(target, attack);
             const effects: string[] = [];
+            const actions: string[] = [];
             if (attack.movementRangeBonus !== undefined) {
                 effects.push(
                     `déplacement +${attack.movementRangeBonus} case${attack.movementRangeBonus === 1 ? "" : "s"}`,
                 );
+                actions.push("le prochain déplacement");
             }
             if (attack.movementCostReduction !== undefined) {
                 effects.push(
                     `coût de déplacement -${attack.movementCostReduction} symbole${attack.movementCostReduction === 1 ? "" : "s"}`,
                 );
+                if (!actions.includes("le prochain déplacement")) {
+                    actions.push("le prochain déplacement");
+                }
             }
             if (attack.attackDamageBonus !== undefined) {
                 effects.push(`dégâts +${attack.attackDamageBonus}`);
+                actions.push("la prochaine attaque");
             }
             if (attack.attackCostReduction !== undefined) {
                 effects.push(
                     `coût d’attaque -${attack.attackCostReduction} symbole${attack.attackCostReduction === 1 ? "" : "s"}`,
                 );
+                if (!actions.includes("la prochaine attaque")) {
+                    actions.push("la prochaine attaque");
+                }
             }
-            effect = `${effects.join(", ")} pour ce tour`;
+            effect = `${effects.join(", ")} pour ${actions.join(" et ")} ce tour`;
         } else {
             return;
         }
@@ -161,6 +175,7 @@ export abstract class GameSceneAttackExecution extends GameSceneAttackTargeting 
         attacker: PlacedMonster,
         attack: Monster["attacks"][number],
         zone: readonly Position[],
+        attackDamageBonus: number,
     ): void {
         const attackOrigin = { ...attacker.position };
         let hitSomething = false;
@@ -173,7 +188,7 @@ export abstract class GameSceneAttackExecution extends GameSceneAttackTargeting 
             }
         }
 
-        const damage = getAttackDamage(attack, attacker.turnBuffs?.attackDamageBonus ?? 0);
+        const damage = getAttackDamage(attack, attackDamageBonus);
         for (const monster of this.placedMonsters) {
             const isInZone = zone.some(
                 (cell) =>
@@ -230,6 +245,7 @@ export abstract class GameSceneAttackExecution extends GameSceneAttackTargeting 
         targetPosition: Position,
         target: PlacedMonster | undefined,
         isBackstab: boolean,
+        attackDamageBonus: number,
     ): void {
         if (!target) {
             if (this.isOpponentStartingPosition(targetPosition)) {
@@ -245,7 +261,7 @@ export abstract class GameSceneAttackExecution extends GameSceneAttackTargeting 
         if (target.owner === this.currentPlayer) return;
         const backstabBonus = attacker.monster.bonusDamageFromBehind ?? 0;
         const damage =
-            getAttackDamage(attack, attacker.turnBuffs?.attackDamageBonus ?? 0) +
+            getAttackDamage(attack, attackDamageBonus) +
             (isBackstab ? backstabBonus : 0);
         target.currentHp -= damage;
         this.applyAttackStatusEffect(target, attack.statusEffect, attack.clearsStatusEffects);

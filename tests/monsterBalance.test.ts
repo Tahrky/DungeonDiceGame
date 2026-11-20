@@ -38,5 +38,7 @@ describe("monster balance analysis", () => {
             directDamage: pirate.attacks[0].damage,
         });
         expect(report.attacks[0].expectedDamagePerUse).toBeGreaterThan(0);
+        expect(report).not.toHaveProperty("warnings");
+        expect(report.attacks[0]).not.toHaveProperty("warnings");
     });
 });

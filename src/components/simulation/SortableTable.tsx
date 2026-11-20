@@ -5,6 +5,7 @@ import { sortTableRows, type SortableValue, type SortDirection } from "./tableSo
 export interface SortableColumn<Row> {
     key: string;
     label: string;
+    headerTitle?: string;
     getValue: (row: Row) => SortableValue;
     render?: (row: Row) => ReactNode;
     rowHeader?: boolean;
@@ -53,6 +54,7 @@ export function SortableTable<Row>({ rows, columns, getRowKey }: SortableTablePr
                                 <button
                                     className="simulation-table-sort-button"
                                     type="button"
+                                    title={column.headerTitle}
                                     aria-label={`Trier par ${column.label} par ordre ${direction === "ascending" ? "croissant" : "décroissant"}`}
                                     onClick={() => toggleSort(column.key)}
                                 >
