@@ -31,6 +31,11 @@ export function MatchInspector({
     const match = matches.find((candidate) => candidate.id === Number(selectedMatchId));
     const visibleHistory = match?.history.slice(-500) ?? [];
     const hasDetailedHistory = (match?.history.length ?? 0) > 0;
+    const hasActionDiagnostics =
+        match !== undefined &&
+        [1, 2].some(
+            (player) => match.statistics[player].turnsWithoutUsefulAction !== undefined,
+        );
     const monsterStats = match ? analyzeMatchMonsters(match) : [];
     const monsterSymbols = getUniqueMonsterSymbols(configuration.monsters);
     const monsterColumns: SortableColumn<MatchMonsterAnalysis>[] = [
@@ -158,6 +163,13 @@ export function MatchInspector({
                             {match.winner ? `Vainqueur : J${match.winner}` : "Résultat : égalité"}
                         </span>
                     </div>
+                    {hasActionDiagnostics && (
+                        <p className="simulation-description">
+                            Diagnostics — J1 :{" "}
+                            {formatActionDiagnostics(match.statistics[1])} · J2 :{" "}
+                            {formatActionDiagnostics(match.statistics[2])}
+                        </p>
+                    )}
                     <SimulationBoard match={match} configuration={configuration} />
                     {match.finalMonsters.length > 0 && (
                         <div className="simulation-table-wrap">
@@ -202,4 +214,15 @@ export function MatchInspector({
 function formatLastSummonTurn(turn: number | null | undefined): string {
     if (turn === undefined) return "non renseignée";
     return turn === null ? "limite non atteinte" : `tour ${turn}`;
+}
+
+function formatActionDiagnostics(
+    stats: AnalyzableMatch["statistics"][1],
+): string {
+    return [
+        `${stats.turnsWithoutUsefulAction ?? "—"} tours sans action utile`,
+        `${stats.stagnantMonsterTurns ?? "—"} stagnations`,
+        `${stats.unreachableObjectives ?? "—"} objectifs inaccessibles`,
+        `${stats.blockedInvocationAttempts ?? "—"} invocations bloquées`,
+    ].join(", ");
 }

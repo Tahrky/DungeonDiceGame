@@ -1,5 +1,7 @@
 import { GAME_CONFIG } from "../config";
 import type { Position, PlayerId } from "../types/GameTypes";
+import { PLACEMENT_PATTERNS } from "../data/placementPatterns";
+import { hasValidPlacement } from "./placement";
 
 export const MIN_BOARD_DIMENSION = 7;
 export const MAX_BOARD_DIMENSION = 23;
@@ -146,6 +148,22 @@ export function parseBoardDefinition(value: unknown): BoardDefinition | null {
     const board = { id: value.id, width: value.width, height: value.height, blockedCells };
     const startingPositions = getStartingPositionsOrNull(board);
     if (!startingPositions) return null;
+    const occupiedCells = Object.values(startingPositions);
+    for (const player of [1, 2] as const) {
+        if (
+            !hasValidPlacement({
+                patterns: PLACEMENT_PATTERNS,
+                boardWidth: board.width,
+                boardHeight: board.height,
+                start: startingPositions[player],
+                occupiedCells,
+                connectedCells: [startingPositions[player]],
+                blockedCells,
+            })
+        ) {
+            return null;
+        }
+    }
     startingPositionCache.set(board, startingPositions);
     return board;
 }

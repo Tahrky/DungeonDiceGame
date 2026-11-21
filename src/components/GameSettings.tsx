@@ -272,6 +272,20 @@ export function GameSettings({
                     <label className="settings-toggle">
                         <input
                             type="checkbox"
+                            checked={configuration.protectFirstDeployment}
+                            onChange={(event) => {
+                                const checked = event.currentTarget.checked;
+                                setConfiguration((current) => ({
+                                    ...current,
+                                    protectFirstDeployment: checked,
+                                }));
+                            }}
+                        />
+                        Préserver une zone de premier déploiement pour chaque joueur
+                    </label>
+                    <label className="settings-toggle">
+                        <input
+                            type="checkbox"
                             checked={configuration.randomBoard}
                             onChange={(event) => {
                                 const checked = event.currentTarget.checked;

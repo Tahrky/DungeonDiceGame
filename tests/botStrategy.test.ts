@@ -73,7 +73,7 @@ describe("stratégie des bots", () => {
             findObjectiveMovement(options, cells, { x: 0, y: 0 }, [{ x: 4, y: 1 }], "hunt"),
         ).toMatchObject({
             position: { x: 3, y: 1 },
-            routeProgress: 0,
+            routeProgress: 1,
         });
     });
 

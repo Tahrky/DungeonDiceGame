@@ -330,6 +330,34 @@ function getAvailableAttackChoices(state: MatchState, board: BoardDefinition): A
     return choices;
 }
 
+export function getLegalAttackCosts(state: MatchState, board: BoardDefinition): number[] {
+    const costs: number[] = [];
+    for (const attacker of getPlayerMonsters(state, state.currentPlayer)) {
+        if (
+            !canUseActionThisTurn(
+                attacker.attacksUsedThisTurn,
+                getAttackActionsPerTurn(attacker.monster),
+            )
+        ) {
+            continue;
+        }
+        for (const [attackIndex, attack] of attacker.monster.attacks.entries()) {
+            if (
+                (attacker.attackCooldowns[attackIndex] ?? 0) > 0 ||
+                !canUseMonsterAttackThisTurn(attack, attacker.attackUsesThisTurn[attackIndex] ?? 0)
+            ) {
+                continue;
+            }
+            if (getAttackChoices(state, board, attacker, attackIndex).length > 0) {
+                costs.push(
+                    getAttackCost(attack, attacker.turnBuffs?.attackCostReduction ?? 0),
+                );
+            }
+        }
+    }
+    return costs;
+}
+
 const MAX_ATTACK_SEARCH_BRANCHES = 3;
 const MAX_ADVANCED_ATTACK_SEARCH_BRANCHES = 8;
 const MAX_ADVANCED_SEARCH_NODES = 600;

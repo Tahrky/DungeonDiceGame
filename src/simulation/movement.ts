@@ -31,26 +31,6 @@ export function performMovements(state: MatchState, board: BoardDefinition): voi
     const ownedCells = state.monsters
         .filter((placed) => placed.owner === player)
         .flatMap((placed) => placed.cells);
-    const strategicSnapshot: StrategicSnapshot = {
-        board,
-        health: { ...state.health },
-        initialHealth: Math.max(state.health[1], state.health[2], 1),
-        monsters: state.monsters,
-        reserves: {
-            1: { ...state.reserves[1] },
-            2: { ...state.reserves[2] },
-        },
-        profile: state.profiles[player],
-        tactics: { ...state.tactics },
-        currentPlayer: player,
-        turn: state.turn,
-    };
-    const roles = new Map(
-        assignMonsterRoles(strategicSnapshot, player).map((assignment) => [
-            assignment.monsterId,
-            assignment,
-        ]),
-    );
 
     for (const monster of ownMonsters) {
         while (
@@ -73,12 +53,28 @@ export function performMovements(state: MatchState, board: BoardDefinition): voi
             const enemyPositions = state.monsters
                 .filter((placed) => placed.owner !== player && placed.currentHp > 0)
                 .map((placed) => placed.position);
-            const role =
-                state.tactics[player] === "defense"
-                    ? assignMonsterRoles(strategicSnapshot, player).find(
-                          (assignment) => assignment.monsterId === monster.id,
-                      )
-                    : roles.get(monster.id);
+            const strategicSnapshot: StrategicSnapshot = {
+                board,
+                health: { ...state.health },
+                initialHealth: Math.max(state.health[1], state.health[2], 1),
+                monsters: state.monsters,
+                reserves: {
+                    1: { ...state.reserves[1] },
+                    2: { ...state.reserves[2] },
+                },
+                profile: state.profiles[player],
+                tactics: { ...state.tactics },
+                currentPlayer: player,
+                turn: state.turn,
+            };
+            const role = assignMonsterRoles(strategicSnapshot, player).find(
+                (assignment) => assignment.monsterId === monster.id,
+            );
+            if (role?.role === "hold") {
+                state.statistics[player].actionsSkippedByReason.heldForDefense =
+                    (state.statistics[player].actionsSkippedByReason.heldForDefense ?? 0) + 1;
+                break;
+            }
             const roleObjective =
                 role?.target ??
                 chooseBotObjective(
@@ -88,36 +84,91 @@ export function performMovements(state: MatchState, board: BoardDefinition): voi
                     enemyPositions,
                     starts[player],
                 );
-            const best = findObjectiveMovement(
+            const alternateObjectives = [
+                starts[opposingPlayer(player)],
+                ...enemyPositions
+                    .slice()
+                    .sort(
+                    (first, second) =>
+                        Math.abs(first.x - monster.position.x) +
+                            Math.abs(first.y - monster.position.y) -
+                        (Math.abs(second.x - monster.position.x) +
+                            Math.abs(second.y - monster.position.y)),
+                    ),
+            ];
+            const objectives = [
+                roleObjective,
+                ...alternateObjectives.filter(
+                    (objective) =>
+                    objective.x !== roleObjective.x || objective.y !== roleObjective.y,
+                ),
+            ];
+            const movementGoal =
+                role?.role === "defend"
+                    ? "le périmètre de sa base"
+                    : role?.role === "intercept"
+                      ? "une route d’interception"
+                      : role?.role === "support"
+                        ? "ses alliés"
+                        : role?.role === "patrol"
+                          ? "son secteur de patrouille"
+                          : "le départ ennemi";
+            const threatScores = createThreatScores(board, state.monsters, monster.id);
+            const weights = state.strategyWeights?.[player] ?? DEFAULT_BOT_STRATEGY_WEIGHTS;
+            let best = findObjectiveMovement(
                 movement,
                 ownedCells,
-                roleObjective,
+                objectives[0]!,
                 enemyPositions,
                 state.tactics[player],
-                createThreatScores(board, state.monsters, monster.id),
-                state.strategyWeights?.[player] ?? DEFAULT_BOT_STRATEGY_WEIGHTS,
+                threatScores,
+                weights,
             );
-            if (!best || !spend(state, player, "movement", cost)) break;
+            let selectedObjective = objectives[0]!;
+            if (!best) {
+                for (const objective of objectives.slice(1)) {
+                    best = findObjectiveMovement(
+                            movement,
+                            ownedCells,
+                            objective,
+                            enemyPositions,
+                            state.tactics[player],
+                            threatScores,
+                            weights,
+                    );
+                    if (best) {
+                            selectedObjective = objective;
+                            break;
+                    }
+                }
+                state.statistics[player].unreachableObjectives++;
+            }
+            if (!best) {
+                state.statistics[player].stagnantMonsterTurns++;
+                state.movementStagnation[monster.id] =
+                    (state.movementStagnation[monster.id] ?? 0) + 1;
+                state.statistics[player].actionsSkippedByReason.unreachableObjective =
+                    (state.statistics[player].actionsSkippedByReason.unreachableObjective ?? 0) + 1;
+                break;
+            }
+            if (!spend(state, player, "movement", cost)) break;
 
             consumeMovementTurnBuff(monster);
             const from = monster.position;
-            const movementGoal =
-                role?.role === "defense"
-                    ? "le périmètre de sa base"
-                    : role?.role === "hunt" ||
-                        (state.tactics[player] === "hunt" && enemyPositions.length > 0)
-                      ? "les monstres adverses"
-                      : "le départ ennemi";
             monster.facing = getFacingFromMovement(from, best.position, monster.facing);
             monster.position = best.position;
             monster.movementsUsedThisTurn++;
+            state.movementStagnation[monster.id] = 0;
             state.statistics[player].movements++;
             if (!state.lightResults) {
+                const reEvaluated =
+                    selectedObjective.x !== roleObjective.x ||
+                    selectedObjective.y !== roleObjective.y;
                 addEvent(state, {
                     turn: state.turn,
                     player,
                     type: "strategy",
-                    description: `Suit le chemin vers ${movementGoal} : ${best.routeProgress} case(s) plus près.`,
+                    description: `${reEvaluated ? "Réévalue son objectif ; " : ""}suit le chemin vers ${movementGoal} : ${best.routeProgress} case(s) plus près.`,
                     monsterId: monster.id,
                     monsterTypeId: monster.monster.id,
                     monsterName: monster.monster.name,

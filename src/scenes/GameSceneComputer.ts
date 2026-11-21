@@ -247,6 +247,7 @@ export abstract class GameSceneComputer extends GameSceneComputerConversion {
             turn: this.turnNumber,
         };
         const strategicCellScore = createStrategicCellScorer(strategicSnapshot, 2);
+        const preservesFirstDeployment = this.getOpponentFirstDeploymentProtection(2);
         return findValidPlacement({
             patterns: PLACEMENT_PATTERNS,
             boardWidth: this.board.width,
@@ -268,7 +269,8 @@ export abstract class GameSceneComputer extends GameSceneComputerConversion {
                     !isStartingCell &&
                     !isMonsterOccupied &&
                     addsTerritory &&
-                    !crossesEnemyTerritory
+                    !crossesEnemyTerritory &&
+                    (!preservesFirstDeployment || preservesFirstDeployment(cells))
                 );
             },
             scorePlacement: (position, cells) =>
@@ -449,9 +451,9 @@ export abstract class GameSceneComputer extends GameSceneComputerConversion {
             this.playerHealth[1],
         );
         const roleBonus =
-            role?.role === "base"
+            role?.role === "advance"
                 ? value.baseDamage * 8
-                : role?.role === "hunt"
+                : role?.role === "intercept"
                   ? value.kills * 6
                   : role?.role === "support"
                     ? (value.healing + value.buffs) * 6

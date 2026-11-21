@@ -77,6 +77,15 @@ export interface PlayerSimulationStats {
     movements: number;
     symbolsSpent: DiceReserve;
     conversionLosses: number;
+    turnsWithoutSummon: number;
+    turnsWithoutAttack: number;
+    turnsWithoutMovement: number;
+    turnsWithoutUsefulAction: number;
+    noLegalPlacementTurns: number;
+    stagnantMonsterTurns: number;
+    blockedInvocationAttempts: number;
+    unreachableObjectives: number;
+    actionsSkippedByReason: Record<string, number>;
     lastMonsterSummonTurn: number | null;
     ineffectiveActions: number;
     decisionsWithoutImpact: number;

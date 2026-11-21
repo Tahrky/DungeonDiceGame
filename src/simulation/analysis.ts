@@ -9,6 +9,15 @@ export interface AnalyzablePlayerStats {
     attacks: number;
     symbolsSpent?: DiceReserve;
     conversionLosses?: number;
+    turnsWithoutSummon?: number;
+    turnsWithoutAttack?: number;
+    turnsWithoutMovement?: number;
+    turnsWithoutUsefulAction?: number;
+    noLegalPlacementTurns?: number;
+    stagnantMonsterTurns?: number;
+    blockedInvocationAttempts?: number;
+    unreachableObjectives?: number;
+    actionsSkippedByReason?: Record<string, number>;
     lastMonsterSummonTurn?: number | null;
     damageDealt: number;
     monstersKilled: number;
@@ -149,7 +158,20 @@ function isStatistics(value: unknown): value is AnalyzablePlayerStats {
                 Number.isInteger(value.lastMonsterSummonTurn) &&
                 value.lastMonsterSummonTurn >= 1)) &&
         (value.symbolsSpent === undefined || isDiceReserve(value.symbolsSpent)) &&
-        (value.conversionLosses === undefined || isNumber(value.conversionLosses))
+        (value.conversionLosses === undefined || isNumber(value.conversionLosses)) &&
+        [
+            "turnsWithoutSummon",
+            "turnsWithoutAttack",
+            "turnsWithoutMovement",
+            "turnsWithoutUsefulAction",
+            "noLegalPlacementTurns",
+            "stagnantMonsterTurns",
+            "blockedInvocationAttempts",
+            "unreachableObjectives",
+        ].every((key) => value[key] === undefined || isNumber(value[key])) &&
+        (value.actionsSkippedByReason === undefined ||
+            (isRecord(value.actionsSkippedByReason) &&
+                Object.values(value.actionsSkippedByReason).every(isNumber)))
     );
 }
 

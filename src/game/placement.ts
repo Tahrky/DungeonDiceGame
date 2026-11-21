@@ -176,13 +176,107 @@ export function hasValidPlacement(options: Omit<PlacementSearchOptions, "scorePl
     return searchPlacement({ ...options, scorePlacement: scoreNothing }, true) !== null;
 }
 
+export function findValidPlacements(
+    options: Omit<PlacementSearchOptions, "scorePlacement">,
+): Array<{ position: Position; cells: Position[] }> {
+    const columns = getNearestFirstIndices(options.boardWidth, options.start.x);
+    const rows = getNearestFirstIndices(options.boardHeight, options.start.y);
+    const context = createPlacementValidationContext({
+        ...options,
+        scorePlacement: scoreNothing,
+    });
+    const placements = new Map<string, { position: Position; cells: Position[] }>();
+
+    for (const patterns of options.patterns.map(getTransformedPatterns)) {
+        for (const pattern of patterns) {
+            for (const y of rows) {
+                for (const x of columns) {
+                    const placement = scoreTransformedPatternPlacement(
+                        pattern,
+                        { ...options, scorePlacement: scoreNothing },
+                        context,
+                        x,
+                        y,
+                        true,
+                    );
+                    if (!placement) continue;
+                    const key = placement.cells
+                        .map(getPositionKey)
+                        .sort()
+                        .join(";");
+                    placements.set(key, {
+                        position: placement.position,
+                        cells: placement.cells,
+                    });
+                }
+            }
+        }
+    }
+
+    return [...placements.values()];
+}
+
+export function createInitialDeploymentProtection(
+    options: Omit<PlacementSearchOptions, "scorePlacement">,
+): ((candidateCells: readonly Position[]) => boolean) | null {
+    const placements = findValidPlacements(options);
+    if (placements.length === 0) return null;
+
+    const placementsByCell = new Map<string, number[]>();
+    placements.forEach(({ cells }, placementIndex) => {
+        for (const cell of cells) {
+            const key = getPositionKey(cell);
+            const overlapping = placementsByCell.get(key) ?? [];
+            overlapping.push(placementIndex);
+            placementsByCell.set(key, overlapping);
+        }
+    });
+
+    return (candidateCells) => {
+        const blockedPlacements = new Set<number>();
+        for (const cell of candidateCells) {
+            for (const placementIndex of placementsByCell.get(getPositionKey(cell)) ?? []) {
+                blockedPlacements.add(placementIndex);
+            }
+        }
+        return blockedPlacements.size < placements.length;
+    };
+}
+
 function searchPlacement(
     options: PlacementSearchOptions,
     firstValid: boolean,
 ): { position: Position; cells: Position[] } | null {
     const columns = getNearestFirstIndices(options.boardWidth, options.start.x);
     const rows = getNearestFirstIndices(options.boardHeight, options.start.y);
-    const context: PlacementValidationContext = {
+    const context = createPlacementValidationContext(options);
+    const transformedPatterns = options.patterns.map(getTransformedPatterns);
+
+    let bestPlacement: ScoredPlacement | null = null;
+    for (const transformedPattern of transformedPatterns) {
+        const placement = findBestPatternPlacement(
+            transformedPattern,
+            options,
+            context,
+            columns,
+            rows,
+            firstValid,
+        );
+        if (placement && firstValid) return { position: placement.position, cells: placement.cells };
+        if (placement && (!bestPlacement || placement.score > bestPlacement.score)) {
+            bestPlacement = placement;
+        }
+    }
+
+    return bestPlacement
+        ? { position: bestPlacement.position, cells: bestPlacement.cells }
+        : null;
+}
+
+function createPlacementValidationContext(
+    options: PlacementSearchOptions,
+): PlacementValidationContext {
+    return {
         blockedIndices: getBoardIndices(
             options.blockedCells ?? [],
             options.boardWidth,
@@ -215,27 +309,6 @@ function searchPlacement(
         isPlacementAllowed: options.isPlacementAllowed ?? allowAnyPlacement,
         scorePlacement: options.scorePlacement ?? scoreNothing,
     };
-    const transformedPatterns = options.patterns.map(getTransformedPatterns);
-
-    let bestPlacement: ScoredPlacement | null = null;
-    for (const transformedPattern of transformedPatterns) {
-        const placement = findBestPatternPlacement(
-            transformedPattern,
-            options,
-            context,
-            columns,
-            rows,
-            firstValid,
-        );
-        if (placement && firstValid) return { position: placement.position, cells: placement.cells };
-        if (placement && (!bestPlacement || placement.score > bestPlacement.score)) {
-            bestPlacement = placement;
-        }
-    }
-
-    return bestPlacement
-        ? { position: bestPlacement.position, cells: bestPlacement.cells }
-        : null;
 }
 
 function findBestPatternPlacement(

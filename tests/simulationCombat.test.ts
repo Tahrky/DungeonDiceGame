@@ -43,6 +43,7 @@ function createMatchState(allowBaseAttackOnSummonTurn: boolean): MatchState {
                 statusEffects: [],
             },
         ],
+        movementStagnation: {},
         history: [],
         statistics: { 1: createStats(), 2: createStats() },
         nextMonsterId: 1,

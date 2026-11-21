@@ -10,12 +10,21 @@ import {
     storeRolledDie,
 } from "../game/diceResources";
 import { getInitialAttackCooldowns, getInitialAttackUses } from "../game/monsterActions";
-import { canPlaceCells, getPatternCells } from "../game/placement";
+import {
+    canPlaceCells,
+    createInitialDeploymentProtection,
+    getPatternCells,
+} from "../game/placement";
 import { isBoardCell } from "../game/boards";
 import type { BoardCellHeight, BoardHeightChange, Position } from "../types/GameTypes";
 import { getInvokedMonsterCount } from "../game/matchRules";
 
 export abstract class GameSceneInvocation extends GameSceneState {
+    private firstDeploymentProtectionCache: {
+        key: string;
+        protection: ((cells: readonly Position[]) => boolean) | null;
+    } | null = null;
+
     protected rollDice(computerInitiated = false): void {
         if (this.hasRolled || this.winner !== null || this.actionMode.type !== "idle") return;
         if (
@@ -140,15 +149,61 @@ export abstract class GameSceneInvocation extends GameSceneState {
             .flatMap((placed) => placed.cells);
         const connectedCells = [this.startingPositions[player], ...ownedPathCells];
 
-        return canPlaceCells(
-            cells,
-            this.board.width,
-            occupiedCells,
-            connectedCells,
-            ownedPathCells,
-            this.board.height,
-            [...this.board.blockedCells, ...this.obstacles.map(({ position }) => position)],
+        return (
+            canPlaceCells(
+                cells,
+                this.board.width,
+                occupiedCells,
+                connectedCells,
+                ownedPathCells,
+                this.board.height,
+                [...this.board.blockedCells, ...this.obstacles.map(({ position }) => position)],
+            ) && this.preservesOpponentFirstDeployment(player, cells)
         );
+    }
+
+    protected getOpponentFirstDeploymentProtection(
+        player: 1 | 2,
+    ): ((cells: readonly Position[]) => boolean) | null {
+        if (!this.gameConfiguration.protectFirstDeployment) return null;
+        const opponent = player === 1 ? 2 : 1;
+        if (getInvokedMonsterCount(this.placedMonsters, opponent) > 0) return null;
+
+        const key = JSON.stringify({
+            board: this.board.id,
+            dimensions: [this.board.width, this.board.height],
+            player,
+            monsters: this.placedMonsters.map(({ id, owner, cells }) => [id, owner, cells]),
+            obstacles: this.obstacles.map(({ position }) => position),
+        });
+        if (this.firstDeploymentProtectionCache?.key === key) {
+            return this.firstDeploymentProtectionCache.protection;
+        }
+
+        const protection = createInitialDeploymentProtection({
+            patterns: PLACEMENT_PATTERNS,
+            boardWidth: this.board.width,
+            boardHeight: this.board.height,
+            start: this.startingPositions[opponent],
+            occupiedCells: [
+                ...Object.values(this.startingPositions),
+                ...this.placedMonsters.flatMap((placed) => placed.cells),
+            ],
+            connectedCells: [this.startingPositions[opponent]],
+            blockedCells: [
+                ...this.board.blockedCells,
+                ...this.obstacles.map(({ position }) => position),
+            ],
+        });
+        this.firstDeploymentProtectionCache = { key, protection };
+        return protection;
+    }
+
+    protected preservesOpponentFirstDeployment(
+        player: 1 | 2,
+        candidateCells: readonly Position[],
+    ): boolean {
+        return this.getOpponentFirstDeploymentProtection(player)?.(candidateCells) ?? true;
     }
 
     protected changeCellHeight(delta: BoardHeightChange, position: Position): void {

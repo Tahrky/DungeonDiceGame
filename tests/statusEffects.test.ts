@@ -101,6 +101,7 @@ describe("effets de statut au début du tour", () => {
                 2: { invocation: 0, attack: 0, movement: 0 },
             },
             monsters: [source, target],
+            movementStagnation: {},
             history: [],
             statistics: { 1: createStats(), 2: createStats() },
             nextMonsterId: 3,

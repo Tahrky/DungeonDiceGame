@@ -33,11 +33,16 @@ describe("empreintes et compatibilité des entraînements", () => {
         changedMonster.monsters[0]!.hp++;
         const changedRules = getDefaultGameConfiguration();
         changedRules.initialPlayerHealth++;
+        const changedFirstDeployment = getDefaultGameConfiguration();
+        changedFirstDeployment.protectFirstDeployment = false;
 
         expect(createTrainingFingerprint(changedMonster, board).monstersHash).not.toBe(
             baseline.monstersHash,
         );
         expect(createTrainingFingerprint(changedRules, board).rulesHash).not.toBe(
+            baseline.rulesHash,
+        );
+        expect(createTrainingFingerprint(changedFirstDeployment, board).rulesHash).not.toBe(
             baseline.rulesHash,
         );
         expect(

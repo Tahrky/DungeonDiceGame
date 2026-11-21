@@ -3,7 +3,11 @@ import { getDefaultBoard, type BoardDefinition } from "../game/boards";
 import { getDefaultGameConfiguration, type GameConfiguration } from "../game/gameConfiguration";
 import { getInvokedMonsterCount } from "../game/matchRules";
 import { getRollableDieFaces } from "../game/diceResources";
-import { getAttackCost, getMovementCost } from "../game/monsterActions";
+import {
+    canUseActionThisTurn,
+    getMovementActionsPerTurn,
+    getMovementCost,
+} from "../game/monsterActions";
 import type { Monster, PlayerId } from "../types/GameTypes";
 import {
     addEvent,
@@ -13,7 +17,7 @@ import {
     hasAvailablePlacement,
     type MatchState,
 } from "./matchState";
-import { beginTurn, finishPlayerTurn, performAttacks } from "./combat";
+import { beginTurn, finishPlayerTurn, getLegalAttackCosts, performAttacks } from "./combat";
 import { performMovements } from "./movement";
 import { chooseDeck } from "./strategies";
 import {
@@ -96,6 +100,7 @@ function createMatch(
         branchWidth: options.branchWidth ?? (options.advanced ? 8 : 3),
         nodeBudget: options.nodeBudget ?? (options.advanced ? 600 : 120),
         lightResults: options.lightResults ?? false,
+        protectFirstDeployment: configuration.protectFirstDeployment,
         strategyWeights,
         ...(options.recordDecisionTraces ? { decisionTraces: [] } : {}),
         profiles,
@@ -115,6 +120,7 @@ function createMatch(
             2: { invocation: 0, attack: 0, movement: 0 },
         },
         monsters: [],
+        movementStagnation: {},
         history: [],
         statistics: { 1: createStats(), 2: createStats() },
         nextMonsterId: 1,
@@ -170,58 +176,113 @@ function createMatch(
             const deployedCosts = state.monsters
                 .filter((monster) => monster.owner === player)
                 .map((monster) => monster.monster.cost);
-            const invocableMonsters =
+            const canInvoke =
                 getInvokedMonsterCount(state.monsters, player) <
                     configuration.maxMonstersPerPlayer &&
-                hasAvailablePlacement(state, board, player)
-                    ? deckMonsters[player].filter((monster) =>
-                          canDeployMonsterForProfile(monster, profiles[player], deployedCosts),
-                      )
-                    : [];
+                hasAvailablePlacement(state, board, player);
+            const invocableMonsters = canInvoke
+                ? deckMonsters[player].filter((monster) =>
+                      canDeployMonsterForProfile(monster, profiles[player], deployedCosts),
+                  )
+                : [];
+            if (
+                getInvokedMonsterCount(state.monsters, player) <
+                    configuration.maxMonstersPerPlayer &&
+                !canInvoke
+            ) {
+                state.statistics[player].noLegalPlacementTurns++;
+                if (
+                    deckMonsters[player].some(
+                        (monster) =>
+                            monster.cost <= state.reserves[player].invocation &&
+                            canDeployMonsterForProfile(
+                                monster,
+                                profiles[player],
+                                deployedCosts,
+                            ),
+                    )
+                ) {
+                    state.statistics[player].blockedInvocationAttempts++;
+                    state.statistics[player].actionsSkippedByReason.noLegalPlacement =
+                        (state.statistics[player].actionsSkippedByReason.noLegalPlacement ?? 0) +
+                        1;
+                }
+            }
 
-            for (let conversion = 0; conversion < 3; conversion++) {
+            const attackCosts = getLegalAttackCosts(state, board);
+            for (;;) {
                 const reserve = state.reserves[player];
+                const affordableInvocationCosts = canInvoke
+                    ? invocableMonsters
+                          .filter((monster) => monster.cost <= reserve.invocation)
+                          .map((monster) => monster.cost)
+                    : [];
+                const affordableAttackCosts = attackCosts.filter(
+                    (cost) => cost <= reserve.attack,
+                );
+                const protectedCounts = {
+                    invocation: affordableInvocationCosts.length
+                        ? Math.min(...affordableInvocationCosts)
+                        : 0,
+                    attack: affordableAttackCosts.length
+                        ? Math.min(...affordableAttackCosts)
+                        : 0,
+                    movement: 0,
+                };
+                for (const monster of state.monsters) {
+                    if (
+                        monster.owner !== player ||
+                        monster.currentHp <= 0 ||
+                        !canUseActionThisTurn(
+                            monster.movementsUsedThisTurn,
+                            getMovementActionsPerTurn(monster.monster),
+                        )
+                    ) {
+                        continue;
+                    }
+                    const cost = getMovementCost(
+                        monster.monster,
+                        monster.turnBuffs?.movementCostReduction ?? 0,
+                    );
+                    if (cost <= reserve.movement) {
+                        protectedCounts.movement =
+                            protectedCounts.movement === 0
+                                ? cost
+                                : Math.min(protectedCounts.movement, cost);
+                    }
+                }
                 const opportunities = {
                     invocation: invocableMonsters.reduce((best, monster) => {
                         return monster.cost > reserve.invocation
                             ? Math.max(
                                   best,
-                                  scoreMonsterForProfile(
-                                      monster,
-                                      profiles[player],
-                                      strategyWeights[player],
+                                  (Math.max(
+                                      1,
+                                      scoreMonsterForProfile(
+                                          monster,
+                                          profiles[player],
+                                          strategyWeights[player],
+                                      ) + 1,
                                   ) *
                                       strategyWeights[player].invocationPriority +
-                                      1,
+                                      (getInvokedMonsterCount(state.monsters, player) === 0
+                                          ? 2
+                                          : 0)),
                               )
                             : best;
                     }, 0),
-                    attack: state.monsters
-                        .filter(
-                            (monster) =>
-                                monster.owner === player &&
-                                monster.currentHp > 0 &&
-                                monster.attacksUsedThisTurn <
-                                    (monster.monster.attackActionsPerTurn ?? 1),
-                        )
-                        .reduce((best, monster) => {
-                            for (const attack of monster.monster.attacks) {
-                                const cost = getAttackCost(
-                                    attack,
-                                    monster.turnBuffs?.attackCostReduction ?? 0,
-                                );
-                                if (cost > reserve.attack) {
-                                    best = Math.max(best, 1);
-                                }
-                            }
-                            return best;
-                        }, 0),
+                    attack: attackCosts.reduce(
+                        (best, cost) => (cost > reserve.attack ? Math.max(best, 1) : best),
+                        0,
+                    ),
                     movement: state.monsters.some((monster) => {
                         if (
                             monster.owner !== player ||
                             monster.currentHp <= 0 ||
-                            monster.movementsUsedThisTurn >=
-                                (monster.monster.movementActionsPerTurn ?? 1)
+                            !canUseActionThisTurn(
+                                monster.movementsUsedThisTurn,
+                                getMovementActionsPerTurn(monster.monster),
+                            )
                         ) {
                             return false;
                         }
@@ -235,9 +296,7 @@ function createMatch(
                         : 0,
                 };
                 const choice = chooseSymbolConversion(reserve, opportunities, {
-                    invocation: 1,
-                    attack: 1,
-                    movement: 1,
+                    ...protectedCounts,
                 });
                 if (!choice) break;
                 if (!convertReservedSymbols(reserve, choice.sourceSymbols, choice.targetSymbol))
@@ -253,10 +312,22 @@ function createMatch(
                 }
             }
 
+            const turnStartStats = { ...state.statistics[player] };
             deployMonsters(state, configuration, board, profiles[player], deckMonsters[player]);
             performAttacks(state, board);
             performMovements(state, board);
             performAttacks(state, board);
+            const stats = state.statistics[player];
+            if (stats.summoned === turnStartStats.summoned) stats.turnsWithoutSummon++;
+            if (stats.attacks === turnStartStats.attacks) stats.turnsWithoutAttack++;
+            if (stats.movements === turnStartStats.movements) stats.turnsWithoutMovement++;
+            if (
+                stats.summoned === turnStartStats.summoned &&
+                stats.attacks === turnStartStats.attacks &&
+                stats.movements === turnStartStats.movements
+            ) {
+                stats.turnsWithoutUsefulAction++;
+            }
             finishPlayerTurn(state, player);
         }
     }

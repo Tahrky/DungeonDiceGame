@@ -8,7 +8,13 @@ import {
     hasValidPlacement,
     type PlacementSearchOptions,
 } from "../src/game/placement";
-import { getDefaultBoard, getStartingPositions } from "../src/game/boards";
+import {
+    createCustomBoard,
+    getBoardPresets,
+    getDefaultBoard,
+    getStartingPositions,
+} from "../src/game/boards";
+import { createInitialDeploymentProtection, findValidPlacements } from "../src/game/placement";
 import type { Position } from "../src/types/GameTypes";
 
 const positionKey = ({ x, y }: Position) => `${x},${y}`;
@@ -448,5 +454,68 @@ describe("règles de pose", () => {
     it("refuse les placements sans contact orthogonal avec son territoire", () => {
         expect(canPlaceCells(line, 10, [], [{ x: 0, y: 0 }])).toBe(false);
         expect(canPlaceCells(line, 10, [], [])).toBe(false);
+    });
+
+    it("préserve toujours une formation initiale sur les plateaux prédéfinis et personnalisés", () => {
+        const boards = [
+            ...getBoardPresets(),
+            createCustomBoard(15, 15, [{ x: 7, y: 7 }]),
+        ];
+
+        for (const board of boards) {
+            const starts = getStartingPositions(board);
+            const occupiedCells: Position[] = [starts[1], starts[2]];
+            const ownTerritory: Position[] = [starts[1]];
+            const ownMonsterPositions: Position[] = [];
+
+            for (let deployment = 0; deployment < 6; deployment++) {
+                const protectOpponentDeployment = createInitialDeploymentProtection({
+                    patterns: PLACEMENT_PATTERNS,
+                    boardWidth: board.width,
+                    boardHeight: board.height,
+                    start: starts[2],
+                    occupiedCells,
+                    connectedCells: [starts[2]],
+                    blockedCells: board.blockedCells,
+                });
+                expect(protectOpponentDeployment).not.toBeNull();
+
+                const ownTerritoryKeys = new Set(ownTerritory.map(positionKey));
+                const placements = findValidPlacements({
+                    patterns: PLACEMENT_PATTERNS,
+                    boardWidth: board.width,
+                    boardHeight: board.height,
+                    start: starts[1],
+                    occupiedCells,
+                    connectedCells: ownTerritory,
+                    overlappingCells: ownTerritory,
+                    blockedCells: board.blockedCells,
+                    isPlacementAllowed: (position, cells) =>
+                        !ownMonsterPositions.some(
+                            (placed) => positionKey(placed) === positionKey(position),
+                        ) && cells.some((cell) => !ownTerritoryKeys.has(positionKey(cell))),
+                });
+                const placement = placements.find(({ cells }) =>
+                    protectOpponentDeployment!(cells),
+                );
+
+                expect(placement).toBeDefined();
+                occupiedCells.push(...placement!.cells);
+                ownTerritory.push(...placement!.cells);
+                ownMonsterPositions.push(placement!.position);
+
+                expect(
+                    hasValidPlacement({
+                        patterns: PLACEMENT_PATTERNS,
+                        boardWidth: board.width,
+                        boardHeight: board.height,
+                        start: starts[2],
+                        occupiedCells,
+                        connectedCells: [starts[2]],
+                        blockedCells: board.blockedCells,
+                    }),
+                ).toBe(true);
+            }
+        }
     });
 });

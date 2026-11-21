@@ -201,6 +201,31 @@ describe("simulation de matchs", () => {
         }
     });
 
+    it("préserve le premier déploiement défensif et expose les diagnostics de stagnation", () => {
+        const configuration = getDefaultGameConfiguration();
+        configuration.initialPlayerHealth = 8;
+        const options = {
+            games: 1,
+            seed: 4286584123,
+            maxTurns: 30,
+            profile1: "cheap" as const,
+            profile2: "defensive" as const,
+            deck1: ["ghost", "thief", "spectre", "black-knight", "pirate"],
+            deck2: ["frost-mage", "archer", "pirate", "priestBuffer", "black-knight"],
+        };
+        const protectedMatch = runSimulations(options, configuration).matches[0];
+        const unprotectedMatch = runSimulations(options, {
+            ...configuration,
+            protectFirstDeployment: false,
+        }).matches[0];
+        if (!protectedMatch || !unprotectedMatch) throw new Error("Matchs de test attendus.");
+
+        expect(protectedMatch.statistics[2].summoned).toBeGreaterThan(0);
+        expect(unprotectedMatch.statistics[2].summoned).toBe(0);
+        expect(protectedMatch.statistics[2].turnsWithoutUsefulAction).toBeGreaterThanOrEqual(0);
+        expect(protectedMatch.statistics[2].unreachableObjectives).toBeGreaterThanOrEqual(0);
+    });
+
     it("évite les conversions répétées vers une ressource déjà suffisante", () => {
         const match = runSimulations({
             games: 1,

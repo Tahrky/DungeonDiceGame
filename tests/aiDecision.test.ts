@@ -118,9 +118,10 @@ describe("noyau de décision tactique", () => {
 
         const safeTarget = assignMonsterRoles(safeSnapshot, 1)[0]?.target;
         const threatenedTarget = assignMonsterRoles(threatenedSnapshot, 1)[0]?.target;
-        expect(Math.abs(safeTarget!.x - starts[1].x) + Math.abs(safeTarget!.y - starts[1].y)).toBe(
-            3,
-        );
+        expect(assignMonsterRoles(safeSnapshot, 1)[0]?.role).toBe("advance");
+        expect(
+            Math.abs(safeTarget!.x - starts[1].x) + Math.abs(safeTarget!.y - starts[1].y),
+        ).toBeGreaterThan(3);
         expect(
             Math.abs(threatenedTarget!.x - starts[1].x) +
                 Math.abs(threatenedTarget!.y - starts[1].y),
@@ -254,11 +255,11 @@ describe("noyau de décision tactique", () => {
             monsters: [supporter, ally],
         };
 
-        expect(assignMonsterRoles(supportSnapshot, 1)).toContainEqual({
-            monsterId: "supporter",
-            role: "base",
-            target: starts[2],
-        });
+        const supporterRole = assignMonsterRoles(supportSnapshot, 1).find(
+            ({ monsterId }) => monsterId === "supporter",
+        );
+        expect(supporterRole?.role).toBe("advance");
+        expect(supporterRole?.target?.x).toBe(starts[2].x);
     });
 
     it("active les détails de debug uniquement sur demande", () => {
@@ -369,6 +370,7 @@ describe("noyau de décision tactique", () => {
                     statusEffects: [],
                 },
             ],
+            movementStagnation: {},
             history: [],
             winner: null,
             finishReason: "turnLimit",

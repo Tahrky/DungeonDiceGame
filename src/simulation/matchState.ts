@@ -4,6 +4,7 @@ import type { GameConfiguration } from "../game/gameConfiguration";
 import { getStartingPositions, type BoardDefinition } from "../game/boards";
 import { getInvokedMonsterCount } from "../game/matchRules";
 import {
+    createInitialDeploymentProtection,
     findValidPlacement,
     hasValidPlacement,
     type PlacementSearchOptions,
@@ -41,6 +42,7 @@ export interface MatchState {
     branchWidth?: number;
     nodeBudget?: number;
     lightResults?: boolean;
+    protectFirstDeployment?: boolean;
     strategyWeights?: Record<PlayerId, Readonly<BotStrategyWeights>>;
     decisionTraces?: TacticalDecisionTrace[];
     profiles: Record<PlayerId, BotProfile>;
@@ -51,6 +53,11 @@ export interface MatchState {
     health: Record<PlayerId, number>;
     reserves: Record<PlayerId, { invocation: number; attack: number; movement: number }>;
     monsters: PlacedMonster[];
+    movementStagnation: Record<string, number>;
+    placementProtectionCache?: {
+        key: string;
+        preservesFirstDeployment: (cells: readonly Position[]) => boolean;
+    };
     history: SimulationEvent[];
     statistics: Record<PlayerId, PlayerSimulationStats>;
     nextMonsterId: number;
@@ -70,6 +77,15 @@ export function createStats(): PlayerSimulationStats {
         movements: 0,
         symbolsSpent: { invocation: 0, attack: 0, movement: 0 },
         conversionLosses: 0,
+        turnsWithoutSummon: 0,
+        turnsWithoutAttack: 0,
+        turnsWithoutMovement: 0,
+        turnsWithoutUsefulAction: 0,
+        noLegalPlacementTurns: 0,
+        stagnantMonsterTurns: 0,
+        blockedInvocationAttempts: 0,
+        unreachableObjectives: 0,
+        actionsSkippedByReason: {},
         lastMonsterSummonTurn: null,
         ineffectiveActions: 0,
         decisionsWithoutImpact: 0,
@@ -179,29 +195,74 @@ function createPlacementSearchContext(
             .filter((monster) => monster.currentHp > 0)
             .map(({ position }) => `${position.x},${position.y}`),
     );
+    const baseOptions: Omit<PlacementSearchOptions, "scorePlacement"> = {
+        patterns: PLACEMENT_PATTERNS,
+        boardWidth: board.width,
+        boardHeight: board.height,
+        start: starts[player],
+        occupiedCells,
+        connectedCells: [starts[player], ...ownCells],
+        overlappingCells: ownCells,
+        blockedCells: board.blockedCells,
+        isPlacementAllowed: (position, cells) => {
+            const key = `${position.x},${position.y}`;
+            return (
+                !enemyKeys.has(key) &&
+                !livingMonsterKeys.has(key) &&
+                cells.some((cell) => !ownKeys.has(`${cell.x},${cell.y}`)) &&
+                !cells.some((cell) => enemyKeys.has(`${cell.x},${cell.y}`))
+            );
+        },
+    };
+    const opponent = opposingPlayer(player);
+    let isPlacementAllowed = baseOptions.isPlacementAllowed;
+    if (
+        state.protectFirstDeployment !== false &&
+        getInvokedMonsterCount(state.monsters, opponent) === 0
+    ) {
+        const placementKey = [
+            board.width,
+            board.height,
+            opponent,
+            ...board.blockedCells
+                .map(({ x, y }) => `${x},${y}`)
+                .sort(),
+            "|",
+            ...occupiedCells.map(({ x, y }) => `${x},${y}`).sort(),
+        ].join(";");
+        if (state.placementProtectionCache?.key !== placementKey) {
+            const preservesFirstDeployment = createInitialDeploymentProtection({
+                patterns: PLACEMENT_PATTERNS,
+                boardWidth: board.width,
+                boardHeight: board.height,
+                start: starts[opponent],
+                occupiedCells,
+                connectedCells: [starts[opponent]],
+                blockedCells: board.blockedCells,
+            });
+            if (preservesFirstDeployment) {
+                state.placementProtectionCache = {
+                    key: placementKey,
+                    preservesFirstDeployment,
+                };
+            } else {
+                delete state.placementProtectionCache;
+            }
+        }
+        const preservesFirstDeployment =
+            state.placementProtectionCache?.preservesFirstDeployment;
+        if (preservesFirstDeployment) {
+            isPlacementAllowed = (position, cells) =>
+                (baseOptions.isPlacementAllowed?.(position, cells) ?? true) &&
+                preservesFirstDeployment(cells);
+        }
+    }
+
     return {
         starts,
         ownCells,
         enemyPositions,
-        options: {
-            patterns: PLACEMENT_PATTERNS,
-            boardWidth: board.width,
-            boardHeight: board.height,
-            start: starts[player],
-            occupiedCells,
-            connectedCells: [starts[player], ...ownCells],
-            overlappingCells: ownCells,
-            blockedCells: board.blockedCells,
-            isPlacementAllowed: (position, cells) => {
-                const key = `${position.x},${position.y}`;
-                return (
-                    !enemyKeys.has(key) &&
-                    !livingMonsterKeys.has(key) &&
-                    cells.some((cell) => !ownKeys.has(`${cell.x},${cell.y}`)) &&
-                    !cells.some((cell) => enemyKeys.has(`${cell.x},${cell.y}`))
-                );
-            },
-        },
+        options: { ...baseOptions, isPlacementAllowed },
     };
 }
 

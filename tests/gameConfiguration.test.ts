@@ -224,7 +224,7 @@ describe("configuration des règles de partie", () => {
 
         const migrated = parseGameConfiguration(legacyConfiguration);
 
-        expect(migrated?.version).toBe(7);
+        expect(migrated?.version).toBe(8);
         expect(migrated?.deckSize).toBe(DEFAULT_DECK_SIZE);
         expect(migrated?.diceCount).toBe(3);
         expect(migrated?.monstersKilledForVictory).toBe(8);
@@ -270,7 +270,7 @@ describe("configuration des règles de partie", () => {
 
         const migrated = parseGameConfiguration(legacyConfiguration);
 
-        expect(migrated?.version).toBe(7);
+        expect(migrated?.version).toBe(8);
         expect(
             migrated?.monsters.find((monster) => monster.id === "priestBuffer")?.attacks,
         ).toMatchObject([
@@ -289,7 +289,7 @@ describe("configuration des règles de partie", () => {
         delete legacyConfiguration.deckSize;
 
         expect(parseGameConfiguration(legacyConfiguration)).toMatchObject({
-            version: 7,
+            version: 8,
             deckSize: DEFAULT_DECK_SIZE,
             monstersKilledForVictory: 8,
         });
@@ -303,9 +303,25 @@ describe("configuration des règles de partie", () => {
         delete legacyConfiguration.deckSize;
 
         expect(parseGameConfiguration(legacyConfiguration)).toMatchObject({
-            version: 7,
+            version: 8,
             deckSize: DEFAULT_DECK_SIZE,
         });
+    });
+
+    it("migre les réglages v7 en activant la protection du premier déploiement", () => {
+        const legacyConfiguration: Record<string, unknown> = JSON.parse(
+            serializeGameConfiguration(getDefaultGameConfiguration()),
+        );
+        legacyConfiguration.version = 7;
+        delete legacyConfiguration.protectFirstDeployment;
+
+        expect(parseGameConfiguration(legacyConfiguration)).toMatchObject({
+            version: 8,
+            protectFirstDeployment: true,
+        });
+
+        legacyConfiguration.protectFirstDeployment = false;
+        expect(parseGameConfiguration(legacyConfiguration)?.protectFirstDeployment).toBe(false);
     });
 
     it("valide les motifs et capacités modifiés sans accepter de profil incomplet", () => {
@@ -495,7 +511,7 @@ describe("configuration des règles de partie", () => {
 
     it("refuse les configurations de version ou de limites invalides", () => {
         const configuration = getDefaultGameConfiguration();
-        expect(parseGameConfiguration({ ...configuration, version: 7 })).toBeNull();
+        expect(parseGameConfiguration({ ...configuration, version: 9 })).toBeNull();
         expect(
             parseGameConfiguration({ ...configuration, deckSize: MIN_DECK_SIZE - 1 }),
         ).toBeNull();

@@ -32,7 +32,7 @@ export interface StrategicSnapshot {
 
 export interface RoleAssignment {
     monsterId: string;
-    role: "base" | "hunt" | "defense" | "support" | "territory";
+    role: "advance" | "hold" | "defend" | "intercept" | "support" | "patrol";
     target?: Position;
 }
 
@@ -237,6 +237,115 @@ function getDefensiveTarget(
     );
 }
 
+function getAdvanceTarget(
+    board: BoardDefinition,
+    monster: PlacedMonster,
+    enemyBase: Position,
+    claimedTargets: ReadonlySet<string>,
+): Position {
+    const horizontal = Math.abs(enemyBase.x - monster.position.x) >=
+        Math.abs(enemyBase.y - monster.position.y);
+    const blocked = new Set(board.blockedCells.map(({ x, y }) => `${x},${y}`));
+    const candidates = Array.from(
+        { length: horizontal ? board.height : board.width },
+        (_, index) =>
+            horizontal
+                ? { x: enemyBase.x, y: index }
+                : { x: index, y: enemyBase.y },
+    ).filter(({ x, y }) => !blocked.has(`${x},${y}`));
+
+    return (
+        candidates
+            .filter(({ x, y }) => !claimedTargets.has(`${x},${y}`))
+            .sort(
+                (first, second) =>
+                    getCachedDistance(first, monster.position) -
+                        getCachedDistance(second, monster.position) ||
+                    getCachedDistance(first, enemyBase) -
+                        getCachedDistance(second, enemyBase) ||
+                    first.y - second.y ||
+                    first.x - second.x,
+            )[0] ??
+        candidates.sort(
+            (first, second) =>
+                getCachedDistance(first, monster.position) -
+                    getCachedDistance(second, monster.position) ||
+                first.y - second.y ||
+                first.x - second.x,
+        )[0] ??
+        enemyBase
+    );
+}
+
+function getPatrolTarget(
+    board: BoardDefinition,
+    monster: PlacedMonster,
+    ownBase: Position,
+    enemyBase: Position,
+    claimedTargets: ReadonlySet<string>,
+): Position {
+    const midX = Math.round((ownBase.x + enemyBase.x) / 2);
+    const midY = Math.round((ownBase.y + enemyBase.y) / 2);
+    const candidates = [
+        ...Array.from({ length: board.height }, (_, y) => ({ x: midX, y })),
+        ...Array.from({ length: board.width }, (_, x) => ({ x, y: midY })),
+    ].filter(
+        ({ x, y }) =>
+            !board.blockedCells.some((cell) => cell.x === x && cell.y === y) &&
+            !claimedTargets.has(`${x},${y}`),
+    );
+    return (
+        candidates.sort(
+            (first, second) =>
+                getCachedDistance(first, monster.position) -
+                    getCachedDistance(second, monster.position) ||
+                first.y - second.y ||
+                first.x - second.x,
+        )[0] ?? getAdvanceTarget(board, monster, enemyBase, claimedTargets)
+    );
+}
+
+function getInterceptTarget(
+    board: BoardDefinition,
+    monster: PlacedMonster,
+    enemies: readonly PlacedMonster[],
+    allies: readonly PlacedMonster[],
+    claimedTargets: ReadonlySet<string>,
+): Position | undefined {
+    const occupied = new Set(
+        [
+            ...board.blockedCells,
+            ...enemies.map(({ position }) => position),
+            ...allies.map(({ position }) => position),
+        ].map(
+            ({ x, y }) => `${x},${y}`,
+        ),
+    );
+    const candidates = enemies.flatMap((enemy) =>
+        [
+            { x: enemy.position.x + 1, y: enemy.position.y },
+            { x: enemy.position.x - 1, y: enemy.position.y },
+            { x: enemy.position.x, y: enemy.position.y + 1 },
+            { x: enemy.position.x, y: enemy.position.y - 1 },
+        ].filter(
+            ({ x, y }) =>
+                x >= 0 &&
+                y >= 0 &&
+                x < board.width &&
+                y < board.height &&
+                !occupied.has(`${x},${y}`) &&
+                !claimedTargets.has(`${x},${y}`),
+        ),
+    );
+    return candidates.sort(
+        (first, second) =>
+            getCachedDistance(first, monster.position) -
+                getCachedDistance(second, monster.position) ||
+            first.y - second.y ||
+            first.x - second.x,
+    )[0];
+}
+
 function getRouteCoverage(
     threats: readonly PlacedMonster[],
     defenders: readonly PlacedMonster[],
@@ -283,7 +392,7 @@ export function assignMonsterRoles(
                     Number.POSITIVE_INFINITY) <= 5,
         );
     const defendersNeeded =
-        tactic !== "defense" || allies.length === 0
+        tactic !== "defense" || allies.length === 0 || !baseThreatened
             ? 0
             : Math.max(
                   1,
@@ -335,52 +444,45 @@ export function assignMonsterRoles(
                     occupiedTargets,
                 );
                 if (target) occupiedTargets.add(`${target.x},${target.y}`);
-                return { monsterId: monster.id, role: "defense", target };
+                const isHoldingPosition =
+                    target.x === monster.position.x && target.y === monster.position.y;
+                return {
+                    monsterId: monster.id,
+                    role: isHoldingPosition ? "hold" : "defend",
+                    target,
+                };
             }
-            if (tactic === "defense" && enemies.length > 0) {
-                const target = enemies
-                    .filter(
-                        (enemy) => !occupiedTargets.has(`${enemy.position.x},${enemy.position.y}`),
-                    )
-                    .sort(
-                        (first, second) =>
-                            getCachedDistance(monster.position, first.position) -
-                            getCachedDistance(monster.position, second.position),
-                    )[0]?.position;
+            if (
+                (tactic === "defense" || tactic === "hunt") &&
+                enemies.length > 0
+            ) {
+                const target = getInterceptTarget(
+                    routeBoard,
+                    monster,
+                    enemies,
+                    allies,
+                    occupiedTargets,
+                );
                 if (target) {
                     occupiedTargets.add(`${target.x},${target.y}`);
-                    return { monsterId: monster.id, role: "hunt", target };
+                    return { monsterId: monster.id, role: "intercept", target };
                 }
             }
 
-            if (tactic === "hunt") {
-                const target = enemies
-                    .filter(
-                        (enemy) => !occupiedTargets.has(`${enemy.position.x},${enemy.position.y}`),
-                    )
-                    .sort(
-                        (first, second) =>
-                            getCachedDistance(monster.position, first.position) -
-                            getCachedDistance(monster.position, second.position),
-                    )[0]?.position;
-                if (target) occupiedTargets.add(`${target.x},${target.y}`);
-                return { monsterId: monster.id, role: "hunt", target };
-            }
-
-            const role =
-                tactic === "offense" ||
-                support > 0 ||
-                (snapshot.profile === "offensive" && getOffenseValue(monster.monster) > 2)
-                    ? "base"
-                    : "territory";
-            const target =
-                role === "base"
-                    ? enemyStart
-                    : allies.length === 1
-                      ? enemyStart
-                      : monster.position;
-            if (target) occupiedTargets.add(`${target.x},${target.y}`);
-            return { monsterId: monster.id, role, target };
+            const shouldPatrol =
+                tactic === "defense" &&
+                enemies.length === 0 &&
+                allies.length > 1 &&
+                occupiedTargets.size === 0;
+            const target = shouldPatrol
+                ? getPatrolTarget(routeBoard, monster, ownStart, enemyStart, occupiedTargets)
+                : getAdvanceTarget(routeBoard, monster, enemyStart, occupiedTargets);
+            occupiedTargets.add(`${target.x},${target.y}`);
+            return {
+                monsterId: monster.id,
+                role: shouldPatrol ? "patrol" : "advance",
+                target,
+            };
         });
 }
 

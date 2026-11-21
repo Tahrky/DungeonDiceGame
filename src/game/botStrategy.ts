@@ -684,6 +684,7 @@ export function findObjectiveMovement(
     const goalCells = [...new Map(ownedCells.map((cell) => [getKey(cell), cell])).values()]
         .filter(
             (cell) =>
+                getKey(cell) !== getKey(options.source) &&
                 !occupied.has(getKey(cell)) &&
                 !blocked.has(getKey(cell)) &&
                 (options.canPassHostiles || !hostile.has(getKey(cell))),
@@ -692,14 +693,10 @@ export function findObjectiveMovement(
             (first, second) =>
                 getGridDistance(first, objective) - getGridDistance(second, objective),
         );
-    const nearestGoal = goalCells[0];
-    if (!nearestGoal) return null;
-
-    const nearestGoalDistance = getGridDistance(nearestGoal, objective);
-    const frontier = goalCells.filter(
-        (cell) => getGridDistance(cell, objective) === nearestGoalDistance,
+    const distances = getMovementDistanceMap(
+        goalCells.length > 0 ? goalCells : [options.source],
+        options,
     );
-    const distances = getMovementDistanceMap(frontier, options);
     const { paths } = analyzeLegalMovementRoutes(options);
     const currentDistance = distances.get(getKey(options.source));
     if (currentDistance === undefined) return null;

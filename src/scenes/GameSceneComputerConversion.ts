@@ -78,9 +78,9 @@ export abstract class GameSceneComputerConversion extends GameSceneMovement {
     }
 
     private getComputerInvocationOpportunity(): number {
+        const invokedMonsterCount = getInvokedMonsterCount(this.placedMonsters, 2);
         if (
-            getInvokedMonsterCount(this.placedMonsters, 2) >=
-                this.gameConfiguration.maxMonstersPerPlayer ||
+            invokedMonsterCount >= this.gameConfiguration.maxMonstersPerPlayer ||
             !this.findComputerPlacement()
         ) {
             return 0;
@@ -97,12 +97,13 @@ export abstract class GameSceneComputerConversion extends GameSceneMovement {
         return Math.max(
             0,
             ...this.getDeckMonsters(2)
-                .filter((monster) => monster.cost === availableInvocation)
+                .filter((monster) => monster.cost <= availableInvocation)
                 .filter((monster) =>
                     canDeployMonsterForProfile(monster, this.opponentProfile, deployedCosts),
                 )
                 .map((monster) =>
-                    Math.max(1, scoreMonsterForProfile(monster, this.opponentProfile) + 1),
+                    Math.max(1, scoreMonsterForProfile(monster, this.opponentProfile) + 1) +
+                    (invokedMonsterCount === 0 ? 2 : 0),
                 ),
         );
     }
@@ -120,7 +121,7 @@ export abstract class GameSceneComputerConversion extends GameSceneMovement {
                     attacker.turnBuffs?.attackCostReduction ?? 0,
                 );
                 if (
-                    cost !==
+                    cost >
                     getAvailableSymbolCount(
                         "attack",
                         this.rolledDice,
@@ -165,7 +166,7 @@ export abstract class GameSceneComputerConversion extends GameSceneMovement {
                 getMovementCost(
                     monster.monster,
                     monster.turnBuffs?.movementCostReduction ?? 0,
-                ) !== movementCount
+                ) > movementCount
             ) {
                 continue;
             }
