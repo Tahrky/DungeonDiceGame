@@ -240,6 +240,7 @@ function findPlacement(
         enemyPositions,
         blockingCells,
     );
+    const weights = state.strategyWeights?.[player] ?? DEFAULT_BOT_STRATEGY_WEIGHTS;
     const pathBlockadeScore =
         state.tactics[player] === "defense" || state.tactics[player] === "hunt"
             ? createPathBlockadeScorer(
@@ -249,6 +250,7 @@ function findPlacement(
                   starts[opponent],
                   ownCells,
                   board.blockedCells,
+                  weights,
               )
             : () => 0;
     const snapshot: StrategicSnapshot = {
@@ -266,7 +268,6 @@ function findPlacement(
         turn: state.turn,
     };
     const strategicCellScore = createStrategicCellScorer(snapshot, player);
-    const weights = state.strategyWeights?.[player] ?? DEFAULT_BOT_STRATEGY_WEIGHTS;
     return findValidPlacement({
         ...options,
         scorePlacement: (position, cells) => {

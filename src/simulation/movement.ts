@@ -31,9 +31,6 @@ export function performMovements(state: MatchState, board: BoardDefinition): voi
     const ownedCells = state.monsters
         .filter((placed) => placed.owner === player)
         .flatMap((placed) => placed.cells);
-    const enemyPositions = state.monsters
-        .filter((placed) => placed.owner !== player && placed.currentHp > 0)
-        .map((placed) => placed.position);
     const strategicSnapshot: StrategicSnapshot = {
         board,
         health: { ...state.health },
@@ -73,7 +70,15 @@ export function performMovements(state: MatchState, board: BoardDefinition): voi
                 ...createMovementOptions(state, board, monster),
                 destination: monster.position,
             };
-            const role = roles.get(monster.id);
+            const enemyPositions = state.monsters
+                .filter((placed) => placed.owner !== player && placed.currentHp > 0)
+                .map((placed) => placed.position);
+            const role =
+                state.tactics[player] === "defense"
+                    ? assignMonsterRoles(strategicSnapshot, player).find(
+                          (assignment) => assignment.monsterId === monster.id,
+                      )
+                    : roles.get(monster.id);
             const roleObjective =
                 role?.target ??
                 chooseBotObjective(
@@ -97,9 +102,10 @@ export function performMovements(state: MatchState, board: BoardDefinition): voi
             consumeMovementTurnBuff(monster);
             const from = monster.position;
             const movementGoal =
-                state.tactics[player] === "defense"
+                role?.role === "defense"
                     ? "le périmètre de sa base"
-                    : state.tactics[player] === "hunt" && enemyPositions.length > 0
+                    : role?.role === "hunt" ||
+                        (state.tactics[player] === "hunt" && enemyPositions.length > 0)
                       ? "les monstres adverses"
                       : "le départ ennemi";
             monster.facing = getFacingFromMovement(from, best.position, monster.facing);

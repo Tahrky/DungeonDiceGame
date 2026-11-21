@@ -36,6 +36,11 @@ export interface SimulationWorkerRequest {
 
 export type SimulationWorkerResponse =
     | {
+          readonly type: "progress";
+          readonly startIndex: number;
+          readonly completedGames: number;
+      }
+    | {
           readonly type: "complete";
           readonly startIndex: number;
           readonly result: SimulationBatchResult;

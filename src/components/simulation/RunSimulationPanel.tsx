@@ -162,9 +162,17 @@ export function RunSimulationPanel({
                     (total, chunk) => total + chunk.result.matches.length,
                     0,
                 );
+                const chunkProgress = new Map<number, number>();
                 let remainingWorkers = workers.length;
                 let active = true;
                 const pending = [...pendingChunks];
+
+                function getVisibleCompletedGames(): number {
+                    return (
+                        completedGames +
+                        [...chunkProgress.values()].reduce((total, count) => total + count, 0)
+                    );
+                }
 
                 function terminateWorkers(): void {
                     workersRef.current.forEach((worker) => worker.terminate());
@@ -226,6 +234,22 @@ export function RunSimulationPanel({
                             fail("Le worker a renvoyé un lot inattendu.");
                             return;
                         }
+                        if (event.data.type === "progress") {
+                            const previous = chunkProgress.get(chunk.startIndex) ?? 0;
+                            if (
+                                !Number.isInteger(event.data.completedGames) ||
+                                event.data.completedGames <= previous ||
+                                event.data.completedGames > chunk.games
+                            ) {
+                                fail("Le worker a renvoyé une progression de lot invalide.");
+                                return;
+                            }
+                            chunkProgress.set(chunk.startIndex, event.data.completedGames);
+                            setNotice(
+                                `Simulation en cours… ${getVisibleCompletedGames()}/${options.games} matchs terminés (${workers.length} workers).`,
+                            );
+                            return;
+                        }
                         if (event.data.type === "error") {
                             fail(event.data.message);
                             return;
@@ -236,13 +260,14 @@ export function RunSimulationPanel({
                             return;
                         }
 
+                        chunkProgress.delete(chunk.startIndex);
                         results.push(result);
                         completedGames += chunk.games;
                         void saveSimulationChunk(sessionId, chunk.startIndex, result)
                             .then(() => {
                                 if (!active) return;
                                 setNotice(
-                                    `Simulation en cours… ${completedGames}/${options.games} matchs terminés (${workers.length} workers).`,
+                                    `Simulation en cours… ${getVisibleCompletedGames()}/${options.games} matchs terminés (${workers.length} workers).`,
                                 );
                                 runNextChunk(worker);
                             })

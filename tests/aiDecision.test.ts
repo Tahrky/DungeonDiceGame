@@ -111,13 +111,105 @@ describe("noyau de décision tactique", () => {
                     ...defender,
                     id: "threat",
                     owner: 2 as const,
-                    position: { x: starts[1].x + 2, y: starts[1].y },
+                    position: { x: starts[1].x + 5, y: starts[1].y },
                 },
             ],
         };
 
-        expect(assignMonsterRoles(safeSnapshot, 1)[0]?.target).toEqual(starts[2]);
-        expect(assignMonsterRoles(threatenedSnapshot, 1)[0]?.target).toEqual(starts[1]);
+        const safeTarget = assignMonsterRoles(safeSnapshot, 1)[0]?.target;
+        const threatenedTarget = assignMonsterRoles(threatenedSnapshot, 1)[0]?.target;
+        expect(Math.abs(safeTarget!.x - starts[1].x) + Math.abs(safeTarget!.y - starts[1].y)).toBe(
+            3,
+        );
+        expect(
+            Math.abs(threatenedTarget!.x - starts[1].x) +
+                Math.abs(threatenedTarget!.y - starts[1].y),
+        ).toBe(3);
+        expect(threatenedTarget!.x).toBeGreaterThan(starts[1].x);
+    });
+
+    it("attribue des périmètres différents aux défenseurs", () => {
+        const configuration = getDefaultGameConfiguration();
+        const monster = configuration.monsters.find((candidate) => candidate.id === "ghost");
+        if (!monster) throw new Error("Monstre de défense introuvable.");
+        const snapshot = createSnapshot(3, 3);
+        const starts = getStartingPositions(snapshot.board);
+        const defenders = [1, 2].map((offset) => ({
+            id: `defender-${offset}`,
+            monster,
+            owner: 1 as const,
+            position: { x: starts[1].x + 1, y: starts[1].y + offset - 1 },
+            facing: "east" as const,
+            currentHp: monster.hp,
+            cells: [{ x: starts[1].x + 1, y: starts[1].y + offset - 1 }],
+            summonedOnTurn: 1,
+            attacksUsedThisTurn: 0,
+            attackUsesThisTurn: getInitialAttackUses(monster),
+            movementsUsedThisTurn: 0,
+            attackCooldowns: getInitialAttackCooldowns(monster),
+            statusEffects: [],
+        }));
+
+        const roles = assignMonsterRoles(
+            {
+                ...snapshot,
+                monsters: [
+                    ...defenders,
+                    {
+                        ...defenders[0]!,
+                        id: "approaching-enemy",
+                        owner: 2 as const,
+                        position: { x: starts[1].x + 5, y: starts[1].y },
+                    },
+                ],
+            },
+            1,
+        );
+
+        expect(roles.map(({ target }) => target)).toHaveLength(2);
+        expect(roles[0]?.target).not.toEqual(roles[1]?.target);
+    });
+
+    it("ne place pas une cible défensive sur un obstacle actif", () => {
+        const configuration = getDefaultGameConfiguration();
+        const monster = configuration.monsters.find((candidate) => candidate.id === "ghost");
+        if (!monster) throw new Error("Monstre de défense introuvable.");
+        const snapshot = createSnapshot(3, 3);
+        const starts = getStartingPositions(snapshot.board);
+        const blockedTarget = { x: starts[1].x + 3, y: starts[1].y };
+        const defender = {
+            id: "defender",
+            monster,
+            owner: 1 as const,
+            position: { x: starts[1].x + 1, y: starts[1].y },
+            facing: "east" as const,
+            currentHp: monster.hp,
+            cells: [{ x: starts[1].x + 1, y: starts[1].y }],
+            summonedOnTurn: 1,
+            attacksUsedThisTurn: 0,
+            attackUsesThisTurn: getInitialAttackUses(monster),
+            movementsUsedThisTurn: 0,
+            attackCooldowns: getInitialAttackCooldowns(monster),
+            statusEffects: [],
+        };
+        const role = assignMonsterRoles(
+            {
+                ...snapshot,
+                blockedCells: [blockedTarget],
+                monsters: [
+                    defender,
+                    {
+                        ...defender,
+                        id: "approaching-enemy",
+                        owner: 2 as const,
+                        position: { x: starts[1].x + 5, y: starts[1].y },
+                    },
+                ],
+            },
+            1,
+        )[0];
+
+        expect(role?.target).not.toEqual(blockedTarget);
     });
 
     it("fait avancer les monstres de soutien si aucun allié n’est blessé", () => {

@@ -308,6 +308,7 @@ export function runSimulations(
     configuration = getDefaultGameConfiguration(),
     board = getDefaultBoard(),
     startIndex = 0,
+    onMatchComplete?: (completedMatches: number) => void,
 ): SimulationBatchResult {
     if (!Number.isInteger(options.games) || options.games < 1) {
         throw new RangeError("Le nombre de matchs doit être un entier positif.");
@@ -372,7 +373,7 @@ export function runSimulations(
         const pairIndex = matchIndex % profilePairCount;
         const repetitionIndex = Math.floor(matchIndex / profilePairCount);
         const profilePair = options.profilePairs?.[pairIndex];
-        return createMatch(
+        const match = createMatch(
             matchIndex + 1,
             (options.seed + matchIndex) >>> 0,
             (pairIndex + repetitionIndex) % 2 === 0 ? 1 : 2,
@@ -381,6 +382,8 @@ export function runSimulations(
             board,
             monstersById,
         );
+        onMatchComplete?.(index + 1);
+        return match;
     });
     const wins: Record<PlayerId, number> = { 1: 0, 2: 0 };
     const winsByStartingPlayer: Record<PlayerId, number> = { 1: 0, 2: 0 };

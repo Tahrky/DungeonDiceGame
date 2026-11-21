@@ -69,6 +69,14 @@ describe("empreintes et compatibilité des entraînements", () => {
             },
             fingerprint,
         );
+        const olderWeightSchema = compareTrainingCompatibility(
+            {
+                ...fingerprint,
+                schemaVersion: 2,
+                weightsSchemaVersion: "1",
+            },
+            fingerprint,
+        );
         const changedReportSchema = compareTrainingCompatibility(
             {
                 ...fingerprint,
@@ -83,6 +91,8 @@ describe("empreintes et compatibilité des entraînements", () => {
         expect(changedConversion.affectedGroups).toEqual(["combat", "economy", "movement"]);
         expect(changedEngine.level).toBe("incompatible");
         expect(changedEngine.differences[0]).toContain("rulesEngineVersion");
+        expect(olderWeightSchema.level).toBe("partial");
+        expect(olderWeightSchema.affectedGroups).toEqual(["placement", "movement"]);
         expect(changedReportSchema.level).toBe("incompatible");
         expect(changedReportSchema.differences[0]).toContain("schemaVersion");
         expect(legacy.level).toBe("legacy");

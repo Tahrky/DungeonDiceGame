@@ -4,7 +4,13 @@ import type { SimulationWorkerRequest, SimulationWorkerResponse } from "./worker
 self.addEventListener("message", (event: MessageEvent<SimulationWorkerRequest>) => {
     const { options, configuration, startIndex } = event.data;
     try {
-        const result = runSimulations(options, configuration, undefined, startIndex);
+        const result = runSimulations(options, configuration, undefined, startIndex, (completedGames) =>
+            self.postMessage({
+                type: "progress",
+                startIndex,
+                completedGames,
+            } satisfies SimulationWorkerResponse),
+        );
         self.postMessage({
             type: "complete",
             startIndex,

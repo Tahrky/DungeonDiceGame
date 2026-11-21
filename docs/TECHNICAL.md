@@ -223,6 +223,21 @@ Lorsqu’une règle, une donnée de gameplay ou une méthode d’évaluation cha
 constante de version correspondante dans `src/simulation/trainingVersioning.ts`. Les éléments
 cosmétiques des monstres et l’identifiant du plateau sont volontairement exclus des empreintes.
 
+### Analyse des routes et coordination défensive
+
+`src/game/routeAnalysis.ts` analyse les routes potentielles sur la grille, leurs alternatives proches
+et leurs cases critiques. Cette analyse sert au score de blocage, au placement et à l’évaluation
+stratégique; elle ne remplace pas le déplacement légal. Les déplacements continuent d’utiliser les
+helpers partagés de `src/game/monsterActions.ts` dans le jeu et dans le simulateur. En jeu, les
+obstacles actifs de la scène sont fournis à l’analyse; le simulateur utilise les cases bloquées de
+son plateau, puisqu’il ne simule pas la création d’obstacles de scène.
+
+La tactique défensive distribue des cibles de périmètre distinctes selon les approches ouvertes et
+réévalue les rôles après chaque déplacement simulé. Les nouveaux multiplicateurs de route et de
+coordination sont stockés dans le schéma de poids version 2. Les anciens poids manquants sont
+complétés par la valeur neutre; toutefois, un changement de version d’évaluation ou de simulateur
+rend un ancien rapport incompatible pour le transfert d’entraînement sans autorisation explicite.
+
 ### Recherche tactique
 
 La recherche tactique distingue explicitement trois réglages :

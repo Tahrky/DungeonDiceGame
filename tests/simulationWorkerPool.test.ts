@@ -119,6 +119,25 @@ describe("pool de workers de simulation", () => {
         expect(merged.options).toEqual(options);
     });
 
+    it("signale la fin de chaque match dans un lot", () => {
+        const progress: number[] = [];
+        runSimulations(
+            {
+                games: 3,
+                seed: 42,
+                maxTurns: 1,
+                profile1: "cheap",
+                profile2: "offensive",
+            },
+            getDefaultGameConfiguration(),
+            undefined,
+            7,
+            (completedMatches) => progress.push(completedMatches),
+        );
+
+        expect(progress).toEqual([1, 2, 3]);
+    });
+
     it("refuse de fusionner un lot incomplet", () => {
         const options = {
             games: 2,

@@ -6,10 +6,10 @@ import type { GameConfiguration } from "../game/gameConfiguration";
 import { BOT_STRATEGY_WEIGHT_KEYS, type BotProfile } from "../game/botStrategy";
 
 export const TRAINING_REPORT_SCHEMA_VERSION = 2;
-export const WEIGHTS_SCHEMA_VERSION = "1";
+export const WEIGHTS_SCHEMA_VERSION = "2";
 export const RULES_ENGINE_VERSION = "1";
-export const EVALUATION_VERSION = "1";
-export const SIMULATOR_VERSION = "1";
+export const EVALUATION_VERSION = "2";
+export const SIMULATOR_VERSION = "2";
 
 export const BOT_WEIGHT_GROUPS = {
     combat: ["baseDamage", "damage", "statusDamage", "kills", "support", "friendlyDamage"],
@@ -21,8 +21,24 @@ export const BOT_WEIGHT_GROUPS = {
         "monsterCost",
         "invocationPriority",
     ],
-    placement: ["territoryExpansion", "defensivePlacement", "pathBlockade", "strategicPlacement"],
-    movement: ["movementObjective", "movementHunt", "movementRoute", "movementThreat"],
+    placement: [
+        "territoryExpansion",
+        "defensivePlacement",
+        "pathBlockade",
+        "routeDenial",
+        "routeRedundancy",
+        "chokepointControl",
+        "strategicPlacement",
+    ],
+    movement: [
+        "movementObjective",
+        "movementHunt",
+        "movementRoute",
+        "movementThreat",
+        "defensiveCoverage",
+        "formationCohesion",
+        "interception",
+    ],
 } as const satisfies Record<string, readonly (typeof BOT_STRATEGY_WEIGHT_KEYS)[number][]>;
 
 export type BotWeightGroup = keyof typeof BOT_WEIGHT_GROUPS;
@@ -246,7 +262,6 @@ export function compareTrainingCompatibility(
         "rulesEngineVersion",
         "evaluationVersion",
         "simulatorVersion",
-        "weightsSchemaVersion",
     ];
     for (const key of engineVersionKeys) {
         if (changed(key)) {
@@ -255,6 +270,13 @@ export function compareTrainingCompatibility(
                     `(${String(previous[key] ?? "indisponible")} → ${current[key]})`,
             );
         }
+    }
+    if (changed("weightsSchemaVersion")) {
+        differences.push(
+            `version des poids (${String(previous.weightsSchemaVersion ?? "indisponible")} → ${current.weightsSchemaVersion})`,
+        );
+        affected.add("placement");
+        affected.add("movement");
     }
 
     const incompatible =

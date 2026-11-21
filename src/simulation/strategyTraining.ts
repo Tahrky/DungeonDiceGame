@@ -352,7 +352,15 @@ function equalWeights(first: BotStrategyWeights, second: BotStrategyWeights): bo
 }
 
 function getTrainableKeys(profile: BotProfile, groups: readonly BotWeightGroup[]): WeightKey[] {
-    const profileKeys = new Set(PROFILE_WEIGHT_KEYS[profile]);
+    const profileKeys = new Set<WeightKey>([
+        ...PROFILE_WEIGHT_KEYS[profile],
+        "routeDenial",
+        "routeRedundancy",
+        "chokepointControl",
+        "defensiveCoverage",
+        "formationCohesion",
+        "interception",
+    ]);
     return [
         ...new Set(
             groups

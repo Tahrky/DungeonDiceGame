@@ -233,6 +233,7 @@ export abstract class GameSceneComputer extends GameSceneComputerConversion {
         );
         const strategicSnapshot: StrategicSnapshot = {
             board: this.board,
+            blockedCells: this.obstacles.map(({ position }) => position),
             health: { ...this.playerHealth },
             initialHealth: this.gameConfiguration.initialPlayerHealth,
             monsters: this.placedMonsters,
@@ -305,6 +306,7 @@ export abstract class GameSceneComputer extends GameSceneComputerConversion {
         const tactic = this.getComputerTactic();
         const strategicSnapshot: StrategicSnapshot = {
             board: this.board,
+            blockedCells: this.obstacles.map(({ position }) => position),
             health: { ...this.playerHealth },
             initialHealth: this.gameConfiguration.initialPlayerHealth,
             monsters: this.placedMonsters,
@@ -473,6 +475,7 @@ export abstract class GameSceneComputer extends GameSceneComputerConversion {
                 const tactic = this.getComputerTactic();
                 const strategicSnapshot: StrategicSnapshot = {
                     board: this.board,
+                    blockedCells: this.obstacles.map(({ position }) => position),
                     health: { ...this.playerHealth },
                     initialHealth: this.gameConfiguration.initialPlayerHealth,
                     monsters: this.placedMonsters,
@@ -503,7 +506,17 @@ export abstract class GameSceneComputer extends GameSceneComputerConversion {
                     objective,
                     enemyPositions,
                     tactic,
-                    createThreatScores(this.board, this.placedMonsters, monster.id),
+                    createThreatScores(
+                        {
+                            ...this.board,
+                            blockedCells: [
+                                ...this.board.blockedCells,
+                                ...this.obstacles.map(({ position }) => position),
+                            ],
+                        },
+                        this.placedMonsters,
+                        monster.id,
+                    ),
                 );
                 if (!movement) break;
 

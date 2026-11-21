@@ -14,10 +14,12 @@ import type {
     PlayerId,
     Position,
 } from "../types/GameTypes";
-import { chooseBotObjective, type BotProfile, type BotTactic } from "./botStrategy";
+import type { BotProfile, BotTactic } from "./botStrategy";
+import { analyzePotentialRoutes } from "./routeAnalysis";
 
 export interface StrategicSnapshot {
     board: BoardDefinition;
+    blockedCells?: readonly Position[];
     health: Record<PlayerId, number>;
     initialHealth: number;
     monsters: readonly PlacedMonster[];
@@ -66,6 +68,17 @@ export function clearAiCaches(): void {
 
 function livingMonsters(snapshot: StrategicSnapshot, player: PlayerId): PlacedMonster[] {
     return snapshot.monsters.filter((monster) => monster.owner === player && monster.currentHp > 0);
+}
+
+function getStrategicBoard(snapshot: StrategicSnapshot): BoardDefinition {
+    return {
+        ...snapshot.board,
+        blockedCells: [
+            ...snapshot.board.blockedCells,
+            ...Object.values(getStartingPositions(snapshot.board)),
+            ...(snapshot.blockedCells ?? []),
+        ],
+    };
 }
 
 export function createThreatScores(
@@ -166,6 +179,86 @@ function getOffenseValue(monster: Monster): number {
     );
 }
 
+function getDefensiveRouteCoverage(
+    board: BoardDefinition,
+    ownBase: Position,
+    enemies: readonly PlacedMonster[],
+): ReadonlyMap<string, number> {
+    const coverage = new Map<string, number>();
+    for (const enemy of enemies) {
+        const routes = analyzePotentialRoutes(board, enemy.position, ownBase);
+        const urgency = 1 / Math.max(1, routes.shortestDistance ?? board.width);
+        for (const cell of routes.nearOptimalCells) {
+            const key = `${cell.x},${cell.y}`;
+            coverage.set(key, (coverage.get(key) ?? 0) + urgency);
+        }
+    }
+    return coverage;
+}
+
+function getDefensiveTarget(
+    board: BoardDefinition,
+    monster: PlacedMonster,
+    ownBase: Position,
+    routeCoverage: ReadonlyMap<string, number>,
+    claimedTargets: ReadonlySet<string>,
+): Position {
+    const blocked = new Set(
+        board.blockedCells.map(({ x, y }) => `${x},${y}`),
+    );
+    const candidates: Position[] = [];
+    for (let y = 0; y < board.height; y++) {
+        for (let x = 0; x < board.width; x++) {
+            const position = { x, y };
+            const distance = getCachedDistance(position, ownBase);
+            const key = `${x},${y}`;
+            if (distance === 3 && !blocked.has(key)) candidates.push(position);
+        }
+    }
+    const unclaimed = candidates.filter(
+        ({ x, y }) => !claimedTargets.has(`${x},${y}`),
+    );
+    const available = unclaimed.length > 0 ? unclaimed : candidates;
+    return (
+        available
+            .map((position) => ({
+                position,
+                score:
+                    (routeCoverage.get(`${position.x},${position.y}`) ?? 0) * 100 -
+                    getCachedDistance(monster.position, position) * 2 -
+                    (claimedTargets.has(`${position.x},${position.y}`) ? 25 : 0),
+            }))
+            .sort(
+                (first, second) =>
+                    second.score - first.score ||
+                    first.position.y - second.position.y ||
+                    first.position.x - second.position.x,
+            )[0]?.position ?? ownBase
+    );
+}
+
+function getRouteCoverage(
+    threats: readonly PlacedMonster[],
+    defenders: readonly PlacedMonster[],
+    protectedBase: Position,
+    board: BoardDefinition,
+): number {
+    let coverage = 0;
+    for (const threat of threats) {
+        const routes = analyzePotentialRoutes(board, threat.position, protectedBase);
+        for (const defender of defenders) {
+            const distance = Math.min(
+                ...routes.nearOptimalCells.map((cell) =>
+                    getCachedDistance(defender.position, cell),
+                ),
+                Number.POSITIVE_INFINITY,
+            );
+            if (distance <= 3) coverage += (4 - distance) / Math.max(1, routes.shortestDistance ?? 1);
+        }
+    }
+    return coverage;
+}
+
 export function assignMonsterRoles(
     snapshot: StrategicSnapshot,
     player: PlayerId,
@@ -177,13 +270,38 @@ export function assignMonsterRoles(
     const allies = livingMonsters(snapshot, player);
     const tactic = snapshot.tactics[player];
     const occupiedTargets = new Set<string>();
+    const routeBoard = getStrategicBoard(snapshot);
+    const defensiveRouteCoverage =
+        tactic === "defense"
+            ? getDefensiveRouteCoverage(routeBoard, ownStart, enemies)
+            : new Map<string, number>();
+    const baseThreatened =
+        tactic === "defense" &&
+        enemies.some(
+            (enemy) =>
+                (analyzePotentialRoutes(routeBoard, enemy.position, ownStart).shortestDistance ??
+                    Number.POSITIVE_INFINITY) <= 5,
+        );
+    const defendersNeeded =
+        tactic !== "defense" || allies.length === 0
+            ? 0
+            : Math.max(
+                  1,
+                  Math.ceil(allies.length * (baseThreatened ? 2 / 3 : 1 / 3)),
+              );
+    let assignedDefenders = 0;
 
     return allies
         .slice()
         .sort((first, second) => {
             const firstSupport = getSupportValue(first.monster);
             const secondSupport = getSupportValue(second.monster);
-            return secondSupport - firstSupport;
+            if (tactic !== "defense") return secondSupport - firstSupport;
+            return (
+                secondSupport - firstSupport ||
+                second.currentHp / second.monster.hp - first.currentHp / first.monster.hp ||
+                first.id.localeCompare(second.id)
+            );
         })
         .map((monster): RoleAssignment => {
             const support = getSupportValue(monster.monster);
@@ -192,7 +310,9 @@ export function assignMonsterRoles(
                 const target = allies
                     .filter(
                         (ally) =>
-                            ally.id !== monster.id && ally.currentHp < ally.monster.hp,
+                            ally.id !== monster.id &&
+                            ally.currentHp < ally.monster.hp &&
+                            !occupiedTargets.has(`${ally.position.x},${ally.position.y}`),
                     )
                     .sort(
                         (first, second) =>
@@ -205,16 +325,32 @@ export function assignMonsterRoles(
                 }
             }
 
-            if (tactic === "defense") {
-                const target = chooseBotObjective(
-                    tactic,
-                    monster.position,
-                    enemyStart,
-                    enemies.map((enemy) => enemy.position),
+            if (tactic === "defense" && assignedDefenders < defendersNeeded) {
+                assignedDefenders++;
+                const target = getDefensiveTarget(
+                    routeBoard,
+                    monster,
                     ownStart,
+                    defensiveRouteCoverage,
+                    occupiedTargets,
                 );
                 if (target) occupiedTargets.add(`${target.x},${target.y}`);
                 return { monsterId: monster.id, role: "defense", target };
+            }
+            if (tactic === "defense" && enemies.length > 0) {
+                const target = enemies
+                    .filter(
+                        (enemy) => !occupiedTargets.has(`${enemy.position.x},${enemy.position.y}`),
+                    )
+                    .sort(
+                        (first, second) =>
+                            getCachedDistance(monster.position, first.position) -
+                            getCachedDistance(monster.position, second.position),
+                    )[0]?.position;
+                if (target) {
+                    occupiedTargets.add(`${target.x},${target.y}`);
+                    return { monsterId: monster.id, role: "hunt", target };
+                }
             }
 
             if (tactic === "hunt") {
@@ -254,11 +390,20 @@ export function createStrategicCellScorer(
 ): (position: Position) => number {
     const opponent: PlayerId = player === 1 ? 2 : 1;
     const starts = getStartingPositions(snapshot.board);
+    const routeBoard = getStrategicBoard(snapshot);
     const ownStart = starts[player];
     const enemyStart = starts[opponent];
     const enemyPositions = livingMonsters(snapshot, opponent).map((monster) => monster.position);
+    const approachCoverage =
+        snapshot.tactics[player] === "defense"
+            ? getDefensiveRouteCoverage(
+                  routeBoard,
+                  ownStart,
+                  livingMonsters(snapshot, opponent),
+              )
+            : new Map<string, number>();
     const blockers = [
-        ...snapshot.board.blockedCells,
+        ...routeBoard.blockedCells,
         ...snapshot.monsters
             .filter((monster) => monster.currentHp > 0)
             .map((monster) => monster.position),
@@ -283,6 +428,7 @@ export function createStrategicCellScorer(
 
         if (snapshot.tactics[player] === "defense") {
             score += -Math.abs(ownDistance - 3) * 4;
+            score += (approachCoverage.get(key) ?? 0) * 3;
         } else if (snapshot.tactics[player] === "offense") {
             score += (snapshot.board.width - enemyDistance) * 3;
         } else if (snapshot.tactics[player] === "hunt") {
@@ -349,7 +495,20 @@ export function evaluateStrategicState(snapshot: StrategicSnapshot): number {
         enemies.flatMap((monster) => monster.cells.map(({ x, y }) => `${x},${y}`)),
     ).size;
     const territoryScore = (ownTerritory - enemyTerritory) * 0.8;
-
+    const routeBoard = getStrategicBoard(snapshot);
+    const routeScore =
+        getRouteCoverage(
+            enemies,
+            own,
+            getStartingPositions(snapshot.board)[player],
+            routeBoard,
+        ) -
+        getRouteCoverage(
+            own,
+            enemies,
+            getStartingPositions(snapshot.board)[opponent],
+            routeBoard,
+        );
     const ownResources = Object.values(snapshot.reserves[player]).reduce(
         (total, amount) => total + amount,
         0,
@@ -391,6 +550,7 @@ export function evaluateStrategicState(snapshot: StrategicSnapshot): number {
         baseScore +
         armyScore * weight +
         territoryScore * weight +
+        routeScore * 2 * weight +
         resourceScore +
         tacticalScore +
         eliminationScore * weight

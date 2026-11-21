@@ -2,10 +2,14 @@ import type { DiceReserve, DiceSymbol, Monster, PlayerId, Position } from "../ty
 import {
     getGridDistance,
     getMovementDistanceMap,
-    getMovementPathMap,
     hasLineOfSight,
     type MovementOptions,
 } from "./monsterActions";
+import {
+    analyzeLegalMovementRoutes,
+    analyzePotentialRoutes,
+    getShortestRouteDistance,
+} from "./routeAnalysis";
 
 export const BOT_PROFILES = [
     "balanced",
@@ -36,11 +40,17 @@ export interface BotStrategyWeights {
     territoryExpansion: number;
     defensivePlacement: number;
     pathBlockade: number;
+    routeDenial: number;
+    routeRedundancy: number;
+    chokepointControl: number;
     strategicPlacement: number;
     movementObjective: number;
     movementHunt: number;
     movementRoute: number;
     movementThreat: number;
+    defensiveCoverage: number;
+    formationCohesion: number;
+    interception: number;
 }
 
 export type BotStrategyWeightMap = Partial<Record<BotProfile, BotStrategyWeights>>;
@@ -61,11 +71,17 @@ export const BOT_STRATEGY_WEIGHT_KEYS = [
     "territoryExpansion",
     "defensivePlacement",
     "pathBlockade",
+    "routeDenial",
+    "routeRedundancy",
+    "chokepointControl",
     "strategicPlacement",
     "movementObjective",
     "movementHunt",
     "movementRoute",
     "movementThreat",
+    "defensiveCoverage",
+    "formationCohesion",
+    "interception",
 ] as const satisfies readonly (keyof BotStrategyWeights)[];
 
 export const DEFAULT_BOT_STRATEGY_WEIGHTS: Readonly<BotStrategyWeights> = Object.freeze({
@@ -84,11 +100,17 @@ export const DEFAULT_BOT_STRATEGY_WEIGHTS: Readonly<BotStrategyWeights> = Object
     territoryExpansion: 1,
     defensivePlacement: 1,
     pathBlockade: 1,
+    routeDenial: 1,
+    routeRedundancy: 1,
+    chokepointControl: 1,
     strategicPlacement: 1,
     movementObjective: 1,
     movementHunt: 1,
     movementRoute: 1,
     movementThreat: 1,
+    defensiveCoverage: 1,
+    formationCohesion: 1,
+    interception: 1,
 });
 
 export const MIN_BOT_STRATEGY_WEIGHT = 0.25;
@@ -498,134 +520,93 @@ export function createPathBlockadeScorer(
     enemyBase: Position,
     ownPathCells: readonly Position[],
     blockedCells: readonly Position[],
+    weights: Readonly<BotStrategyWeights> = DEFAULT_BOT_STRATEGY_WEIGHTS,
 ): (candidateCells: readonly Position[]) => number {
-    const cellCount = boardWidth * boardHeight;
-    const ownBaseIndex = ownBase.y * boardWidth + ownBase.x;
-    const enemyBaseIndex = enemyBase.y * boardWidth + enemyBase.x;
-    const getCellIndex = ({ x, y }: Position): number =>
-        x < 0 || y < 0 || x >= boardWidth || y >= boardHeight ? -1 : y * boardWidth + x;
-    const blocked = new Uint8Array(cellCount);
-    for (const cell of [...ownPathCells, ...blockedCells]) {
-        const index = getCellIndex(cell);
-        if (index >= 0 && index !== ownBaseIndex && index !== enemyBaseIndex) blocked[index] = 1;
-    }
-    const addedIndexes = new Uint32Array(cellCount);
-
-    const neighbors = Array.from({ length: cellCount }, (_, index) => {
-        const x = index % boardWidth;
-        const y = Math.floor(index / boardWidth);
-        const adjacent: number[] = [];
-        if (x > 0) adjacent.push(index - 1);
-        if (x + 1 < boardWidth) adjacent.push(index + 1);
-        if (y > 0) adjacent.push(index - boardWidth);
-        if (y + 1 < boardHeight) adjacent.push(index + boardWidth);
-        return adjacent;
-    });
-    const visited = new Uint32Array(cellCount);
-    const distances = new Uint32Array(cellCount);
-    const queue = new Uint32Array(cellCount);
-    const shortestRoute = new Uint8Array(cellCount);
-    let generation = 0;
-
-    const getRouteLength = (
-        additionalBlocks: readonly Position[],
-        routeMask?: Uint8Array,
-    ): number | null => {
-        let addedCount = 0;
-        for (const cell of additionalBlocks) {
-            const index = getCellIndex(cell);
-            if (
-                index < 0 ||
-                index === ownBaseIndex ||
-                index === enemyBaseIndex ||
-                blocked[index] === 1
-            ) {
-                continue;
-            }
-            blocked[index] = 1;
-            addedIndexes[addedCount++] = index;
-        }
-
-        generation = (generation + 1) >>> 0;
-        if (generation === 0) {
-            visited.fill(0);
-            generation = 1;
-        }
-        let queueStart = 0;
-        let queueEnd = 0;
-        queue[queueEnd++] = enemyBaseIndex;
-        visited[enemyBaseIndex] = generation;
-        distances[enemyBaseIndex] = 0;
-        let routeLength: number | null = null;
-
-        while (queueStart < queueEnd) {
-            const current = queue[queueStart++]!;
-            if (current === ownBaseIndex) {
-                routeLength = distances[current]!;
-                if (routeMask) {
-                    let pathIndex = current;
-                    routeMask[pathIndex] = 1;
-                    while (pathIndex !== enemyBaseIndex) {
-                        const previousDistance = distances[pathIndex]! - 1;
-                        let previousIndex = -1;
-                        for (const neighbor of neighbors[pathIndex]!) {
-                            if (
-                                visited[neighbor] === generation &&
-                                distances[neighbor] === previousDistance
-                            ) {
-                                previousIndex = neighbor;
-                                break;
-                            }
-                        }
-                        if (previousIndex < 0) {
-                            throw new Error("Unable to reconstruct the shortest blockade route.");
-                        }
-                        pathIndex = previousIndex;
-                        routeMask[pathIndex] = 1;
-                    }
-                }
-                break;
-            }
-            const nextDistance = distances[current]! + 1;
-            for (const neighbor of neighbors[current]!) {
-                if (blocked[neighbor] === 1 || visited[neighbor] === generation) continue;
-                visited[neighbor] = generation;
-                distances[neighbor] = nextDistance;
-                queue[queueEnd++] = neighbor;
-            }
-        }
-
-        for (let index = 0; index < addedCount; index++) {
-            blocked[addedIndexes[index]!] = 0;
-        }
-        return routeLength;
+    const board = {
+        id: "route-analysis",
+        width: boardWidth,
+        height: boardHeight,
+        blockedCells: [],
     };
+    const fixedBlocks = [...ownPathCells, ...blockedCells];
+    const current = analyzePotentialRoutes(board, enemyBase, ownBase, {
+        blockedCells: fixedBlocks,
+    });
+    if (current.shortestDistance === null) return () => 0;
 
-    const currentRouteLength = getRouteLength([], shortestRoute);
-    if (currentRouteLength === null) return () => 0;
+    const relevantCells = new Set(
+        current.nearOptimalCells.map(({ x, y }) => `${x},${y}`),
+    );
+    const criticalCells = new Set(
+        current.criticalCells.map(({ x, y }) => `${x},${y}`),
+    );
+    const fixedCellKeys = new Set(fixedBlocks.map(({ x, y }) => `${x},${y}`));
+    const protectedCellKeys = new Set([
+        `${ownBase.x},${ownBase.y}`,
+        `${enemyBase.x},${enemyBase.y}`,
+    ]);
 
     return (candidateCells) => {
-        let blocksShortestRoute = false;
-        for (const cell of candidateCells) {
-            const index = getCellIndex(cell);
-            if (
-                index < 0 ||
-                index === ownBaseIndex ||
-                index === enemyBaseIndex ||
-                blocked[index] === 1
-            ) {
-                continue;
-            }
-            if (shortestRoute[index] === 1) {
-                blocksShortestRoute = true;
-                break;
-            }
+        const validCandidates = [
+            ...new Map(
+                candidateCells
+                    .filter(
+                        ({ x, y }) =>
+                            x >= 0 &&
+                            y >= 0 &&
+                            x < boardWidth &&
+                            y < boardHeight &&
+                            !fixedCellKeys.has(`${x},${y}`) &&
+                            !protectedCellKeys.has(`${x},${y}`),
+                    )
+                    .map((cell) => [`${cell.x},${cell.y}`, cell] as const),
+            ).values(),
+        ];
+        if (
+            validCandidates.length === 0 ||
+            !validCandidates.some(({ x, y }) => relevantCells.has(`${x},${y}`))
+        ) {
+            return 0;
         }
-        if (!blocksShortestRoute) return 0;
 
-        const nextRouteLength = getRouteLength(candidateCells);
-        if (nextRouteLength === null) return 500;
-        return Math.max(0, nextRouteLength - currentRouteLength) * 80;
+        const candidateKeys = new Set(
+            validCandidates.map(({ x, y }) => `${x},${y}`),
+        );
+        const criticalHits = validCandidates.filter(({ x, y }) =>
+            criticalCells.has(`${x},${y}`),
+        ).length;
+        const distanceAfterBlockade =
+            criticalHits > 0
+                ? getShortestRouteDistance(
+                      board,
+                      enemyBase,
+                      ownBase,
+                      [...fixedBlocks, ...validCandidates],
+                  )
+                : current.shortestDistance;
+        if (distanceAfterBlockade === null) {
+            return Math.min(500, 500 * weights.routeDenial);
+        }
+        const costIncrease = Math.max(
+            0,
+            distanceAfterBlockade - current.shortestDistance,
+        );
+        const lostRouteArea =
+            validCandidates.filter(({ x, y }) => relevantCells.has(`${x},${y}`)).length /
+            Math.max(1, current.nearOptimalCellCount);
+        const lostAlternatives =
+            current.alternativeRoutes.filter((route) =>
+                route.cells.some(({ x, y }) => candidateKeys.has(`${x},${y}`)),
+            ).length / Math.max(1, current.alternativeRoutes.length);
+        const chokepointRatio =
+            criticalHits / Math.max(1, current.criticalCells.length);
+
+        return Math.min(
+            500,
+            costIncrease * 80 * weights.routeDenial +
+                (lostRouteArea + lostAlternatives) * 40 * weights.routeRedundancy +
+                chokepointRatio * 40 * weights.chokepointControl,
+        );
     };
 }
 
@@ -719,7 +700,7 @@ export function findObjectiveMovement(
         (cell) => getGridDistance(cell, objective) === nearestGoalDistance,
     );
     const distances = getMovementDistanceMap(frontier, options);
-    const paths = getMovementPathMap(options);
+    const { paths } = analyzeLegalMovementRoutes(options);
     const currentDistance = distances.get(getKey(options.source));
     if (currentDistance === undefined) return null;
 
@@ -737,13 +718,29 @@ export function findObjectiveMovement(
         const objectiveProgress =
             getGridDistance(options.source, objective) - getGridDistance(destination, objective);
         const enemyProgress =
-            tactic === "hunt" && enemyPositions.length
+            (tactic === "hunt" || tactic === "defense") && enemyPositions.length
                 ? Math.min(
                       ...enemyPositions.map((enemy) => getGridDistance(options.source, enemy)),
                   ) -
                   Math.min(...enemyPositions.map((enemy) => getGridDistance(destination, enemy)))
                 : 0;
-        if (routeProgress <= 0 && objectiveProgress <= 0 && enemyProgress <= 0) {
+        const allies =
+            tactic === "defense"
+                ? options.occupiedCells.filter((cell) => !hostile.has(getKey(cell)))
+                : [];
+        const currentAllyDistance = allies.length
+            ? Math.min(...allies.map((ally) => getGridDistance(options.source, ally)))
+            : 0;
+        const destinationAllyDistance = allies.length
+            ? Math.min(...allies.map((ally) => getGridDistance(destination, ally)))
+            : 0;
+        const cohesionProgress = currentAllyDistance - destinationAllyDistance;
+        if (
+            routeProgress <= 0 &&
+            objectiveProgress <= 0 &&
+            enemyProgress <= 0 &&
+            cohesionProgress <= 0
+        ) {
             continue;
         }
 
@@ -753,8 +750,13 @@ export function findObjectiveMovement(
         const threat = threatScores.get(getKey(destination)) ?? 0;
         const score =
             objectiveProgress * 100 * weights.movementObjective +
-            enemyProgress * 60 * weights.movementHunt +
+            enemyProgress *
+                (tactic === "hunt" ? 60 * weights.movementHunt : 12 * weights.interception) +
             routeProgress * 10 * weights.movementRoute -
+            (tactic === "defense"
+                ? Math.max(0, routeProgress) * 10 * weights.defensiveCoverage
+                : 0) +
+            cohesionProgress * 4 * weights.formationCohesion -
             threat * 20 * weights.movementThreat;
         if (score <= bestScore) continue;
         bestScore = score;
