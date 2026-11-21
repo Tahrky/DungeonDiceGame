@@ -1,5 +1,12 @@
 import type { DiceReserve, DiceSymbol, DieDefinition, RolledDie } from "../types/GameTypes";
 
+export const SYMBOL_CONVERSION_RULES = Object.freeze({
+    sourceSymbolsRequired: 2,
+    convertedSymbolsProduced: 1,
+    sourceAndTargetMustDiffer: true,
+    reservePersistsBetweenTurns: true,
+});
+
 export function getRollableDieFaces(
     die: DieDefinition,
     excludeInvocation: boolean,
@@ -81,10 +88,15 @@ export function convertReservedSymbols(
     selectedSymbols: readonly DiceSymbol[],
     targetSymbol: DiceSymbol,
 ): boolean {
-    if (selectedSymbols.length !== 2) return false;
+    if (selectedSymbols.length !== SYMBOL_CONVERSION_RULES.sourceSymbolsRequired) return false;
     const [firstSymbol, secondSymbol] = selectedSymbols;
     if (!firstSymbol || !secondSymbol) return false;
-    if (selectedSymbols.includes(targetSymbol)) return false;
+    if (
+        SYMBOL_CONVERSION_RULES.sourceAndTargetMustDiffer &&
+        selectedSymbols.includes(targetSymbol)
+    ) {
+        return false;
+    }
     if (firstSymbol === secondSymbol) {
         if (reserve[firstSymbol] < 2) return false;
     } else if (reserve[firstSymbol] < 1 || reserve[secondSymbol] < 1) {
@@ -93,6 +105,6 @@ export function convertReservedSymbols(
 
     reserve[firstSymbol]--;
     reserve[secondSymbol]--;
-    reserve[targetSymbol]++;
+    reserve[targetSymbol] += SYMBOL_CONVERSION_RULES.convertedSymbolsProduced;
     return true;
 }

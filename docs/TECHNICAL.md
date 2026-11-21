@@ -174,23 +174,40 @@ Le simulateur reproductible s’exécute sans interface :
 npm run simulate -- --games 20 --seed 731 --profile1 tracker --profile2 defensive --light-results
 ```
 
-Le réglage hors ligne explore les multiplicateurs des heuristiques de combat, de sélection des
-monstres, de placement, de déplacement et de priorité d’invocation. Il ne modifie ni les règles ni
-les options légales. Le score d’optimisation vaut une victoire = 1, une nulle = 0,5 et une défaite =
-0; les métriques secondaires sont uniquement diagnostiques. Les candidats sont sélectionnés sur
-les seeds d’entraînement. Des seeds générées dans un flux séparé servent ensuite à comparer la
-référence et le candidat; elles ne participent pas au réglage.
+Le réglage hors ligne explore les multiplicateurs des heuristiques de combat, d’économie, de
+placement et de déplacement. Il ne modifie ni les règles ni les options légales. Le score vaut une
+victoire = 1, une nulle = 0,5 et une défaite = 0; les rapports incluent aussi les métriques
+diagnostiques par profil et adversaire, l’intervalle de confiance et la différence appariée.
+L’optimisation utilise les seeds d’entraînement, le choix du meilleur candidat se fait sur des seeds
+de sélection distinctes, et la comparaison finale se fait sur un troisième lot de validation.
+Chaque partition est reproductible et leurs paires de seeds ne se chevauchent pas.
 
 Exemple avec un budget réduit :
 
 ```sh
-npm run simulate -- --train-bots --seed 731 --max-turns 10 --training-seeds 3 --validation-seeds 3 --generations 2 --population 3 --output simulation-results/bot-training.json
+npm run simulate -- --train-bots --seed 731 --max-turns 10 --training-seeds 3 --selection-seeds 3 --validation-seeds 3 --generations 2 --population 3
 ```
 
-Par défaut, tous les profils sont réglés séparément contre trois profils adverses représentatifs;
-`--training-profiles balanced,tracker` permet de limiter l’expérience. Le rapport contient les
-seeds, adversaires, résultats avant/après et poids candidats. L’entraînement n’écrase jamais les
-valeurs par défaut. Pour tester explicitement un rapport dans une simulation :
+Par défaut, tous les profils sont évalués séparément contre les six autres profils, avec les deux
+ordres de départ. `--training-profiles balanced,tracker` limite l’expérience. Les modes sont :
+
+- `--training-mode default` : part des poids neutres immuables;
+- `--training-mode warmStart --previous-weights <fichier>` : part des poids précédents;
+- `--training-mode hybrid --previous-weights <fichier>` : compare poids neutres, poids précédents
+  et mutations (population minimale de cinq).
+
+Les rapports versionnés conservent les empreintes des règles, dés, conversions, monstres, motifs et
+géométrie du plateau, ainsi que les versions du moteur, de l’évaluation et du schéma des poids.
+Une incompatibilité moteur/schéma bloque le transfert, sauf autorisation explicite avec
+`--allow-incompatible-transfer`. Les empreintes partielles ciblent les groupes concernés; on peut
+limiter ou remplacer les groupes avec `--training-groups combat,economy,placement,movement`.
+Les configurations JSON enveloppées `{ "configuration": ..., "board": ... }` sont acceptées pour
+entraîner et simuler avec le même plateau. Les sorties par défaut ont un nom unique; `--output`
+refuse d’écraser un fichier existant.
+
+Le rapport contient les seeds, candidats initiaux et leur origine, adversaires, comparaisons avant
+et après, résultats par matchup et poids retenus. Les poids par défaut ne sont jamais modifiés.
+Pour tester explicitement un rapport dans une simulation :
 
 ```sh
 npm run simulate -- --games 20 --seed 9001 --profile1 tracker --profile2 defensive --strategy-weights simulation-results/bot-training.json
@@ -201,3 +218,22 @@ sensiblement les profils concernés; les petits échantillons, notamment ceux ri
 suffisent pas à établir un progrès. `--record-decisions` ajoute aux résultats légers un journal
 compact des options d’attaque examinées, de leurs caractéristiques observables, de leurs scores et
 du choix. Cette instrumentation est désactivée par défaut.
+
+Lorsqu’une règle, une donnée de gameplay ou une méthode d’évaluation change, incrémenter la
+constante de version correspondante dans `src/simulation/trainingVersioning.ts`. Les éléments
+cosmétiques des monstres et l’identifiant du plateau sont volontairement exclus des empreintes.
+
+### Recherche tactique
+
+La recherche tactique distingue explicitement trois réglages :
+
+- `searchDepth` compte les phases complètes explorées : une profondeur de 1 compare l’action
+  immédiate puis une réponse adverse, une profondeur de 2 ajoute une phase complète suivante ;
+- `branchWidth` limite le nombre d’actions conservées à chaque niveau ;
+- `nodeBudget` borne le nombre total de nœuds évalués.
+
+Le mode `--advanced` utilise par défaut une profondeur de 2, une largeur de 8 et un budget de 600.
+Les options `--search-depth`, `--branch-width` et `--node-budget` permettent des configurations
+bornées de 1 à 3 phases, 1 à 12 branches et 20 à 10 000 nœuds. Les statistiques enregistrées
+incluent les décisions recherchées, les changements de choix, les nœuds explorés, la profondeur
+atteinte et les branches situées au-delà des trois premières.

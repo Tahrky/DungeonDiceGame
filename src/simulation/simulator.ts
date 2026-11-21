@@ -28,6 +28,7 @@ import { convertReservedSymbols } from "../game/diceResources";
 import { getMonsterSymbol, getUniqueMonsterSymbols } from "../game/monsterSymbols";
 import type { BotProfile, MatchResult, SimulationBatchResult, SimulationOptions } from "./types";
 import { BOT_PROFILES } from "./types";
+import { createTrainingFingerprint } from "./trainingVersioning";
 
 function createRandom(seed: number): () => number {
     let value = seed || 0x6d2b79f5;
@@ -91,6 +92,9 @@ function createMatch(
         currentPlayer: startingPlayer,
         debug: options.debug ?? false,
         advancedSearch: options.advanced ?? false,
+        searchDepth: options.searchDepth ?? (options.advanced ? 2 : 1),
+        branchWidth: options.branchWidth ?? (options.advanced ? 8 : 3),
+        nodeBudget: options.nodeBudget ?? (options.advanced ? 600 : 120),
         lightResults: options.lightResults ?? false,
         strategyWeights,
         ...(options.recordDecisionTraces ? { decisionTraces: [] } : {}),
@@ -116,6 +120,9 @@ function createMatch(
         nextMonsterId: 1,
         monstersKilledForVictory: configuration.monstersKilledForVictory,
     };
+    const configuredSearchDepth = state.searchDepth ?? 1;
+    state.statistics[1].maxSearchDepthReached = configuredSearchDepth;
+    state.statistics[2].maxSearchDepthReached = configuredSearchDepth;
 
     for (let turn = 1; turn <= options.maxTurns && state.winner === null; turn++) {
         state.turn = turn;
@@ -318,6 +325,30 @@ export function runSimulations(
         throw new RangeError("La seed doit être un entier non signé de 32 bits.");
     }
     if (
+        options.searchDepth !== undefined &&
+        (!Number.isInteger(options.searchDepth) ||
+            options.searchDepth < 1 ||
+            options.searchDepth > 3)
+    ) {
+        throw new RangeError("searchDepth doit être un entier compris entre 1 et 3.");
+    }
+    if (
+        options.branchWidth !== undefined &&
+        (!Number.isInteger(options.branchWidth) ||
+            options.branchWidth < 1 ||
+            options.branchWidth > 12)
+    ) {
+        throw new RangeError("branchWidth doit être un entier compris entre 1 et 12.");
+    }
+    if (
+        options.nodeBudget !== undefined &&
+        (!Number.isInteger(options.nodeBudget) ||
+            options.nodeBudget < 20 ||
+            options.nodeBudget > 10000)
+    ) {
+        throw new RangeError("nodeBudget doit être un entier compris entre 20 et 10000.");
+    }
+    if (
         options.profilePairs !== undefined &&
         (options.profilePairs.length === 0 ||
             options.profilePairs.some(
@@ -371,6 +402,7 @@ export function runSimulations(
     return {
         schemaVersion: 1,
         createdAt: new Date().toISOString(),
+        fingerprint: createTrainingFingerprint(configuration, board),
         options,
         configuration,
         board,

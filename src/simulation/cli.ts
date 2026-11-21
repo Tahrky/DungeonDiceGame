@@ -6,6 +6,7 @@ import {
     parseGameConfiguration,
     type GameConfiguration,
 } from "../game/gameConfiguration";
+import { getDefaultBoard, parseBoardDefinition, type BoardDefinition } from "../game/boards";
 import { parseDeck } from "../game/decks";
 import { parseBotStrategyWeightMap } from "../game/botStrategy";
 import { runCrossProfileTournament, runSimulations } from "./simulator";
@@ -18,6 +19,13 @@ import {
     type SimulationOptions,
 } from "./types";
 import { formatElapsedDuration } from "./formatElapsedDuration";
+import {
+    BOT_WEIGHT_GROUPS,
+    compareTrainingCompatibility,
+    createTrainingFingerprint,
+    type BotWeightGroup,
+    type TrainingMode,
+} from "./trainingVersioning";
 
 const HELP = `Simulateur Dungeon Dice (sans interface)
 
@@ -36,12 +44,21 @@ Options :
   --output <fichier>   Chemin du JSON de sortie
   --strategy-weights <fichier> Charge les poids d’un rapport d’entraînement
   --record-decisions   Enregistre les options légales et les scores d’attaque
+  --advanced           Active la recherche tactique avancée
+  --search-depth <n>   Phases complètes explorées (1 à 3)
+  --branch-width <n>   Branches conservées par niveau (1 à 12)
+  --node-budget <n>    Nombre maximal de nœuds explorés
   --debug              Ajoute les détails des décisions IA (avec historique complet)
   --light-results      N'enregistre pas l'historique détaillé des matchs
   --cross-profile      Lance les confrontations croisées des sept profils
   --train-bots         Ajuste hors ligne les poids stratégiques des profils
   --training-profiles  Profils à entraîner, séparés par des virgules
+  --training-mode <mode> Mode default, warmStart ou hybrid
+  --previous-weights <fichier> Rapport de poids précédent à comparer ou reprendre
+  --allow-incompatible-transfer Force le transfert d'un rapport legacy/incompatible
+  --training-groups <groupes> Groupes à entraîner, séparés par des virgules
   --training-seeds     Nombre de seeds d’entraînement (défaut : 3)
+  --selection-seeds    Nombre de seeds de sélection indépendantes (défaut : 3)
   --validation-seeds   Nombre de seeds de validation (défaut : 3)
   --generations        Générations de réglage (défaut : 2)
   --population         Candidats évalués par génération (défaut : 3)
@@ -87,6 +104,26 @@ function parseProfileList(value: string): BotProfile[] {
         );
     }
     return profiles as BotProfile[];
+}
+
+function parseTrainingMode(value: string): TrainingMode {
+    if (value === "default" || value === "warmStart" || value === "hybrid") return value;
+    throw new Error("--training-mode doit être default, warmStart ou hybrid.");
+}
+
+function parseWeightGroups(value: string): BotWeightGroup[] {
+    const groups = value.split(",").map((group) => group.trim());
+    const knownGroups = Object.keys(BOT_WEIGHT_GROUPS);
+    if (
+        groups.length === 0 ||
+        groups.some((group) => !knownGroups.includes(group)) ||
+        new Set(groups).size !== groups.length
+    ) {
+        throw new Error(
+            `--training-groups doit être une liste distincte de : ${knownGroups.join(", ")}.`,
+        );
+    }
+    return groups as BotWeightGroup[];
 }
 
 function getOptionalValue(args: string[], name: string): string | undefined {
@@ -135,6 +172,11 @@ function parseArguments(
         "--output",
         "--strategy-weights",
         "--record-decisions",
+        "--advanced",
+        "--search-depth",
+        "--branch-width",
+        "--node-budget",
+        "--allow-incompatible-transfer",
         "--debug",
         "--light-results",
         "--cross-profile",
@@ -175,6 +217,16 @@ function parseArguments(
         debug: args.includes("--debug"),
         lightResults,
         recordDecisionTraces: args.includes("--record-decisions"),
+        advanced: args.includes("--advanced"),
+        searchDepth: args.includes("--search-depth")
+            ? parseInteger(readOption(args, "--search-depth", "1"), "--search-depth", 1, 3)
+            : undefined,
+        branchWidth: args.includes("--branch-width")
+            ? parseInteger(readOption(args, "--branch-width", "3"), "--branch-width", 1, 12)
+            : undefined,
+        nodeBudget: args.includes("--node-budget")
+            ? parseInteger(readOption(args, "--node-budget", "120"), "--node-budget", 20, 10000)
+            : undefined,
         strategyWeights,
         ...(configurationFile === undefined ? {} : { configurationFile }),
         deck1: parseOptionalDeck(
@@ -191,8 +243,11 @@ function parseArguments(
     return { options, output: getOptionalValue(args, "--output") };
 }
 
-async function loadConfiguration(path: string | undefined): Promise<GameConfiguration> {
-    if (!path) return getDefaultGameConfiguration();
+async function loadConfiguration(path: string | undefined): Promise<{
+    configuration: GameConfiguration;
+    board: BoardDefinition;
+}> {
+    if (!path) return { configuration: getDefaultGameConfiguration(), board: getDefaultBoard() };
     const contents = await readFile(resolve(path), "utf8");
     let value: unknown;
     try {
@@ -202,17 +257,37 @@ async function loadConfiguration(path: string | undefined): Promise<GameConfigur
             cause: error,
         });
     }
+    const envelope =
+        typeof value === "object" && value !== null && !Array.isArray(value)
+            ? (value as Record<string, unknown>)
+            : undefined;
     const configurationValue =
-        typeof value === "object" && value !== null && "configuration" in value
-            ? value.configuration
-            : value;
+        envelope && "configuration" in envelope ? envelope.configuration : value;
     const configuration = parseGameConfiguration(configurationValue);
     if (!configuration) throw new Error(`Configuration de jeu invalide : ${path}.`);
-    return configuration;
+    const board =
+        envelope && "board" in envelope ? parseBoardDefinition(envelope.board) : getDefaultBoard();
+    if (!board) throw new Error(`Définition de plateau invalide : ${path}.`);
+    return { configuration, board };
+}
+
+async function loadPreviousWeights(path: string | undefined): Promise<unknown> {
+    if (!path) return undefined;
+    const contents = await readFile(resolve(path), "utf8");
+    try {
+        return JSON.parse(contents) as unknown;
+    } catch (error) {
+        throw new Error(`Le fichier de poids ${path} ne contient pas un JSON valide.`, {
+            cause: error,
+        });
+    }
 }
 
 async function loadStrategyWeights(
     path: string | undefined,
+    configuration: GameConfiguration,
+    board: BoardDefinition,
+    allowIncompatibleTransfer: boolean,
 ): Promise<BotStrategyWeightMap | undefined> {
     if (!path) return undefined;
     const contents = await readFile(resolve(path), "utf8");
@@ -228,6 +303,38 @@ async function loadStrategyWeights(
         typeof value === "object" && value !== null && "weights" in value ? value.weights : value;
     const weights = parseBotStrategyWeightMap(weightValue);
     if (!weights) throw new Error(`Poids stratégiques invalides : ${path}.`);
+    const fingerprint = createTrainingFingerprint(configuration, board);
+    const profiles =
+        typeof value === "object" && value !== null && "profiles" in value
+            ? (value.profiles as Record<string, unknown>)
+            : {};
+    for (const [profile, profileWeights] of Object.entries(weights)) {
+        if (!profileWeights) continue;
+        const profileReport = profiles[profile];
+        const metadata =
+            typeof profileReport === "object" &&
+            profileReport !== null &&
+            "metadata" in profileReport
+                ? (profileReport.metadata as Parameters<typeof compareTrainingCompatibility>[0])
+                : undefined;
+        const compatibility = compareTrainingCompatibility(metadata, fingerprint);
+        if (compatibility.level === "legacy") {
+            console.warn(`Poids « ${profile} » legacy : compatibilité inconnue.`);
+            continue;
+        }
+        if (compatibility.level === "incompatible" && !allowIncompatibleTransfer) {
+            throw new Error(
+                `Poids « ${profile} » incompatibles : ${compatibility.differences.join(", ")}. ` +
+                    `Ajoutez --allow-incompatible-transfer pour forcer leur utilisation.`,
+            );
+        }
+        if (compatibility.level !== "exact") {
+            console.warn(
+                `Poids « ${profile} » : compatibilité ${compatibility.level}; ` +
+                    `différences : ${compatibility.differences.join(", ")}.`,
+            );
+        }
+    }
     return weights;
 }
 
@@ -239,11 +346,18 @@ async function main(): Promise<void> {
             return;
         }
         const configurationFile = getOptionalValue(args, "--config");
-        const configuration = await loadConfiguration(configurationFile);
+        const { configuration, board } = await loadConfiguration(configurationFile);
         if (args.includes("--train-bots")) {
+            const initializationMode = parseTrainingMode(
+                readOption(args, "--training-mode", "default"),
+            );
             const profiles = parseProfileList(
                 readOption(args, "--training-profiles", BOT_PROFILES.join(",")),
             );
+            const previousWeights = await loadPreviousWeights(
+                getOptionalValue(args, "--previous-weights"),
+            );
+            const groupsValue = getOptionalValue(args, "--training-groups");
             const report = trainBotStrategies({
                 seed: parseInteger(readOption(args, "--seed", "731"), "--seed", 0, 0xffff_ffff),
                 maxTurns: parseInteger(
@@ -255,6 +369,12 @@ async function main(): Promise<void> {
                 trainingSeedCount: parseInteger(
                     readOption(args, "--training-seeds", "3"),
                     "--training-seeds",
+                    1,
+                    100,
+                ),
+                selectionSeedCount: parseInteger(
+                    readOption(args, "--selection-seeds", "3"),
+                    "--selection-seeds",
                     1,
                     100,
                 ),
@@ -271,35 +391,68 @@ async function main(): Promise<void> {
                     100,
                 ),
                 populationSize: parseInteger(
-                    readOption(args, "--population", "3"),
+                    readOption(args, "--population", initializationMode === "hybrid" ? "5" : "3"),
                     "--population",
                     1,
                     100,
                 ),
                 profiles,
+                initializationMode,
+                previousWeights,
+                allowIncompatibleTransfer: args.includes("--allow-incompatible-transfer"),
+                ...(groupsValue === undefined ? {} : { groups: parseWeightGroups(groupsValue) }),
+                configuration,
+                board,
+                onNotice: (message) => console.warn(`Avertissement : ${message}`),
                 onProfileComplete: (profile, result) => {
                     console.log(
-                        `${profile} : score validation ${result.baselineValidation.score.toFixed(3)} → ` +
-                            `${result.candidateValidation.score.toFixed(3)} | ` +
-                            `${result.baselineValidation.wins}/${result.baselineValidation.draws}/${result.baselineValidation.losses} → ` +
-                            `${result.candidateValidation.wins}/${result.candidateValidation.draws}/${result.candidateValidation.losses} | ` +
-                            `adoption non automatique`,
+                        `${profile} : validation ${result.baselineValidation.score.toFixed(3)} → ` +
+                            `${result.candidateValidation.score.toFixed(3)}; ` +
+                            `delta apparié ${result.candidateVsReference.mean.toFixed(3)} ` +
+                            `[${result.candidateVsReference.confidenceInterval.lower.toFixed(3)}, ` +
+                            `${result.candidateVsReference.confidenceInterval.upper.toFixed(3)}]; ` +
+                            `${result.validationImproved ? "candidat retenu" : `poids ${result.promotedFrom} conservés`}`,
                     );
                 },
             });
             const outputPath = resolve(
                 getOptionalValue(args, "--output") ??
-                    `simulation-results/bot-training-seed-${report.seed}.json`,
+                    `simulation-results/bot-training-${report.trainingId}.json`,
             );
+            const explicitOutput = getOptionalValue(args, "--output") !== undefined;
             await mkdir(dirname(outputPath), { recursive: true });
-            await writeFile(outputPath, `${JSON.stringify(report, null, 2)}\n`, "utf8");
+            let actualOutputPath = outputPath;
+            let suffix = 2;
+            while (true) {
+                try {
+                    await writeFile(actualOutputPath, `${JSON.stringify(report, null, 2)}\n`, {
+                        encoding: "utf8",
+                        flag: "wx",
+                    });
+                    break;
+                } catch (error) {
+                    const alreadyExists =
+                        typeof error === "object" &&
+                        error !== null &&
+                        "code" in error &&
+                        error.code === "EEXIST";
+                    if (explicitOutput || !alreadyExists) throw error;
+                    const extension = outputPath.endsWith(".json") ? ".json" : "";
+                    const base = extension ? outputPath.slice(0, -extension.length) : outputPath;
+                    actualOutputPath = `${base}-${suffix++}${extension}`;
+                }
+            }
             console.log(
-                `Entraînement terminé en ${report.elapsedMs.toFixed(0)} ms. Rapport : ${outputPath}`,
+                `Entraînement ${report.trainingId} terminé en ${report.elapsedMs.toFixed(0)} ms. ` +
+                    `Rapport : ${actualOutputPath}`,
             );
             return;
         }
         const strategyWeights = await loadStrategyWeights(
             getOptionalValue(args, "--strategy-weights"),
+            configuration,
+            board,
+            args.includes("--allow-incompatible-transfer"),
         );
         const { options, output } = parseArguments(
             args,
@@ -309,7 +462,7 @@ async function main(): Promise<void> {
         );
         if (args.includes("--cross-profile")) {
             const startedAt = performance.now();
-            const tournament = runCrossProfileTournament(options, configuration);
+            const tournament = runCrossProfileTournament(options, configuration, board);
             const elapsedTime = formatElapsedDuration(performance.now() - startedAt);
             const outputPath = resolve(
                 output ?? `simulation-results/cross-profile-seed-${options.seed}.json`,
@@ -332,7 +485,7 @@ async function main(): Promise<void> {
             return;
         }
         const startedAt = performance.now();
-        const result = runSimulations(options, configuration);
+        const result = runSimulations(options, configuration, board);
         const elapsedTime = formatElapsedDuration(performance.now() - startedAt);
         const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
         const outputPath = resolve(

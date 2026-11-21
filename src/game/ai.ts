@@ -317,7 +317,7 @@ export function evaluateStrategicState(snapshot: StrategicSnapshot): number {
     const ownBase = snapshot.health[player];
     const enemyBase = snapshot.health[opponent];
 
-    const baseScore =
+    let baseScore =
         (ownBase - enemyBase) * 18 +
         (snapshot.initialHealth - ownBase) * -2 +
         (snapshot.initialHealth - enemyBase) * 2;
@@ -339,6 +339,8 @@ export function evaluateStrategicState(snapshot: StrategicSnapshot): number {
         0,
     );
     const armyScore = ownArmy - enemyArmy;
+    const eliminationScore =
+        own.length === 0 ? -35 : enemies.length === 0 ? 35 : (own.length - enemies.length) * 2;
 
     const ownTerritory = new Set(
         own.flatMap((monster) => monster.cells.map(({ x, y }) => `${x},${y}`)),
@@ -357,6 +359,10 @@ export function evaluateStrategicState(snapshot: StrategicSnapshot): number {
         0,
     );
     const resourceScore = (ownResources - enemyResources) * 0.25;
+    if (enemyBase <= 0) return 100_000;
+    if (ownBase <= 0) return -100_000;
+    if (enemyBase === 1) baseScore += 50;
+    if (ownBase === 1) baseScore -= 50;
 
     const tactic = snapshot.tactics[player];
     const profileWeights: Record<BotProfile, Record<BotTactic, number>> = {
@@ -381,7 +387,14 @@ export function evaluateStrategicState(snapshot: StrategicSnapshot): number {
         }
     }
 
-    return baseScore + armyScore * weight + territoryScore * weight + resourceScore + tacticalScore;
+    return (
+        baseScore +
+        armyScore * weight +
+        territoryScore * weight +
+        resourceScore +
+        tacticalScore +
+        eliminationScore * weight
+    );
 }
 
 export function createDecisionDebug(

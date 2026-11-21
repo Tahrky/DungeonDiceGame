@@ -9,6 +9,7 @@ import type {
 } from "../types/GameTypes";
 
 import type { BotProfile, BotStrategyWeightMap, TacticalAttackValue } from "../game/botStrategy";
+import type { TrainingFingerprint } from "./trainingVersioning";
 
 export { BOT_PROFILES } from "../game/botStrategy";
 export type { BotProfile, BotStrategyWeightMap } from "../game/botStrategy";
@@ -28,6 +29,9 @@ export interface SimulationOptions {
     profile2: BotProfile;
     profilePairs?: readonly ProfilePair[];
     advanced?: boolean;
+    searchDepth?: number;
+    branchWidth?: number;
+    nodeBudget?: number;
     debug?: boolean;
     lightResults?: boolean;
     recordDecisionTraces?: boolean;
@@ -79,6 +83,11 @@ export interface PlayerSimulationStats {
     decisionTimeMs: number;
     positionsExplored: number;
     branchesExplored: number;
+    maxSearchDepthReached: number;
+    searchDecisions: number;
+    decisionsChangedBySearch: number;
+    searchNodes: number;
+    nodesBeyondFirstThree: number;
 }
 
 export interface FinalBoard {
@@ -137,6 +146,7 @@ export interface TacticalDecisionTrace {
 export interface SimulationBatchResult {
     schemaVersion: 1;
     createdAt: string;
+    fingerprint?: TrainingFingerprint;
     options: Omit<SimulationOptions, "deck1" | "deck2"> & {
         deck1?: string[];
         deck2?: string[];

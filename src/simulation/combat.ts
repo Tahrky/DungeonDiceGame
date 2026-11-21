@@ -332,6 +332,8 @@ function getAvailableAttackChoices(state: MatchState, board: BoardDefinition): A
 
 const MAX_ATTACK_SEARCH_BRANCHES = 3;
 const MAX_ADVANCED_ATTACK_SEARCH_BRANCHES = 8;
+const MAX_ADVANCED_SEARCH_NODES = 600;
+const MAX_BASIC_SEARCH_NODES = 120;
 
 function cloneMatchState(state: MatchState): MatchState {
     const cloneMonster = (monster: PlacedMonster): PlacedMonster => ({
@@ -385,6 +387,111 @@ function createStrategicSnapshot(
     };
 }
 
+interface TacticalSearchState {
+    nodes: number;
+    cache: Map<string, number>;
+}
+
+function createSearchCacheKey(state: MatchState, player: PlayerId): string {
+    const monsters = state.monsters
+        .filter((monster) => monster.currentHp > 0)
+        .map((monster) =>
+            `${monster.id}:${monster.owner}:${monster.position.x},${monster.position.y}:${monster.currentHp}`,
+        )
+        .sort()
+        .join("|");
+    return `${player}:${state.health[1]}:${state.health[2]}:${monsters}:${state.reserves[1].attack}:${state.reserves[2].attack}`;
+}
+
+function searchFutureAttackPhases(
+    state: MatchState,
+    board: BoardDefinition,
+    rootPlayer: PlayerId,
+    phasesRemaining: number,
+    branchWidth: number,
+    nodeBudget: number,
+    searchState: TacticalSearchState,
+    baseline: number,
+): number {
+    if (searchState.nodes >= nodeBudget || phasesRemaining <= 0) {
+        return evaluateStrategicState(createStrategicSnapshot(state, board, rootPlayer)) - baseline;
+    }
+
+    const cacheKey = createSearchCacheKey(state, rootPlayer);
+    const cached = searchState.cache.get(cacheKey);
+    if (cached !== undefined) return cached;
+
+    const player = state.currentPlayer;
+    const opponent = opposingPlayer(player);
+    const choices = getAvailableAttackChoices(state, board).slice(0, branchWidth);
+    if (choices.length === 0) {
+        const score = evaluateStrategicState(createStrategicSnapshot(state, board, rootPlayer)) - baseline;
+        searchState.cache.set(cacheKey, score);
+        return score;
+    }
+
+    let best = Number.NEGATIVE_INFINITY;
+    for (const candidate of choices) {
+        if (searchState.nodes >= nodeBudget) break;
+        searchState.nodes++;
+        state.statistics[player].searchNodes++;
+        const branch = cloneMatchState(state);
+        const attacker = branch.monsters.find((monster) => monster.id === candidate.attacker.id);
+        if (!attacker) continue;
+        executeAttack(branch, board, {
+            ...candidate,
+            attacker,
+            target: { ...candidate.target },
+            cells: candidate.cells.map((cell) => ({ ...cell })),
+        });
+        if (branch.winner === rootPlayer) {
+            best = Math.max(best, 100_000);
+            continue;
+        }
+        if (branch.winner === opposingPlayer(rootPlayer)) {
+            best = Math.max(best, -100_000);
+            continue;
+        }
+
+        prepareOpponentReply(branch, opponent);
+        const reply = chooseAttackWithoutSearch(branch, board);
+        if (reply) executeAttack(branch, board, reply);
+        if (branch.winner === rootPlayer) {
+            best = Math.max(best, 100_000);
+            continue;
+        }
+        if (branch.winner === opposingPlayer(rootPlayer)) {
+            best = Math.max(best, -100_000);
+            continue;
+        }
+
+        let score =
+            evaluateStrategicState(createStrategicSnapshot(branch, board, rootPlayer)) -
+            baseline +
+            candidate.score * 0.05;
+        if (phasesRemaining > 1) {
+            prepareOpponentReply(branch, player);
+            score = searchFutureAttackPhases(
+                branch,
+                board,
+                rootPlayer,
+                phasesRemaining - 1,
+                branchWidth,
+                nodeBudget,
+                searchState,
+                baseline,
+            );
+        }
+        best = Math.max(best, score);
+    }
+
+    const result = best === Number.NEGATIVE_INFINITY
+        ? evaluateStrategicState(createStrategicSnapshot(state, board, rootPlayer)) - baseline
+        : best;
+    searchState.cache.set(cacheKey, result);
+    return result;
+}
+
 function prepareOpponentReply(state: MatchState, player: PlayerId): void {
     state.currentPlayer = player;
     state.reserves[player].attack++;
@@ -406,16 +513,30 @@ function chooseAttack(state: MatchState, board: BoardDefinition): AttackChoice |
 
     const player = state.currentPlayer;
     const opponent: PlayerId = player === 1 ? 2 : 1;
+    const searchDepth = Math.max(1, Math.min(3, state.searchDepth ?? (state.advancedSearch ? 2 : 1)));
+    const branchWidth = Math.max(1, Math.min(12, state.branchWidth ?? (state.advancedSearch ? MAX_ADVANCED_ATTACK_SEARCH_BRANCHES : MAX_ATTACK_SEARCH_BRANCHES)));
+    const nodeBudget = Math.max(20, state.nodeBudget ?? (state.advancedSearch ? MAX_ADVANCED_SEARCH_NODES : MAX_BASIC_SEARCH_NODES));
+    const searchState = { nodes: 0, cache: new Map<string, number>() };
     const baseline = evaluateStrategicState(createStrategicSnapshot(state, board, player));
     const candidates = choices.slice(
         0,
-        state.advancedSearch ? MAX_ADVANCED_ATTACK_SEARCH_BRANCHES : MAX_ATTACK_SEARCH_BRANCHES,
+        branchWidth,
     );
     state.statistics[player].positionsExplored += candidates.length;
+    state.statistics[player].searchDecisions++;
+    state.statistics[player].maxSearchDepthReached = Math.max(
+        state.statistics[player].maxSearchDepthReached,
+        searchDepth,
+    );
+    state.statistics[player].branchesExplored += candidates.length;
+    state.statistics[player].nodesBeyondFirstThree +=
+        candidates.length > 3 ? candidates.length - 3 : 0;
     let selected = bestChoice;
     let selectedScore = Number.NEGATIVE_INFINITY;
 
     for (const candidate of candidates) {
+        if (searchState.nodes >= nodeBudget) break;
+        searchState.nodes++;
         const branch = cloneMatchState(state);
         const attacker = branch.monsters.find((monster) => monster.id === candidate.attacker.id);
         if (!attacker) continue;
@@ -425,7 +546,13 @@ function chooseAttack(state: MatchState, board: BoardDefinition): AttackChoice |
             target: { ...candidate.target },
             cells: candidate.cells.map((cell) => ({ ...cell })),
         });
-        if (branch.winner === player) return recordAttackDecision(state, choices, candidate);
+        if (branch.winner === player) {
+            state.statistics[player].searchNodes += searchState.nodes;
+            if (candidate.attacker.id !== bestChoice.attacker.id || candidate.attackIndex !== bestChoice.attackIndex) {
+                state.statistics[player].decisionsChangedBySearch++;
+            }
+            return recordAttackDecision(state, choices, candidate);
+        }
 
         if (branch.winner === null) {
             prepareOpponentReply(branch, opponent);
@@ -437,17 +564,38 @@ function chooseAttack(state: MatchState, board: BoardDefinition): AttackChoice |
             state.statistics[player].branchesExplored += replyPositionsExplored;
             if (reply) executeAttack(branch, board, reply);
         }
-        if (branch.winner === player) return recordAttackDecision(state, choices, candidate);
+        if (branch.winner === player) {
+            state.statistics[player].searchNodes += searchState.nodes;
+            if (candidate.attacker.id !== bestChoice.attacker.id || candidate.attackIndex !== bestChoice.attackIndex) {
+                state.statistics[player].decisionsChangedBySearch++;
+            }
+            return recordAttackDecision(state, choices, candidate);
+        }
         if (branch.winner === opponent) continue;
 
-        const score =
-            evaluateStrategicState(createStrategicSnapshot(branch, board, player)) -
-            baseline +
-            candidate.score * 0.1;
+        let score = evaluateStrategicState(createStrategicSnapshot(branch, board, player)) -
+            baseline + candidate.score * 0.1;
+        if (searchDepth > 1) {
+            prepareOpponentReply(branch, player);
+            score = searchFutureAttackPhases(
+                branch,
+                board,
+                player,
+                searchDepth - 1,
+                branchWidth,
+                nodeBudget,
+                searchState,
+                baseline,
+            );
+        }
         if (score > selectedScore) {
             selected = candidate;
             selectedScore = score;
         }
+    }
+    state.statistics[player].searchNodes += searchState.nodes;
+    if (selected.attacker.id !== bestChoice.attacker.id || selected.attackIndex !== bestChoice.attackIndex) {
+        state.statistics[player].decisionsChangedBySearch++;
     }
     return recordAttackDecision(state, choices, selected);
 }

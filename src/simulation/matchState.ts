@@ -37,6 +37,9 @@ export interface MatchState {
     currentPlayer: PlayerId;
     debug?: boolean;
     advancedSearch?: boolean;
+    searchDepth?: number;
+    branchWidth?: number;
+    nodeBudget?: number;
     lightResults?: boolean;
     strategyWeights?: Record<PlayerId, Readonly<BotStrategyWeights>>;
     decisionTraces?: TacticalDecisionTrace[];
@@ -73,6 +76,11 @@ export function createStats(): PlayerSimulationStats {
         decisionTimeMs: 0,
         positionsExplored: 0,
         branchesExplored: 0,
+        maxSearchDepthReached: 0,
+        searchDecisions: 0,
+        decisionsChangedBySearch: 0,
+        searchNodes: 0,
+        nodesBeyondFirstThree: 0,
     };
 }
 
@@ -339,8 +347,18 @@ export function deployMonsters(
         const choices = (
             preferredMonsters.length > 0 ? preferredMonsters : affordableMonsters
         ).sort((first, second) => {
+            const firstCount = summonedByMonster[first.id] ?? 0;
+            const secondCount = summonedByMonster[second.id] ?? 0;
+            const firstSupport = first.attacks.filter((attack) => attack.targetsAlliesOnly).length;
+            const secondSupport = second.attacks.filter((attack) => attack.targetsAlliesOnly).length;
+            const swarmPenalty = profile === "cheap" ? 3 : 2;
+            const diversityPenalty =
+                (firstSupport === 0 ? 0 : firstSupport * 4) +
+                firstCount * swarmPenalty -
+                ((secondSupport === 0 ? 0 : secondSupport * 4) + secondCount * swarmPenalty);
             return (
-                (summonedByMonster[first.id] ?? 0) - (summonedByMonster[second.id] ?? 0) ||
+                -diversityPenalty ||
+                firstCount - secondCount ||
                 (profileScores.get(second.id) ?? 0) - (profileScores.get(first.id) ?? 0) ||
                 first.cost - second.cost
             );
