@@ -112,6 +112,7 @@ describe("combat de simulation", () => {
 
         expect(state.statistics[1].positionsExplored).toBeGreaterThan(3);
         expect(state.statistics[1].positionsExplored).toBeLessThan(20);
+        expect(state.statistics[1].maxSearchDepthReached).toBe(1);
     });
 
     it("explore davantage de réponses tactiques quand la recherche avancée est activée", () => {
@@ -148,5 +149,8 @@ describe("combat de simulation", () => {
         expect(advanced.statistics[1].positionsExplored).toBeGreaterThan(
             standard.statistics[1].positionsExplored,
         );
+        expect(standard.statistics[1].maxSearchDepthReached).toBe(1);
+        expect(advanced.statistics[1].maxSearchDepthReached).toBeGreaterThanOrEqual(1);
+        expect(advanced.statistics[1].maxSearchDepthReached).toBeLessThanOrEqual(2);
     });
 });

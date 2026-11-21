@@ -29,6 +29,7 @@ import {
     type PairedScoreDifference,
     type TrainingEvaluation,
     type TrainingOutcomeMetrics,
+    type TrainingSimulationRunner,
 } from "./trainingMetrics";
 
 export interface StrategyTrainingOptions {
@@ -46,6 +47,7 @@ export interface StrategyTrainingOptions {
     groups?: readonly BotWeightGroup[];
     configuration?: GameConfiguration;
     board?: BoardDefinition;
+    simulationRunner?: TrainingSimulationRunner;
     onNotice?: (message: string) => void;
     onProfileComplete?: (profile: BotProfile, report: TrainedProfileReport) => void;
 }
@@ -508,7 +510,9 @@ function validateOptions(options: StrategyTrainingOptions): {
     };
 }
 
-export function trainBotStrategies(options: StrategyTrainingOptions): StrategyTrainingReport {
+export async function trainBotStrategies(
+    options: StrategyTrainingOptions,
+): Promise<StrategyTrainingReport> {
     const { profiles, mode, groups: requestedGroups } = validateOptions(options);
     const configuration = options.configuration ?? getDefaultGameConfiguration();
     const board = options.board ?? getDefaultBoard();
@@ -594,8 +598,8 @@ export function trainBotStrategies(options: StrategyTrainingOptions): StrategyTr
             random,
         );
         let candidateEvaluations = 0;
-        const trainingByWeights = new Map<string, TrainingEvaluation>();
-        const getTraining = (weights: BotStrategyWeights): TrainingEvaluation => {
+        const trainingByWeights = new Map<string, Promise<TrainingEvaluation>>();
+        const getTraining = (weights: BotStrategyWeights): Promise<TrainingEvaluation> => {
             const key = JSON.stringify(weights);
             let evaluation = trainingByWeights.get(key);
             if (!evaluation) {
@@ -606,22 +610,28 @@ export function trainBotStrategies(options: StrategyTrainingOptions): StrategyTr
                     options.maxTurns,
                     configuration,
                     board,
+                    options.simulationRunner,
                 );
                 trainingByWeights.set(key, evaluation);
             }
             return evaluation;
         };
-        const evaluatePopulation = (weights: readonly BotStrategyWeights[]): Candidate[] =>
-            weights.map((candidateWeights) => {
+        const evaluatePopulation = async (
+            weights: readonly BotStrategyWeights[],
+        ): Promise<Candidate[]> => {
+            const candidates: Candidate[] = [];
+            for (const candidateWeights of weights) {
                 candidateEvaluations++;
-                return {
+                candidates.push({
                     source: "candidate",
                     weights: candidateWeights,
-                    evaluation: getTraining(candidateWeights),
-                };
-            });
+                    evaluation: await getTraining(candidateWeights),
+                });
+            }
+            return candidates;
+        };
 
-        let trainingCandidates = evaluatePopulation(population.map(({ weights }) => weights));
+        let trainingCandidates = await evaluatePopulation(population.map(({ weights }) => weights));
         for (let generation = 1; generation <= options.generations; generation++) {
             const parents = [...trainingCandidates]
                 .sort(
@@ -638,38 +648,43 @@ export function trainBotStrategies(options: StrategyTrainingOptions): StrategyTr
                     generation > 2 ? 1 : 2,
                 ),
             );
-            trainingCandidates = [...trainingCandidates, ...evaluatePopulation(nextGeneration)];
+            trainingCandidates = [
+                ...trainingCandidates,
+                ...(await evaluatePopulation(nextGeneration)),
+            ];
         }
 
         const bestTraining = selectBest(trainingCandidates);
         const selectionCandidates: Candidate[] = [];
-        const addSelectionCandidate = (
+        const addSelectionCandidate = async (
             source: Candidate["source"],
             weights: BotStrategyWeights,
-        ) => {
+        ): Promise<void> => {
             if (selectionCandidates.some((candidate) => equalWeights(candidate.weights, weights))) {
                 return;
             }
+            const evaluation = await evaluateWeights(
+                profile,
+                weights,
+                partitions.selectionSeeds,
+                options.maxTurns,
+                configuration,
+                board,
+                options.simulationRunner,
+            );
             selectionCandidates.push({
                 source,
                 weights,
-                evaluation: evaluateWeights(
-                    profile,
-                    weights,
-                    partitions.selectionSeeds,
-                    options.maxTurns,
-                    configuration,
-                    board,
-                ),
+                evaluation,
             });
         };
-        addSelectionCandidate("default", defaults);
-        if (previous) addSelectionCandidate("previous", previous);
-        addSelectionCandidate("candidate", bestTraining.weights);
+        await addSelectionCandidate("default", defaults);
+        if (previous) await addSelectionCandidate("previous", previous);
+        await addSelectionCandidate("candidate", bestTraining.weights);
         const selected = selectBest(selectionCandidates);
 
-        const validationByWeights = new Map<string, TrainingEvaluation>();
-        const getValidation = (weights: BotStrategyWeights) => {
+        const validationByWeights = new Map<string, Promise<TrainingEvaluation>>();
+        const getValidation = (weights: BotStrategyWeights): Promise<TrainingEvaluation> => {
             const key = JSON.stringify(weights);
             let evaluation = validationByWeights.get(key);
             if (!evaluation) {
@@ -680,14 +695,15 @@ export function trainBotStrategies(options: StrategyTrainingOptions): StrategyTr
                     options.maxTurns,
                     configuration,
                     board,
+                    options.simulationRunner,
                 );
                 validationByWeights.set(key, evaluation);
             }
             return evaluation;
         };
-        const baselineValidation = getValidation(defaults);
-        const candidateValidation = getValidation(bestTraining.weights);
-        const previousValidation = previous ? getValidation(previous) : undefined;
+        const baselineValidation = await getValidation(defaults);
+        const candidateValidation = await getValidation(bestTraining.weights);
+        const previousValidation = previous ? await getValidation(previous) : undefined;
         const baselineSelection = selectionCandidates.find((candidate) =>
             equalWeights(candidate.weights, defaults),
         )!.evaluation;
@@ -706,7 +722,7 @@ export function trainBotStrategies(options: StrategyTrainingOptions): StrategyTr
         );
         const validationReference: Candidate = {
             ...selectionReference,
-            evaluation: getValidation(selectionReference.weights),
+            evaluation: await getValidation(selectionReference.weights),
         };
         const candidateVsReference = getPairedScoreDifference(
             candidateValidation,
@@ -748,11 +764,11 @@ export function trainBotStrategies(options: StrategyTrainingOptions): StrategyTr
             opponents: BOT_PROFILES.filter((opponent) => opponent !== profile),
             initialPopulation: population,
             candidateEvaluations,
-            baselineTraining: asReportMetrics(getTraining(defaults)),
+            baselineTraining: asReportMetrics(await getTraining(defaults)),
             candidateTraining: asReportMetrics(bestTraining.evaluation),
             ...(previous === undefined
                 ? {}
-                : { previousTraining: asReportMetrics(getTraining(previous)) }),
+                : { previousTraining: asReportMetrics(await getTraining(previous)) }),
             baselineSelection: asReportMetrics(baselineSelection),
             candidateSelection: asReportMetrics(candidateSelection),
             ...(previousSelection === undefined

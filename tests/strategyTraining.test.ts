@@ -28,8 +28,8 @@ describe("apprentissage hors ligne des stratégies", () => {
         }
     });
 
-    it("cible les adversaires qui révèlent les faiblesses des profils", () => {
-        const report = trainBotStrategies({
+    it("cible les adversaires qui révèlent les faiblesses des profils", async () => {
+        const report = await trainBotStrategies({
             seed: 731,
             maxTurns: 1,
             trainingSeedCount: 1,
@@ -57,7 +57,7 @@ describe("apprentissage hors ligne des stratégies", () => {
         ]);
     });
 
-    it("reproduit les résultats et sépare l’optimisation de la sélection", () => {
+    it("reproduit les résultats et sépare l’optimisation de la sélection", async () => {
         const options = {
             seed: 731,
             maxTurns: 1,
@@ -67,8 +67,8 @@ describe("apprentissage hors ligne des stratégies", () => {
             populationSize: 1,
             profiles: ["balanced"] as const,
         };
-        const first = trainBotStrategies(options);
-        const second = trainBotStrategies(options);
+        const first = await trainBotStrategies(options);
+        const second = await trainBotStrategies(options);
         const firstProfile = first.profiles.balanced;
         const secondProfile = second.profiles.balanced;
         if (!firstProfile || !secondProfile) throw new Error("Rapport d’entraînement attendu.");
@@ -105,9 +105,9 @@ describe("apprentissage hors ligne des stratégies", () => {
         ]);
     });
 
-    it("conserve les défauts et limite les mutations aux groupes sélectionnés", () => {
+    it("conserve les défauts et limite les mutations aux groupes sélectionnés", async () => {
         const defaultsBefore = { ...DEFAULT_BOT_STRATEGY_WEIGHTS };
-        const report = trainBotStrategies({
+        const report = await trainBotStrategies({
             seed: 731,
             maxTurns: 1,
             trainingSeedCount: 1,
@@ -131,7 +131,7 @@ describe("apprentissage hors ligne des stratégies", () => {
         }
     });
 
-    it("reprend un rapport compatible et hybride les poids précédents et neutres", () => {
+    it("reprend un rapport compatible et hybride les poids précédents et neutres", async () => {
         const baseOptions = {
             seed: 731,
             maxTurns: 1,
@@ -142,13 +142,13 @@ describe("apprentissage hors ligne des stratégies", () => {
             populationSize: 1,
             profiles: ["balanced"] as const,
         };
-        const previous = trainBotStrategies(baseOptions);
-        const warmStart = trainBotStrategies({
+        const previous = await trainBotStrategies(baseOptions);
+        const warmStart = await trainBotStrategies({
             ...baseOptions,
             initializationMode: "warmStart",
             previousWeights: previous,
         });
-        const hybrid = trainBotStrategies({
+        const hybrid = await trainBotStrategies({
             ...baseOptions,
             populationSize: 5,
             initializationMode: "hybrid",
@@ -182,12 +182,12 @@ describe("apprentissage hors ligne des stratégies", () => {
                 },
             },
         };
-        const partialTransfer = trainBotStrategies({
+        const partialTransfer = await trainBotStrategies({
             ...baseOptions,
             initializationMode: "warmStart",
             previousWeights: partialPrevious,
         });
-        const forcedTransfer = trainBotStrategies({
+        const forcedTransfer = await trainBotStrategies({
             ...baseOptions,
             initializationMode: "warmStart",
             previousWeights: incompatiblePrevious,
@@ -214,9 +214,9 @@ describe("apprentissage hors ligne des stratégies", () => {
         expect(forcedProfile.compatibility?.level).toBe("incompatible");
     });
 
-    it("refuse le transfert legacy sans autorisation explicite", () => {
+    it("refuse le transfert legacy sans autorisation explicite", async () => {
         const previousWeights = { balanced: { ...DEFAULT_BOT_STRATEGY_WEIGHTS } };
-        expect(() =>
+        await expect(
             trainBotStrategies({
                 seed: 731,
                 maxTurns: 1,
@@ -229,6 +229,6 @@ describe("apprentissage hors ligne des stratégies", () => {
                 initializationMode: "warmStart",
                 previousWeights,
             }),
-        ).toThrow(/Transfert refusé.*legacy/);
+        ).rejects.toThrow(/Transfert refusé.*legacy/);
     });
 });

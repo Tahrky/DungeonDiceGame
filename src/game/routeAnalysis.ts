@@ -38,7 +38,7 @@ interface HeapEntry {
     readonly distance: number;
 }
 
-const neighborCache = new WeakMap<BoardDefinition, readonly number[][]>();
+const neighborCache = new Map<string, readonly number[][]>();
 const analysisCache = new Map<string, PotentialRouteAnalysis>();
 
 function getAnalysisCacheKey(
@@ -70,7 +70,8 @@ function getAnalysisCacheKey(
 }
 
 function getNeighbors(board: BoardDefinition): readonly number[][] {
-    const cached = neighborCache.get(board);
+    const key = `${board.width}x${board.height}`;
+    const cached = neighborCache.get(key);
     if (cached) return cached;
 
     const neighbors = Array.from({ length: board.width * board.height }, (_, index) => {
@@ -83,7 +84,8 @@ function getNeighbors(board: BoardDefinition): readonly number[][] {
         if (y + 1 < board.height) result.push(index + board.width);
         return result;
     });
-    neighborCache.set(board, neighbors);
+    if (neighborCache.size >= 32) neighborCache.clear();
+    neighborCache.set(key, neighbors);
     return neighbors;
 }
 
@@ -107,10 +109,7 @@ function popHeap(heap: HeapEntry[]): HeapEntry | undefined {
     let index = 0;
     while (index * 2 + 1 < heap.length) {
         let child = index * 2 + 1;
-        if (
-            child + 1 < heap.length &&
-            heap[child + 1]!.distance < heap[child]!.distance
-        ) {
+        if (child + 1 < heap.length && heap[child + 1]!.distance < heap[child]!.distance) {
             child++;
         }
         if (heap[child]!.distance >= last.distance) break;
@@ -159,8 +158,7 @@ function getDistanceMap(
             if (blocked[neighbor]) continue;
             const neighborKey = `${neighbor % board.width},${Math.floor(neighbor / board.width)}`;
             const neighborCost = cellCosts.get(neighborKey) ?? 1;
-            const distance =
-                current.distance + (currentCost + neighborCost) / 2;
+            const distance = current.distance + (currentCost + neighborCost) / 2;
             if (distance + COST_EPSILON >= distances[neighbor]!) continue;
             distances[neighbor] = distance;
             pushHeap(heap, { index: neighbor, distance });
@@ -192,10 +190,7 @@ function countShortestPaths(
             const nextKey = `${next % board.width},${Math.floor(next / board.width)}`;
             const nextCost = cellCosts?.get(nextKey) ?? 1;
             const edgeCost = cellCosts?.size ? (currentCost + nextCost) / 2 : 1;
-            if (
-                Math.abs(distances[current]! + edgeCost - distances[next]!) <=
-                COST_EPSILON
-            ) {
+            if (Math.abs(distances[current]! + edgeCost - distances[next]!) <= COST_EPSILON) {
                 counts[next] += counts[current]!;
             }
         }
@@ -245,13 +240,9 @@ function getAlternativeRoutes(
 
         const currentKey = `${current % board.width},${Math.floor(current / board.width)}`;
         const currentCost = cellCosts?.get(currentKey) ?? 1;
-        const nextCells = neighbors[current]!
-            .filter(
-                (next) =>
-                    !blocked[next] &&
-                    !onPath[next] &&
-                    Number.isFinite(distancesToGoal[next]),
-            )
+        const nextCells = neighbors[current]!.filter(
+            (next) => !blocked[next] && !onPath[next] && Number.isFinite(distancesToGoal[next]),
+        )
             .map((next) => {
                 const nextKey = `${next % board.width},${Math.floor(next / board.width)}`;
                 const nextCost = cellCosts?.get(nextKey) ?? 1;
@@ -264,8 +255,7 @@ function getAlternativeRoutes(
             })
             .filter(({ estimate }) => estimate <= maxRouteCost + COST_EPSILON)
             .sort(
-                (first, second) =>
-                    first.estimate - second.estimate || first.index - second.index,
+                (first, second) => first.estimate - second.estimate || first.index - second.index,
             );
 
         for (const next of nextCells) {
@@ -313,12 +303,7 @@ export function analyzePotentialRoutes(
     const goalIndex = goal.y * board.width + goal.x;
     const blocked = new Uint8Array(board.width * board.height);
     for (const cell of [...board.blockedCells, ...(options.blockedCells ?? [])]) {
-        if (
-            cell.x >= 0 &&
-            cell.y >= 0 &&
-            cell.x < board.width &&
-            cell.y < board.height
-        ) {
+        if (cell.x >= 0 && cell.y >= 0 && cell.x < board.width && cell.y < board.height) {
             blocked[cell.y * board.width + cell.x] = 1;
         }
     }
@@ -326,13 +311,7 @@ export function analyzePotentialRoutes(
     blocked[goalIndex] = 0;
 
     const neighbors = getNeighbors(board);
-    const fromStart = getDistanceMap(
-        board,
-        startIndex,
-        blocked,
-        neighbors,
-        options.cellCosts,
-    );
+    const fromStart = getDistanceMap(board, startIndex, blocked, neighbors, options.cellCosts);
     const shortestDistance = fromStart[goalIndex]!;
     if (!Number.isFinite(shortestDistance)) {
         const result: PotentialRouteAnalysis = {
@@ -348,13 +327,7 @@ export function analyzePotentialRoutes(
         return result;
     }
 
-    const toGoal = getDistanceMap(
-        board,
-        goalIndex,
-        blocked,
-        neighbors,
-        options.cellCosts,
-    );
+    const toGoal = getDistanceMap(board, goalIndex, blocked, neighbors, options.cellCosts);
     const pathsFromStart = countShortestPaths(
         board,
         fromStart,
@@ -457,12 +430,7 @@ export function getShortestRouteDistance(
     const goalIndex = goal.y * board.width + goal.x;
     const blocked = new Uint8Array(board.width * board.height);
     for (const cell of [...board.blockedCells, ...blockedCells]) {
-        if (
-            cell.x >= 0 &&
-            cell.y >= 0 &&
-            cell.x < board.width &&
-            cell.y < board.height
-        ) {
+        if (cell.x >= 0 && cell.y >= 0 && cell.x < board.width && cell.y < board.height) {
             blocked[cell.y * board.width + cell.x] = 1;
         }
     }
@@ -476,8 +444,6 @@ export function analyzeLegalMovementRoutes(options: MovementOptions): LegalMovem
     const paths = getMovementPathMap(options);
     return {
         paths,
-        distances: new Map(
-            [...paths].map(([key, path]) => [key, Math.max(0, path.length - 1)]),
-        ),
+        distances: new Map([...paths].map(([key, path]) => [key, Math.max(0, path.length - 1)])),
     };
 }

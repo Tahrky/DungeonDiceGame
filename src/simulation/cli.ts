@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import process, { argv } from "node:process";
 import { dirname, resolve } from "node:path";
+import { isMainThread } from "node:worker_threads";
 import {
     getDefaultGameConfiguration,
     parseGameConfiguration,
@@ -9,7 +10,8 @@ import {
 import { getDefaultBoard, parseBoardDefinition, type BoardDefinition } from "../game/boards";
 import { parseDeck } from "../game/decks";
 import { parseBotStrategyWeightMap } from "../game/botStrategy";
-import { runCrossProfileTournament, runSimulations } from "./simulator";
+import { createCrossProfilePairs } from "./workerPool";
+import { NodeSimulationWorkerPool, startNodeSimulationWorker } from "./nodeWorkerPool";
 import { trainBotStrategies } from "./strategyTraining";
 import {
     BOT_PROFILES,
@@ -50,7 +52,7 @@ Options :
   --node-budget <n>    Nombre maximal de nœuds explorés
   --debug              Ajoute les détails des décisions IA (avec historique complet)
   --light-results      N'enregistre pas l'historique détaillé des matchs
-  --cross-profile      Lance les confrontations croisées des sept profils
+  --cross-profile      Répartit le total des matchs entre les 42 confrontations orientées
   --train-bots         Ajuste hors ligne les poids stratégiques des profils
   --training-profiles  Profils à entraîner, séparés par des virgules
   --training-mode <mode> Mode default, warmStart ou hybrid
@@ -339,6 +341,12 @@ async function loadStrategyWeights(
 }
 
 async function main(): Promise<void> {
+    let workerPool: NodeSimulationWorkerPool | undefined;
+    const getWorkerPool = () => {
+        workerPool ??= new NodeSimulationWorkerPool();
+        return workerPool;
+    };
+
     try {
         const args = argv.slice(2);
         if (args.includes("--help")) {
@@ -358,7 +366,7 @@ async function main(): Promise<void> {
                 getOptionalValue(args, "--previous-weights"),
             );
             const groupsValue = getOptionalValue(args, "--training-groups");
-            const report = trainBotStrategies({
+            const report = await trainBotStrategies({
                 seed: parseInteger(readOption(args, "--seed", "731"), "--seed", 0, 0xffff_ffff),
                 maxTurns: parseInteger(
                     readOption(args, "--max-turns", "10"),
@@ -403,6 +411,8 @@ async function main(): Promise<void> {
                 ...(groupsValue === undefined ? {} : { groups: parseWeightGroups(groupsValue) }),
                 configuration,
                 board,
+                simulationRunner: (options, runConfiguration, runBoard) =>
+                    getWorkerPool().run(options, runConfiguration, runBoard),
                 onNotice: (message) => console.warn(`Avertissement : ${message}`),
                 onProfileComplete: (profile, result) => {
                     console.log(
@@ -460,50 +470,52 @@ async function main(): Promise<void> {
             configurationFile,
             strategyWeights,
         );
-        if (args.includes("--cross-profile")) {
-            const startedAt = performance.now();
-            const tournament = runCrossProfileTournament(options, configuration, board);
-            const elapsedTime = formatElapsedDuration(performance.now() - startedAt);
-            const outputPath = resolve(
-                output ?? `simulation-results/cross-profile-seed-${options.seed}.json`,
-            );
-            await mkdir(dirname(outputPath), { recursive: true });
-            await writeFile(outputPath, `${JSON.stringify(tournament, null, 2)}\n`, "utf8");
-            const wins = tournament.reduce(
-                (total, match) => {
-                    const winner =
-                        match.result.summary.wins[1] >= match.result.summary.wins[2] ? 1 : 2;
-                    total[winner]++;
-                    return total;
-                },
-                { 1: 0, 2: 0 },
-            );
-            console.log(
-                `Confrontations croisées : ${tournament.length} | scores J1/J2 : ${wins[1]}/${wins[2]} | durée : ${elapsedTime}`,
-            );
-            console.log(`Résultats JSON : ${outputPath}`);
-            return;
-        }
+        const crossProfileMode = args.includes("--cross-profile");
+        const runOptions = crossProfileMode
+            ? { ...options, profilePairs: createCrossProfilePairs() }
+            : options;
         const startedAt = performance.now();
-        const result = runSimulations(options, configuration, board);
+        const progressInterval = Math.max(1, Math.ceil(options.games / 10));
+        let lastReported = 0;
+        const result = await getWorkerPool().run(
+            runOptions,
+            configuration,
+            board,
+            (completedMatches) => {
+                if (
+                    completedMatches - lastReported >= progressInterval ||
+                    completedMatches === options.games
+                ) {
+                    lastReported = completedMatches;
+                    console.log(`Matchs terminés : ${completedMatches}/${options.games}`);
+                }
+            },
+        );
         const elapsedTime = formatElapsedDuration(performance.now() - startedAt);
         const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
         const outputPath = resolve(
-            output ?? `simulation-results/matches-${timestamp}-seed-${options.seed}.json`,
+            output ??
+                (crossProfileMode
+                    ? `simulation-results/cross-profile-seed-${options.seed}.json`
+                    : `simulation-results/matches-${timestamp}-seed-${options.seed}.json`),
         );
         await mkdir(dirname(outputPath), { recursive: true });
         await writeFile(outputPath, `${JSON.stringify(result, null, 2)}\n`, "utf8");
         console.log(
-            `Matchs : ${result.summary.matches} | victoires J1 : ${result.summary.wins[1]} | ` +
-                `victoires J2 : ${result.summary.wins[2]} | nuls : ${result.summary.draws} | ` +
-                `durée moyenne : ${result.summary.averageTurns.toFixed(1)} tours | durée : ${elapsedTime}`,
+            `${crossProfileMode ? "Confrontations croisées" : "Matchs"} : ${result.summary.matches} | ` +
+                `victoires J1 : ${result.summary.wins[1]} | victoires J2 : ${result.summary.wins[2]} | ` +
+                `nuls : ${result.summary.draws} | durée moyenne : ${result.summary.averageTurns.toFixed(1)} tours | ` +
+                `durée : ${elapsedTime}`,
         );
         console.log(`Résultats JSON : ${outputPath}`);
     } catch (error) {
         console.error(error instanceof Error ? error.message : error);
         console.error(`\n${HELP}`);
         process.exitCode = 1;
+    } finally {
+        await workerPool?.close();
     }
 }
 
-void main();
+if (isMainThread) void main();
+else startNodeSimulationWorker();

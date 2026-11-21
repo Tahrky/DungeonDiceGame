@@ -126,10 +126,6 @@ function createMatch(
         nextMonsterId: 1,
         monstersKilledForVictory: configuration.monstersKilledForVictory,
     };
-    const configuredSearchDepth = state.searchDepth ?? 1;
-    state.statistics[1].maxSearchDepthReached = configuredSearchDepth;
-    state.statistics[2].maxSearchDepthReached = configuredSearchDepth;
-
     for (let turn = 1; turn <= options.maxTurns && state.winner === null; turn++) {
         state.turn = turn;
         const turnOrder: readonly [PlayerId, PlayerId] = startingPlayer === 1 ? [1, 2] : [2, 1];
@@ -195,17 +191,12 @@ function createMatch(
                     deckMonsters[player].some(
                         (monster) =>
                             monster.cost <= state.reserves[player].invocation &&
-                            canDeployMonsterForProfile(
-                                monster,
-                                profiles[player],
-                                deployedCosts,
-                            ),
+                            canDeployMonsterForProfile(monster, profiles[player], deployedCosts),
                     )
                 ) {
                     state.statistics[player].blockedInvocationAttempts++;
                     state.statistics[player].actionsSkippedByReason.noLegalPlacement =
-                        (state.statistics[player].actionsSkippedByReason.noLegalPlacement ?? 0) +
-                        1;
+                        (state.statistics[player].actionsSkippedByReason.noLegalPlacement ?? 0) + 1;
                 }
             }
 
@@ -217,16 +208,12 @@ function createMatch(
                           .filter((monster) => monster.cost <= reserve.invocation)
                           .map((monster) => monster.cost)
                     : [];
-                const affordableAttackCosts = attackCosts.filter(
-                    (cost) => cost <= reserve.attack,
-                );
+                const affordableAttackCosts = attackCosts.filter((cost) => cost <= reserve.attack);
                 const protectedCounts = {
                     invocation: affordableInvocationCosts.length
                         ? Math.min(...affordableInvocationCosts)
                         : 0,
-                    attack: affordableAttackCosts.length
-                        ? Math.min(...affordableAttackCosts)
-                        : 0,
+                    attack: affordableAttackCosts.length ? Math.min(...affordableAttackCosts) : 0,
                     movement: 0,
                 };
                 for (const monster of state.monsters) {
@@ -256,7 +243,7 @@ function createMatch(
                         return monster.cost > reserve.invocation
                             ? Math.max(
                                   best,
-                                  (Math.max(
+                                  Math.max(
                                       1,
                                       scoreMonsterForProfile(
                                           monster,
@@ -267,7 +254,7 @@ function createMatch(
                                       strategyWeights[player].invocationPriority +
                                       (getInvokedMonsterCount(state.monsters, player) === 0
                                           ? 2
-                                          : 0)),
+                                          : 0),
                               )
                             : best;
                     }, 0),

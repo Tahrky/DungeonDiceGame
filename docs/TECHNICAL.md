@@ -252,3 +252,33 @@ Les options `--search-depth`, `--branch-width` et `--node-budget` permettent des
 bornées de 1 à 3 phases, 1 à 12 branches et 20 à 10 000 nœuds. Les statistiques enregistrées
 incluent les décisions recherchées, les changements de choix, les nœuds explorés, la profondeur
 atteinte et les branches situées au-delà des trois premières.
+
+### Performances du simulateur
+
+Le CLI et l’évaluation des stratégies utilisent un pool réutilisable de quatre workers Node au
+maximum, limité au nombre de cœurs disponibles moins un. Les lots couvrent des indices de matchs
+contigus; leurs résultats sont fusionnés dans l’ordre global afin de préserver les identifiants,
+les seeds et les statistiques. `--cross-profile --games N` répartit **N matchs au total** entre
+les 42 confrontations orientées; par exemple, 420 matchs en exécutent 10 par confrontation.
+
+Mesure comparative sur Node 21.7.1, Windows, seed `4286584113`, 420 matchs, 30 tours maximum,
+plateau `wide-arena`, configuration historique migrée en v8, historique complet et traces de
+décisions activées; la recherche avancée était désactivée. Le temps affiché exclut la sérialisation
+et l’écriture du JSON.
+
+| Version | Temps des exécutions | Médiane | Gain |
+| --- | --- | --- | --- |
+| Avant optimisation, séquentielle | 554,0 s / 551,1 s / 553,2 s (3 exécutions) | 553,2 s | — |
+| Après optimisation, workers | 211 s / 224 s (2 exécutions) | 217,5 s | 2,54× |
+
+Les deux exécutions optimisées ont produit les mêmes résultats : 214 victoires J1, 199 victoires
+J2, 7 nulles et 14,65 tours en moyenne. Le JSON complet, avec historique et traces, pesait 69,1 MB.
+La mesure après optimisation ne comporte que deux répétitions; le gain est donc indicatif, même si
+chacune des deux exécutions dépasse le seuil de 2×.
+
+Pour reproduire la configuration, `--config` accepte un export contenant
+`{ "configuration": ..., "board": ... }` :
+
+```sh
+npm run simulate -- --games 420 --seed 4286584113 --max-turns 30 --profile1 cheap --profile2 offensive --cross-profile --record-decisions --config configuration-et-plateau.json
+```

@@ -29,10 +29,7 @@ interface PlacementValidationContext {
     scorePlacement: NonNullable<PlacementSearchOptions["scorePlacement"]>;
 }
 
-const transformedPatternCache = new WeakMap<
-    readonly Position[],
-    readonly Position[][]
->();
+const transformedPatternCache = new WeakMap<readonly Position[], readonly Position[][]>();
 const uniquePatternCache = new WeakMap<readonly Position[], boolean>();
 const axisOrderCache = new Map<string, number[]>();
 const allowAnyPlacement: NonNullable<PlacementSearchOptions["isPlacementAllowed"]> = () => true;
@@ -81,11 +78,17 @@ function getTransformedPatterns(pattern: readonly Position[]): readonly Position
     const cached = transformedPatternCache.get(pattern);
     if (cached) return cached;
 
-    const transformed = [0, 1, 2, 3].flatMap((rotation) =>
-        [false, true].map((mirrored) =>
-            getPatternCells(pattern, { x: 0, y: 0 }, rotation, mirrored),
-        ),
-    );
+    const transformed: Position[][] = [];
+    const seen = new Set<string>();
+    for (let rotation = 0; rotation < 4; rotation++) {
+        for (const mirrored of [false, true]) {
+            const cells = getPatternCells(pattern, { x: 0, y: 0 }, rotation, mirrored);
+            const key = cells.map(getPositionKey).sort().join(";");
+            if (seen.has(key)) continue;
+            seen.add(key);
+            transformed.push(cells);
+        }
+    }
     transformedPatternCache.set(pattern, transformed);
     return transformed;
 }
@@ -172,7 +175,9 @@ export function findValidPlacement(
     return searchPlacement(options, false);
 }
 
-export function hasValidPlacement(options: Omit<PlacementSearchOptions, "scorePlacement">): boolean {
+export function hasValidPlacement(
+    options: Omit<PlacementSearchOptions, "scorePlacement">,
+): boolean {
     return searchPlacement({ ...options, scorePlacement: scoreNothing }, true) !== null;
 }
 
@@ -181,29 +186,24 @@ export function findValidPlacements(
 ): Array<{ position: Position; cells: Position[] }> {
     const columns = getNearestFirstIndices(options.boardWidth, options.start.x);
     const rows = getNearestFirstIndices(options.boardHeight, options.start.y);
-    const context = createPlacementValidationContext({
-        ...options,
-        scorePlacement: scoreNothing,
-    });
+    const searchOptions: PlacementSearchOptions = { ...options, scorePlacement: scoreNothing };
+    const context = createPlacementValidationContext(searchOptions);
     const placements = new Map<string, { position: Position; cells: Position[] }>();
 
-    for (const patterns of options.patterns.map(getTransformedPatterns)) {
+    for (const patterns of searchOptions.patterns.map(getTransformedPatterns)) {
         for (const pattern of patterns) {
             for (const y of rows) {
                 for (const x of columns) {
                     const placement = scoreTransformedPatternPlacement(
                         pattern,
-                        { ...options, scorePlacement: scoreNothing },
+                        searchOptions,
                         context,
                         x,
                         y,
                         true,
                     );
                     if (!placement) continue;
-                    const key = placement.cells
-                        .map(getPositionKey)
-                        .sort()
-                        .join(";");
+                    const key = placement.cells.map(getPositionKey).sort().join(";");
                     placements.set(key, {
                         position: placement.position,
                         cells: placement.cells,
@@ -262,15 +262,14 @@ function searchPlacement(
             rows,
             firstValid,
         );
-        if (placement && firstValid) return { position: placement.position, cells: placement.cells };
+        if (placement && firstValid)
+            return { position: placement.position, cells: placement.cells };
         if (placement && (!bestPlacement || placement.score > bestPlacement.score)) {
             bestPlacement = placement;
         }
     }
 
-    return bestPlacement
-        ? { position: bestPlacement.position, cells: bestPlacement.cells }
-        : null;
+    return bestPlacement ? { position: bestPlacement.position, cells: bestPlacement.cells } : null;
 }
 
 function createPlacementValidationContext(
@@ -301,8 +300,7 @@ function createPlacementValidationContext(
             options.connectedCells
                 .filter(
                     ({ x, y }) =>
-                        getBoardIndex(x, y, options.boardWidth, options.boardHeight) ===
-                        undefined,
+                        getBoardIndex(x, y, options.boardWidth, options.boardHeight) === undefined,
                 )
                 .map(getPositionKey),
         ),
@@ -374,8 +372,7 @@ function scoreTransformedPatternPlacement(
             (y > 0 && context.connectedIndices.has(index - options.boardWidth)) ||
             (x + 1 === options.boardWidth && context.connectedOutsideKeys.has(`${x + 1},${y}`)) ||
             (x === 0 && context.connectedOutsideKeys.has(`${x - 1},${y}`)) ||
-            (y + 1 === options.boardHeight &&
-                context.connectedOutsideKeys.has(`${x},${y + 1}`)) ||
+            (y + 1 === options.boardHeight && context.connectedOutsideKeys.has(`${x},${y + 1}`)) ||
             (y === 0 && context.connectedOutsideKeys.has(`${x},${y - 1}`))
         ) {
             hasConnection = true;

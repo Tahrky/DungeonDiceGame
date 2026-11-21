@@ -226,35 +226,7 @@ function getAttackChoices(
 ): AttackChoice[] {
     const attack = attacker.monster.attacks[attackIndex];
     if (!attack) return [];
-    const enemyStart = getStartingPositions(board)[opposingPlayer(state.currentPlayer)];
-    const canHitBase = canAttackBaseThisTurn(
-        attacker.summonedOnTurn,
-        state.turn,
-        state.allowBaseAttackOnSummonTurn,
-    );
-    const blockers = state.monsters
-        .filter((monster) => monster.currentHp > 0 && monster.id !== attacker.id)
-        .map((monster) => monster.position);
-
-    const choices = getAttackZoneOptions(
-        attacker.position,
-        attacker.facing,
-        attack.pattern,
-        attack.targetsSelf,
-    )
-        .filter(({ target, cells }) => {
-            if (!isBoardCell(board, target)) return false;
-            if (target.x === enemyStart.x && target.y === enemyStart.y && !canHitBase) {
-                return false;
-            }
-            if (!isAreaAttack(attack) && !hasLineOfSight(attacker.position, target, blockers)) {
-                return false;
-            }
-            if (attack.movesToZone && !hasJumpLanding(state, board, attacker, cells)) {
-                return false;
-            }
-            return cells.some((cell) => isValidAttackCell(state, board, attacker, attack, cell));
-        })
+    return getLegalAttackOptions(state, board, attacker, attackIndex)
         .map((option) => {
             const features = evaluateAttack(
                 state,
@@ -298,7 +270,44 @@ function getAttackChoices(
             };
         })
         .filter((choice) => choice.isDefaultCandidate);
-    return choices;
+}
+
+function getLegalAttackOptions(
+    state: MatchState,
+    board: BoardDefinition,
+    attacker: PlacedMonster,
+    attackIndex: number,
+) {
+    const attack = attacker.monster.attacks[attackIndex];
+    if (!attack) return [];
+    const enemyStart = getStartingPositions(board)[opposingPlayer(state.currentPlayer)];
+    const canHitBase = canAttackBaseThisTurn(
+        attacker.summonedOnTurn,
+        state.turn,
+        state.allowBaseAttackOnSummonTurn,
+    );
+    const blockers = state.monsters
+        .filter((monster) => monster.currentHp > 0 && monster.id !== attacker.id)
+        .map((monster) => monster.position);
+
+    return getAttackZoneOptions(
+        attacker.position,
+        attacker.facing,
+        attack.pattern,
+        attack.targetsSelf,
+    ).filter(({ target, cells }) => {
+        if (!isBoardCell(board, target)) return false;
+        if (target.x === enemyStart.x && target.y === enemyStart.y && !canHitBase) {
+            return false;
+        }
+        if (!isAreaAttack(attack) && !hasLineOfSight(attacker.position, target, blockers)) {
+            return false;
+        }
+        if (attack.movesToZone && !hasJumpLanding(state, board, attacker, cells)) {
+            return false;
+        }
+        return cells.some((cell) => isValidAttackCell(state, board, attacker, attack, cell));
+    });
 }
 
 function getAvailableAttackChoices(state: MatchState, board: BoardDefinition): AttackChoice[] {
@@ -348,10 +357,8 @@ export function getLegalAttackCosts(state: MatchState, board: BoardDefinition): 
             ) {
                 continue;
             }
-            if (getAttackChoices(state, board, attacker, attackIndex).length > 0) {
-                costs.push(
-                    getAttackCost(attack, attacker.turnBuffs?.attackCostReduction ?? 0),
-                );
+            if (getLegalAttackOptions(state, board, attacker, attackIndex).length > 0) {
+                costs.push(getAttackCost(attack, attacker.turnBuffs?.attackCostReduction ?? 0));
             }
         }
     }
@@ -366,8 +373,6 @@ const MAX_BASIC_SEARCH_NODES = 120;
 function cloneMatchState(state: MatchState): MatchState {
     const cloneMonster = (monster: PlacedMonster): PlacedMonster => ({
         ...monster,
-        position: { ...monster.position },
-        cells: monster.cells.map((cell) => ({ ...cell })),
         attackUsesThisTurn: [...monster.attackUsesThisTurn],
         attackCooldowns: [...monster.attackCooldowns],
         statusEffects: monster.statusEffects.map((effect) => ({
@@ -417,18 +422,44 @@ function createStrategicSnapshot(
 
 interface TacticalSearchState {
     nodes: number;
+    maxDepth: number;
     cache: Map<string, number>;
 }
 
 function createSearchCacheKey(state: MatchState, player: PlayerId): string {
     const monsters = state.monsters
-        .filter((monster) => monster.currentHp > 0)
         .map((monster) =>
-            `${monster.id}:${monster.owner}:${monster.position.x},${monster.position.y}:${monster.currentHp}`,
+            [
+                monster.id,
+                monster.owner,
+                `${monster.position.x},${monster.position.y}`,
+                monster.facing,
+                monster.currentHp,
+                monster.attacksUsedThisTurn,
+                monster.attackUsesThisTurn.join(","),
+                monster.attackCooldowns.join(","),
+                monster.statusEffects
+                    .map(
+                        ({ type, remainingTurns, damagePerTurn }) =>
+                            `${type}:${remainingTurns}:${damagePerTurn ?? 0}`,
+                    )
+                    .sort()
+                    .join(","),
+                monster.turnBuffs ? Object.values(monster.turnBuffs).join(",") : "",
+            ].join(":"),
         )
         .sort()
         .join("|");
-    return `${player}:${state.health[1]}:${state.health[2]}:${monsters}:${state.reserves[1].attack}:${state.reserves[2].attack}`;
+    return [
+        player,
+        state.currentPlayer,
+        state.turn,
+        state.health[1],
+        state.health[2],
+        state.reserves[1].attack,
+        state.reserves[2].attack,
+        monsters,
+    ].join(":");
 }
 
 function searchFutureAttackPhases(
@@ -436,6 +467,7 @@ function searchFutureAttackPhases(
     board: BoardDefinition,
     rootPlayer: PlayerId,
     phasesRemaining: number,
+    currentDepth: number,
     branchWidth: number,
     nodeBudget: number,
     searchState: TacticalSearchState,
@@ -444,6 +476,7 @@ function searchFutureAttackPhases(
     if (searchState.nodes >= nodeBudget || phasesRemaining <= 0) {
         return evaluateStrategicState(createStrategicSnapshot(state, board, rootPlayer)) - baseline;
     }
+    searchState.maxDepth = Math.max(searchState.maxDepth, currentDepth);
 
     const cacheKey = createSearchCacheKey(state, rootPlayer);
     const cached = searchState.cache.get(cacheKey);
@@ -453,7 +486,8 @@ function searchFutureAttackPhases(
     const opponent = opposingPlayer(player);
     const choices = getAvailableAttackChoices(state, board).slice(0, branchWidth);
     if (choices.length === 0) {
-        const score = evaluateStrategicState(createStrategicSnapshot(state, board, rootPlayer)) - baseline;
+        const score =
+            evaluateStrategicState(createStrategicSnapshot(state, board, rootPlayer)) - baseline;
         searchState.cache.set(cacheKey, score);
         return score;
     }
@@ -504,6 +538,7 @@ function searchFutureAttackPhases(
                 board,
                 rootPlayer,
                 phasesRemaining - 1,
+                currentDepth + 1,
                 branchWidth,
                 nodeBudget,
                 searchState,
@@ -513,9 +548,10 @@ function searchFutureAttackPhases(
         best = Math.max(best, score);
     }
 
-    const result = best === Number.NEGATIVE_INFINITY
-        ? evaluateStrategicState(createStrategicSnapshot(state, board, rootPlayer)) - baseline
-        : best;
+    const result =
+        best === Number.NEGATIVE_INFINITY
+            ? evaluateStrategicState(createStrategicSnapshot(state, board, rootPlayer)) - baseline
+            : best;
     searchState.cache.set(cacheKey, result);
     return result;
 }
@@ -541,21 +577,37 @@ function chooseAttack(state: MatchState, board: BoardDefinition): AttackChoice |
 
     const player = state.currentPlayer;
     const opponent: PlayerId = player === 1 ? 2 : 1;
-    const searchDepth = Math.max(1, Math.min(3, state.searchDepth ?? (state.advancedSearch ? 2 : 1)));
-    const branchWidth = Math.max(1, Math.min(12, state.branchWidth ?? (state.advancedSearch ? MAX_ADVANCED_ATTACK_SEARCH_BRANCHES : MAX_ATTACK_SEARCH_BRANCHES)));
-    const nodeBudget = Math.max(20, state.nodeBudget ?? (state.advancedSearch ? MAX_ADVANCED_SEARCH_NODES : MAX_BASIC_SEARCH_NODES));
-    const searchState = { nodes: 0, cache: new Map<string, number>() };
-    const baseline = evaluateStrategicState(createStrategicSnapshot(state, board, player));
-    const candidates = choices.slice(
-        0,
-        branchWidth,
+    const searchDepth = Math.max(
+        1,
+        Math.min(3, state.searchDepth ?? (state.advancedSearch ? 2 : 1)),
     );
+    const branchWidth = Math.max(
+        1,
+        Math.min(
+            12,
+            state.branchWidth ??
+                (state.advancedSearch
+                    ? MAX_ADVANCED_ATTACK_SEARCH_BRANCHES
+                    : MAX_ATTACK_SEARCH_BRANCHES),
+        ),
+    );
+    const nodeBudget = Math.max(
+        20,
+        state.nodeBudget ??
+            (state.advancedSearch ? MAX_ADVANCED_SEARCH_NODES : MAX_BASIC_SEARCH_NODES),
+    );
+    const searchState = { nodes: 0, maxDepth: 1, cache: new Map<string, number>() };
+    const recordSearchStatistics = () => {
+        state.statistics[player].searchNodes += searchState.nodes;
+        state.statistics[player].maxSearchDepthReached = Math.max(
+            state.statistics[player].maxSearchDepthReached,
+            searchState.maxDepth,
+        );
+    };
+    const baseline = evaluateStrategicState(createStrategicSnapshot(state, board, player));
+    const candidates = choices.slice(0, branchWidth);
     state.statistics[player].positionsExplored += candidates.length;
     state.statistics[player].searchDecisions++;
-    state.statistics[player].maxSearchDepthReached = Math.max(
-        state.statistics[player].maxSearchDepthReached,
-        searchDepth,
-    );
     state.statistics[player].branchesExplored += candidates.length;
     state.statistics[player].nodesBeyondFirstThree +=
         candidates.length > 3 ? candidates.length - 3 : 0;
@@ -575,8 +627,11 @@ function chooseAttack(state: MatchState, board: BoardDefinition): AttackChoice |
             cells: candidate.cells.map((cell) => ({ ...cell })),
         });
         if (branch.winner === player) {
-            state.statistics[player].searchNodes += searchState.nodes;
-            if (candidate.attacker.id !== bestChoice.attacker.id || candidate.attackIndex !== bestChoice.attackIndex) {
+            recordSearchStatistics();
+            if (
+                candidate.attacker.id !== bestChoice.attacker.id ||
+                candidate.attackIndex !== bestChoice.attackIndex
+            ) {
                 state.statistics[player].decisionsChangedBySearch++;
             }
             return recordAttackDecision(state, choices, candidate);
@@ -593,16 +648,21 @@ function chooseAttack(state: MatchState, board: BoardDefinition): AttackChoice |
             if (reply) executeAttack(branch, board, reply);
         }
         if (branch.winner === player) {
-            state.statistics[player].searchNodes += searchState.nodes;
-            if (candidate.attacker.id !== bestChoice.attacker.id || candidate.attackIndex !== bestChoice.attackIndex) {
+            recordSearchStatistics();
+            if (
+                candidate.attacker.id !== bestChoice.attacker.id ||
+                candidate.attackIndex !== bestChoice.attackIndex
+            ) {
                 state.statistics[player].decisionsChangedBySearch++;
             }
             return recordAttackDecision(state, choices, candidate);
         }
         if (branch.winner === opponent) continue;
 
-        let score = evaluateStrategicState(createStrategicSnapshot(branch, board, player)) -
-            baseline + candidate.score * 0.1;
+        let score =
+            evaluateStrategicState(createStrategicSnapshot(branch, board, player)) -
+            baseline +
+            candidate.score * 0.1;
         if (searchDepth > 1) {
             prepareOpponentReply(branch, player);
             score = searchFutureAttackPhases(
@@ -610,6 +670,7 @@ function chooseAttack(state: MatchState, board: BoardDefinition): AttackChoice |
                 board,
                 player,
                 searchDepth - 1,
+                2,
                 branchWidth,
                 nodeBudget,
                 searchState,
@@ -621,8 +682,15 @@ function chooseAttack(state: MatchState, board: BoardDefinition): AttackChoice |
             selectedScore = score;
         }
     }
-    state.statistics[player].searchNodes += searchState.nodes;
-    if (selected.attacker.id !== bestChoice.attacker.id || selected.attackIndex !== bestChoice.attackIndex) {
+    recordSearchStatistics();
+    state.statistics[player].maxSearchDepthReached = Math.max(
+        state.statistics[player].maxSearchDepthReached,
+        searchState.maxDepth,
+    );
+    if (
+        selected.attacker.id !== bestChoice.attacker.id ||
+        selected.attackIndex !== bestChoice.attackIndex
+    ) {
         state.statistics[player].decisionsChangedBySearch++;
     }
     return recordAttackDecision(state, choices, selected);

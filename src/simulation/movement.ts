@@ -31,6 +31,21 @@ export function performMovements(state: MatchState, board: BoardDefinition): voi
     const ownedCells = state.monsters
         .filter((placed) => placed.owner === player)
         .flatMap((placed) => placed.cells);
+    const enemyPositions = state.monsters
+        .filter((placed) => placed.owner !== player && placed.currentHp > 0)
+        .map((placed) => placed.position);
+    const strategicSnapshot: StrategicSnapshot = {
+        board,
+        health: state.health,
+        initialHealth: Math.max(state.health[1], state.health[2], 1),
+        monsters: state.monsters,
+        reserves: state.reserves,
+        profile: state.profiles[player],
+        tactics: state.tactics,
+        currentPlayer: player,
+        turn: state.turn,
+    };
+    const weights = state.strategyWeights?.[player] ?? DEFAULT_BOT_STRATEGY_WEIGHTS;
 
     for (const monster of ownMonsters) {
         while (
@@ -49,23 +64,6 @@ export function performMovements(state: MatchState, board: BoardDefinition): voi
             const movement: MovementOptions = {
                 ...createMovementOptions(state, board, monster),
                 destination: monster.position,
-            };
-            const enemyPositions = state.monsters
-                .filter((placed) => placed.owner !== player && placed.currentHp > 0)
-                .map((placed) => placed.position);
-            const strategicSnapshot: StrategicSnapshot = {
-                board,
-                health: { ...state.health },
-                initialHealth: Math.max(state.health[1], state.health[2], 1),
-                monsters: state.monsters,
-                reserves: {
-                    1: { ...state.reserves[1] },
-                    2: { ...state.reserves[2] },
-                },
-                profile: state.profiles[player],
-                tactics: { ...state.tactics },
-                currentPlayer: player,
-                turn: state.turn,
             };
             const role = assignMonsterRoles(strategicSnapshot, player).find(
                 (assignment) => assignment.monsterId === monster.id,
@@ -89,18 +87,18 @@ export function performMovements(state: MatchState, board: BoardDefinition): voi
                 ...enemyPositions
                     .slice()
                     .sort(
-                    (first, second) =>
-                        Math.abs(first.x - monster.position.x) +
+                        (first, second) =>
+                            Math.abs(first.x - monster.position.x) +
                             Math.abs(first.y - monster.position.y) -
-                        (Math.abs(second.x - monster.position.x) +
-                            Math.abs(second.y - monster.position.y)),
+                            (Math.abs(second.x - monster.position.x) +
+                                Math.abs(second.y - monster.position.y)),
                     ),
             ];
             const objectives = [
                 roleObjective,
                 ...alternateObjectives.filter(
                     (objective) =>
-                    objective.x !== roleObjective.x || objective.y !== roleObjective.y,
+                        objective.x !== roleObjective.x || objective.y !== roleObjective.y,
                 ),
             ];
             const movementGoal =
@@ -114,7 +112,6 @@ export function performMovements(state: MatchState, board: BoardDefinition): voi
                           ? "son secteur de patrouille"
                           : "le départ ennemi";
             const threatScores = createThreatScores(board, state.monsters, monster.id);
-            const weights = state.strategyWeights?.[player] ?? DEFAULT_BOT_STRATEGY_WEIGHTS;
             let best = findObjectiveMovement(
                 movement,
                 ownedCells,
@@ -128,17 +125,17 @@ export function performMovements(state: MatchState, board: BoardDefinition): voi
             if (!best) {
                 for (const objective of objectives.slice(1)) {
                     best = findObjectiveMovement(
-                            movement,
-                            ownedCells,
-                            objective,
-                            enemyPositions,
-                            state.tactics[player],
-                            threatScores,
-                            weights,
+                        movement,
+                        ownedCells,
+                        objective,
+                        enemyPositions,
+                        state.tactics[player],
+                        threatScores,
+                        weights,
                     );
                     if (best) {
-                            selectedObjective = objective;
-                            break;
+                        selectedObjective = objective;
+                        break;
                     }
                 }
                 state.statistics[player].unreachableObjectives++;

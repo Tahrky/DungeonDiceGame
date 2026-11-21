@@ -59,7 +59,11 @@ describe("noyau de décision tactique", () => {
             cells: [{ x: 3, y: 3 }],
         };
 
-        const threats = createThreatScores(createCustomBoard(7, 7), [defender, attacker], defender.id);
+        const threats = createThreatScores(
+            createCustomBoard(7, 7),
+            [defender, attacker],
+            defender.id,
+        );
 
         expect(threats.get("4,3")).toBeGreaterThan(0);
         expect(threats.has("4,4")).toBe(false);
@@ -300,7 +304,7 @@ describe("noyau de décision tactique", () => {
         ).toBe(49);
     }, 600_000);
 
-    it("sépare réellement profondeur, largeur de branches et budget de recherche", () => {
+    it("ne déclare que la profondeur de recherche réellement explorée dans une partie courte", () => {
         const shallow = runSimulations({
             games: 2,
             seed: 808,
@@ -328,11 +332,8 @@ describe("noyau de décision tactique", () => {
 
         const shallowStats = shallow.matches[0]?.statistics[1];
         const deepStats = deep.matches[0]?.statistics[1];
-        expect(shallowStats?.maxSearchDepthReached).toBe(1);
-        expect(deepStats?.maxSearchDepthReached).toBe(3);
-        expect(deepStats?.branchesExplored).toBeGreaterThanOrEqual(
-            shallowStats?.branchesExplored ?? 0,
-        );
+        expect(shallowStats?.maxSearchDepthReached).toBe(0);
+        expect(deepStats?.maxSearchDepthReached).toBe(0);
         expect(deep.matches.map((match) => match.seed)).toEqual(
             shallow.matches.map((match) => match.seed),
         );

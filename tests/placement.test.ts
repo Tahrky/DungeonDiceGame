@@ -80,8 +80,8 @@ function findReferencePlacement(
                             continue;
                         }
 
-                        const position = cells.find((cell) =>
-                            options.isPlacementAllowed?.(cell, cells) ?? true,
+                        const position = cells.find(
+                            (cell) => options.isPlacementAllowed?.(cell, cells) ?? true,
                         );
                         if (!position) continue;
 
@@ -189,9 +189,7 @@ describe("règles de pose", () => {
     });
 
     it("refuse les cases manquantes d'un plateau irrégulier", () => {
-        expect(
-            canPlaceCells(line, 10, [], [{ x: 0, y: 1 }], [], 10, [{ x: 4, y: 1 }]),
-        ).toBe(false);
+        expect(canPlaceCells(line, 10, [], [{ x: 0, y: 1 }], [], 10, [{ x: 4, y: 1 }])).toBe(false);
     });
 
     it("préserve le choix exhaustif, l’ordre des scores et les égalités", () => {
@@ -202,8 +200,15 @@ describe("règles de pose", () => {
             boardWidth: 15,
             boardHeight: 19,
             start: { x: 14, y: 9 },
-            occupiedCells: [{ x: 0, y: 9 }, { x: 14, y: 9 }, { x: 12, y: 9 }],
-            connectedCells: [{ x: 14, y: 9 }, { x: 13, y: 9 }],
+            occupiedCells: [
+                { x: 0, y: 9 },
+                { x: 14, y: 9 },
+                { x: 12, y: 9 },
+            ],
+            connectedCells: [
+                { x: 14, y: 9 },
+                { x: 13, y: 9 },
+            ],
             overlappingCells: [{ x: 12, y: 9 }],
             blockedCells: [{ x: 13, y: 8 }],
             isPlacementAllowed: (position: Position, cells: readonly Position[]) =>
@@ -224,12 +229,16 @@ describe("règles de pose", () => {
         const expected = findReferencePlacement(createOptions(1));
 
         expect(findValidPlacement(options)).toEqual(expected);
-        expect(scoreCalls[0]).toEqual(scoreCalls[1]);
-        expect(scoreValues[0]).toEqual(scoreValues[1]);
-        expect(scoreValues[0]!.filter((score) => score === 1).length).toBeGreaterThan(1);
-        const scoredCellSets = scoreCalls[1]!.map((call) =>
-            call.slice(call.indexOf(":") + 1).split(";"),
+        const scoredCellSets = scoreCalls[0]!.map((call) =>
+            call
+                .slice(call.indexOf(":") + 1)
+                .split(";")
+                .sort()
+                .join(";"),
         );
+        expect(new Set(scoredCellSets).size).toBe(scoredCellSets.length);
+        expect(scoreCalls[0]!.length).toBeLessThan(scoreCalls[1]!.length);
+        expect(scoreValues[0]!.filter((score) => score === 1).length).toBeGreaterThan(1);
         expect(scoredCellSets.some((cells) => cells.includes("12,9"))).toBe(true);
         expect(scoredCellSets.every((cells) => !cells.includes("13,8"))).toBe(true);
     });
@@ -247,16 +256,14 @@ describe("règles de pose", () => {
         it("choisit une zone valide adjacente au départ du joueur 2", () => {
             const playerOneStart = { x: 0, y: 9 };
             const computerStart = { x: 14, y: 9 };
-            const placement = findValidPlacement(
-                {
-                    patterns: PLACEMENT_PATTERNS,
-                    boardWidth: 15,
-                    boardHeight: 19,
-                    start: computerStart,
-                    occupiedCells: [playerOneStart, computerStart],
-                    connectedCells: [computerStart],
-                },
-            );
+            const placement = findValidPlacement({
+                patterns: PLACEMENT_PATTERNS,
+                boardWidth: 15,
+                boardHeight: 19,
+                start: computerStart,
+                occupiedCells: [playerOneStart, computerStart],
+                connectedCells: [computerStart],
+            });
 
             expect(placement).not.toBeNull();
             expect(placement!.cells).toContainEqual(placement!.position);
@@ -280,7 +287,10 @@ describe("règles de pose", () => {
                 boardWidth: 15,
                 boardHeight: 19,
                 start: { x: 14, y: 9 },
-                occupiedCells: [{ x: 0, y: 9 }, { x: 14, y: 9 }],
+                occupiedCells: [
+                    { x: 0, y: 9 },
+                    { x: 14, y: 9 },
+                ],
                 connectedCells: [{ x: 14, y: 9 }],
             };
 
@@ -302,26 +312,19 @@ describe("règles de pose", () => {
                 { x: 3, y: 9 },
             ];
             const findPlacement = (blockedPosition?: Position) =>
-                findValidPlacement(
-                    {
-                        patterns: PLACEMENT_PATTERNS,
-                        boardWidth: 15,
-                        boardHeight: 19,
-                        start: computerStart,
-                        occupiedCells: [
-                            computerStart,
-                            playerOneStart,
-                            ...computerPath,
-                            ...enemyPath,
-                        ],
-                        connectedCells: [computerStart, ...computerPath],
-                        overlappingCells: computerPath,
-                        isPlacementAllowed: (position) =>
-                            !blockedPosition ||
-                            position.x !== blockedPosition.x ||
-                            position.y !== blockedPosition.y,
-                    },
-                );
+                findValidPlacement({
+                    patterns: PLACEMENT_PATTERNS,
+                    boardWidth: 15,
+                    boardHeight: 19,
+                    start: computerStart,
+                    occupiedCells: [computerStart, playerOneStart, ...computerPath, ...enemyPath],
+                    connectedCells: [computerStart, ...computerPath],
+                    overlappingCells: computerPath,
+                    isPlacementAllowed: (position) =>
+                        !blockedPosition ||
+                        position.x !== blockedPosition.x ||
+                        position.y !== blockedPosition.y,
+                });
             const firstPlacement = findPlacement();
             const placement = firstPlacement && findPlacement(firstPlacement.position);
 
@@ -356,30 +359,28 @@ describe("règles de pose", () => {
             for (let turn = 0; turn < 3; turn++) {
                 const territoryKeys = new Set(territory.map(positionKey));
                 const frontierX = Math.min(...territory.map((cell) => cell.x));
-                const placement = findValidPlacement(
-                    {
-                        patterns: PLACEMENT_PATTERNS,
-                        boardWidth: 15,
-                        boardHeight: 19,
-                        start: computerStart,
-                        occupiedCells: occupied,
-                        connectedCells: territory,
-                        overlappingCells: territory,
-                        isPlacementAllowed: (position, cells) =>
-                            !monsterPositions.some(
-                                (placed) => positionKey(placed) === positionKey(position),
-                            ) && cells.some((cell) => !territoryKeys.has(positionKey(cell))),
-                        scorePlacement: (_position, cells) => {
-                            const newCells = cells.filter(
-                                (cell) => !territoryKeys.has(positionKey(cell)),
-                            );
-                            return (
-                                (frontierX - Math.min(...newCells.map((cell) => cell.x))) * 100 +
-                                newCells.length
-                            );
-                        },
+                const placement = findValidPlacement({
+                    patterns: PLACEMENT_PATTERNS,
+                    boardWidth: 15,
+                    boardHeight: 19,
+                    start: computerStart,
+                    occupiedCells: occupied,
+                    connectedCells: territory,
+                    overlappingCells: territory,
+                    isPlacementAllowed: (position, cells) =>
+                        !monsterPositions.some(
+                            (placed) => positionKey(placed) === positionKey(position),
+                        ) && cells.some((cell) => !territoryKeys.has(positionKey(cell))),
+                    scorePlacement: (_position, cells) => {
+                        const newCells = cells.filter(
+                            (cell) => !territoryKeys.has(positionKey(cell)),
+                        );
+                        return (
+                            (frontierX - Math.min(...newCells.map((cell) => cell.x))) * 100 +
+                            newCells.length
+                        );
                     },
-                );
+                });
 
                 expect(placement).not.toBeNull();
                 expect(placement!.cells).toContainEqual(placement!.position);
@@ -404,22 +405,19 @@ describe("règles de pose", () => {
             ];
             const occupied = [computerStart, opponentStart, ...opponentPath];
             const opponentKeys = new Set(occupied.slice(1).map(positionKey));
-            const placement = findValidPlacement(
-                {
-                    patterns: PLACEMENT_PATTERNS,
-                    boardWidth: 15,
-                    boardHeight: 19,
-                    start: computerStart,
-                    occupiedCells: occupied,
-                    connectedCells: [computerStart],
-                    overlappingCells: [],
-                    isPlacementAllowed: (position, cells) =>
-                        !opponentKeys.has(positionKey(position)) &&
-                        cells.every((cell) => !opponentKeys.has(positionKey(cell))),
-                    scorePlacement: (_position, cells) =>
-                        -Math.min(...cells.map((cell) => cell.x)),
-                },
-            );
+            const placement = findValidPlacement({
+                patterns: PLACEMENT_PATTERNS,
+                boardWidth: 15,
+                boardHeight: 19,
+                start: computerStart,
+                occupiedCells: occupied,
+                connectedCells: [computerStart],
+                overlappingCells: [],
+                isPlacementAllowed: (position, cells) =>
+                    !opponentKeys.has(positionKey(position)) &&
+                    cells.every((cell) => !opponentKeys.has(positionKey(cell))),
+                scorePlacement: (_position, cells) => -Math.min(...cells.map((cell) => cell.x)),
+            });
 
             expect(placement).not.toBeNull();
             expect(opponentKeys.has(positionKey(placement!.position))).toBe(false);
@@ -457,10 +455,7 @@ describe("règles de pose", () => {
     });
 
     it("préserve toujours une formation initiale sur les plateaux prédéfinis et personnalisés", () => {
-        const boards = [
-            ...getBoardPresets(),
-            createCustomBoard(15, 15, [{ x: 7, y: 7 }]),
-        ];
+        const boards = [...getBoardPresets(), createCustomBoard(15, 15, [{ x: 7, y: 7 }])];
 
         for (const board of boards) {
             const starts = getStartingPositions(board);
@@ -495,9 +490,7 @@ describe("règles de pose", () => {
                             (placed) => positionKey(placed) === positionKey(position),
                         ) && cells.some((cell) => !ownTerritoryKeys.has(positionKey(cell))),
                 });
-                const placement = placements.find(({ cells }) =>
-                    protectOpponentDeployment!(cells),
-                );
+                const placement = placements.find(({ cells }) => protectOpponentDeployment!(cells));
 
                 expect(placement).toBeDefined();
                 occupiedCells.push(...placement!.cells);

@@ -3,7 +3,14 @@ import type { GameConfiguration } from "../game/gameConfiguration";
 import type { DiceReserve, PlayerId } from "../types/GameTypes";
 import type { BotProfile, BotStrategyWeights } from "../game/botStrategy";
 import { BOT_PROFILES } from "../game/botStrategy";
+import type { SimulationBatchResult, SimulationOptions } from "./types";
 import { runSimulations } from "./simulator";
+
+export type TrainingSimulationRunner = (
+    options: SimulationOptions,
+    configuration: GameConfiguration,
+    board: BoardDefinition,
+) => Promise<SimulationBatchResult>;
 
 export interface RateConfidenceInterval {
     lower: number;
@@ -143,25 +150,37 @@ function addMatch(
     return result.winner === null ? 0.5 : result.winner === player ? 1 : 0;
 }
 
-export function evaluateWeights(
+export async function evaluateWeights(
     profile: BotProfile,
     weights: Readonly<BotStrategyWeights>,
     seeds: readonly number[],
     maxTurns: number,
     configuration: GameConfiguration,
     board: BoardDefinition,
-): TrainingEvaluation {
+    simulationRunner?: TrainingSimulationRunner,
+): Promise<TrainingEvaluation> {
     const startedAt = performance.now();
     const totals = createAccumulator();
     const matchupTotals = new Map<BotProfile, OutcomeAccumulator>();
     const pairedScores = new Map<string, number>();
+    const runner =
+        simulationRunner ??
+        (async (
+            options: SimulationOptions,
+            runConfiguration: GameConfiguration,
+            runBoard: BoardDefinition,
+        ) => runSimulations(options, runConfiguration, runBoard));
 
     for (const opponent of BOT_PROFILES) {
         if (opponent === profile) continue;
-        const matchup = createAccumulator();
-        matchupTotals.set(opponent, matchup);
-        for (const seed of seeds) {
-            const result = runSimulations(
+        matchupTotals.set(opponent, createAccumulator());
+    }
+
+    const tasks = BOT_PROFILES.filter((opponent) => opponent !== profile).flatMap((opponent) =>
+        seeds.map(async (seed) => ({
+            opponent,
+            seed,
+            result: await runner(
                 {
                     games: 2,
                     seed,
@@ -173,12 +192,16 @@ export function evaluateWeights(
                 },
                 configuration,
                 board,
-            );
-            for (const [index, match] of result.matches.entries()) {
-                const score = addMatch(totals, match, 1, configuration);
-                addMatch(matchup, match, 1, configuration);
-                pairedScores.set(`${opponent}:${seed}:${index}`, score);
-            }
+            ),
+        })),
+    );
+    for (const { opponent, seed, result } of await Promise.all(tasks)) {
+        const matchup = matchupTotals.get(opponent);
+        if (!matchup) throw new Error(`Résultats absents pour l’adversaire « ${opponent} ».`);
+        for (const [index, match] of result.matches.entries()) {
+            const score = addMatch(totals, match, 1, configuration);
+            addMatch(matchup, match, 1, configuration);
+            pairedScores.set(`${opponent}:${seed}:${index}`, score);
         }
     }
 
