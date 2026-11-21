@@ -236,11 +236,11 @@ export function RunSimulationPanel({
                             return;
                         }
 
+                        results.push(result);
+                        completedGames += chunk.games;
                         void saveSimulationChunk(sessionId, chunk.startIndex, result)
                             .then(() => {
                                 if (!active) return;
-                                results.push(result);
-                                completedGames += chunk.games;
                                 setNotice(
                                     `Simulation en cours… ${completedGames}/${options.games} matchs terminés (${workers.length} workers).`,
                                 );
@@ -279,6 +279,55 @@ export function RunSimulationPanel({
                 cancelRunRef.current = () => {
                     active = false;
                     terminateWorkers();
+                    cancelRunRef.current = null;
+
+                    const partialResults: SimulationBatchResult[] = [];
+                    for (const chunk of chunks) {
+                        const result = results.find(
+                            (candidate) => candidate.matches[0]?.id === chunk.startIndex + 1,
+                        );
+                        if (!result) break;
+                        partialResults.push(result);
+                    }
+
+                    if (partialResults.length === 0) {
+                        setIsRunning(false);
+                        onRunningChange(false);
+                        setNotice("Simulation arrêtée avant qu’un match ne soit terminé.");
+                        void clearSimulationRun(sessionId).catch(() => undefined);
+                        return;
+                    }
+
+                    const partialMatches = partialResults.reduce(
+                        (total, result) => total + result.matches.length,
+                        0,
+                    );
+                    try {
+                        const partialOptions = { ...options, games: partialMatches };
+                        const result = mergeSimulationResults(partialResults, partialOptions);
+                        setIsRunning(false);
+                        onRunningChange(false);
+                        setNotice(
+                            `Simulation arrêtée : ${partialMatches} matchs terminés en ${formatElapsedDuration(performance.now() - startedAt)}.`,
+                        );
+                        onResult(result);
+                        void clearSimulationRun(sessionId).catch((clearError: unknown) =>
+                            setError(
+                                clearError instanceof Error
+                                    ? `Impossible d’effacer la reprise : ${clearError.message}`
+                                    : "Impossible d’effacer la reprise de simulation.",
+                            ),
+                        );
+                    } catch (mergeError) {
+                        setIsRunning(false);
+                        onRunningChange(false);
+                        setError(
+                            mergeError instanceof Error
+                                ? mergeError.message
+                                : "Impossible de regrouper les résultats partiels.",
+                        );
+                        setNotice("");
+                    }
                 };
                 setNotice(
                     `Simulation en cours… ${completedGames}/${options.games} matchs terminés (${workers.length} workers).`,
@@ -440,6 +489,15 @@ export function RunSimulationPanel({
                           ? "Simulation en cours…"
                           : "Lancer les simulations"}
                 </button>
+                {isRunning && (
+                    <button
+                        className="secondary-button"
+                        type="button"
+                        onClick={() => cancelRunRef.current?.()}
+                    >
+                        Arrêter et afficher les résultats
+                    </button>
+                )}
             </div>
             <output className={`simulation-notice${error ? " is-error" : ""}`} aria-live="polite">
                 {error || notice}

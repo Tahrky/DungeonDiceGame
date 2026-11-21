@@ -8,6 +8,7 @@ import {
 } from "../../simulation/analysis";
 import { BOT_PROFILE_LABELS } from "../../game/botStrategy";
 import { BOT_PROFILES, type SimulationBatchResult } from "../../simulation/types";
+import { createSimulationJsonBlob } from "../../simulation/export";
 import { AttackUsageList } from "./AttackUsageList";
 import { MetricBarChart } from "./MetricBarChart";
 import { MatchInspector } from "./MatchInspector";
@@ -18,14 +19,12 @@ interface ResultsAnalysisPanelProps {
 }
 
 function downloadJson(result: SimulationBatchResult): void {
-    const url = URL.createObjectURL(
-        new Blob([`${JSON.stringify(result, null, 2)}\n`], { type: "application/json" }),
-    );
+    const url = URL.createObjectURL(createSimulationJsonBlob(result));
     const link = document.createElement("a");
     link.href = url;
     link.download = `dungeon-dice-simulations-seed-${result.options.seed}.json`;
     link.click();
-    window.setTimeout(() => URL.revokeObjectURL(url), 0);
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
 function MetricCard({ label, value }: { label: string; value: string }) {
@@ -145,7 +144,18 @@ export function ResultsAnalysisPanel({ generatedResult }: ResultsAnalysisPanelPr
                 {generatedResult && (
                     <button
                         className="secondary-button"
-                        onClick={() => downloadJson(generatedResult)}
+                        onClick={() => {
+                            setError("");
+                            try {
+                                downloadJson(generatedResult);
+                            } catch (caught) {
+                                setError(
+                                    caught instanceof Error
+                                        ? `Impossible de télécharger le JSON : ${caught.message}`
+                                        : "Impossible de préparer le téléchargement JSON.",
+                                );
+                            }
+                        }}
                     >
                         Télécharger le dernier JSON
                     </button>
