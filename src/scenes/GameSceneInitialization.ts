@@ -13,6 +13,7 @@ const OTHER_ACTIONS: readonly MonsterSpriteAction[] = [
     "move",
     "attack",
     "alternativeAttack1",
+    "alternativeAttack2",
     "backstab",
     "hit",
     "death",

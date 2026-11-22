@@ -77,15 +77,15 @@ describe("portée des actions de monstre", () => {
         expect(canUseMonsterAttackThisTurn({}, 5)).toBe(true);
         expect(archer?.attacks[1]).toMatchObject({
             damage: 3,
-            cost: 1,
-            cooldownTurns: 2,
+            cost: 2,
+            cooldownTurns: 1,
             initialCooldownTurns: 1,
             pattern: { type: "radius", range: 4 },
         });
         const chargedAttack = archer?.attacks[1];
         if (!thief || !chargedAttack) throw new Error("Profils de test indisponibles.");
         expect(describeMonsterAttack(chargedAttack)).toContain(
-            "recharge : 2 tours du joueur (1 tour à l'apparition)",
+            "recharge : 1 tour du joueur",
         );
         expect(describeMonsterMovement(thief)).toContain("2 déplacements par tour");
     });

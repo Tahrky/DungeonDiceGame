@@ -75,6 +75,7 @@ function parseMonsterAttackAnimation(value: unknown): MonsterAttackAnimation | u
         case "attack":
         case "backstab":
         case "alternativeAttack1":
+        case "alternativeAttack2":
             return value;
         case "attackAoe":
         case "strongAttack":

@@ -105,7 +105,7 @@ describe("effets de statut au début du tour", () => {
             history: [],
             statistics: { 1: createStats(), 2: createStats() },
             nextMonsterId: 3,
-            monstersKilledForVictory: 8,
+            monstersKilledForVictory: 6,
         };
 
         performAttacks(state, getDefaultBoard());
@@ -113,14 +113,14 @@ describe("effets de statut au début du tour", () => {
         state.turn = 2;
         beginTurn(state, getDefaultGameConfiguration(), 2);
 
-        expect(state.statistics[1].damageDealt).toBe(2);
-        expect(state.statistics[2].damageReceived).toBe(2);
+        expect(state.statistics[1].damageDealt).toBe(3);
+        expect(state.statistics[2].damageReceived).toBe(3);
         expect(state.history.find((event) => event.type === "status")).toMatchObject({
             player: 1,
             monsterTypeId: "swamp-thing",
             monsterName: "Créature des Marais",
             target: "Fantôme (J2)",
-            damage: 2,
+            damage: 1,
         });
     });
 

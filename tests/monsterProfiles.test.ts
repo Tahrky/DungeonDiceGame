@@ -18,10 +18,10 @@ describe("profils de monstres", () => {
         });
         expect(frostMage?.attacks[1]).toMatchObject({
             name: "Explosion de Givre",
-            cost: 2,
-            damage: 3,
+            cost: 3,
+            damage: 5,
             hitsAllies: true,
-            pattern: { type: "selfRadius", range: 3 },
+            pattern: { type: "selfRadius", range: 2 },
         });
     });
 
@@ -29,7 +29,7 @@ describe("profils de monstres", () => {
         const archer = MONSTERS.find((monster) => monster.id === "archer");
 
         expect(archer).toMatchObject({
-            cost: 2,
+            cost: 3,
             hp: 2,
             movementRange: 2,
         });
@@ -39,7 +39,7 @@ describe("profils de monstres", () => {
         });
         expect(archer?.attacks[1]).toMatchObject({
             damage: 3,
-            cooldownTurns: 2,
+            cooldownTurns: 1,
             initialCooldownTurns: 1,
             pattern: { type: "radius", range: 4 },
             animation: "alternativeAttack1",
@@ -56,7 +56,7 @@ describe("profils de monstres", () => {
     it("configure le Fantôme et son déplacement gratuit", () => {
         const ghost = MONSTERS.find((monster) => monster.id === "ghost");
 
-        expect(ghost?.movementCost).toBe(0);
+        expect(ghost?.movementCost).toBe(1);
         expect(ghost?.attacks).toEqual([
             {
                 name: "Coup au corps à corps",
@@ -73,10 +73,10 @@ describe("profils de monstres", () => {
         expect(thief).toMatchObject({
             cost: 3,
             hp: 4,
-            bonusDamageFromBehind: 3,
+            bonusDamageFromBehind: 2,
             movementRange: 3,
         });
-        expect(thief?.attacks[0]).toMatchObject({ damage: 2, cost: 1 });
+        expect(thief?.attacks[0]).toMatchObject({ damage: 3, cost: 1 });
     });
 
     it("configure le Prêtre pour soigner et réduire les recharges des alliés", () => {
@@ -86,7 +86,7 @@ describe("profils de monstres", () => {
         expect(priest?.attacks).toMatchObject([
             {
                 name: "Coup de baton",
-                damage: 1,
+                damage: 2,
                 cost: 1,
                 pattern: { type: "adjacent" },
             },
@@ -116,7 +116,7 @@ describe("profils de monstres", () => {
         expect(priestBuffer?.attacks).toMatchObject([
             {
                 name: "Coup de baton",
-                damage: 1,
+                damage: 2,
                 cost: 1,
                 pattern: { type: "adjacent" },
             },

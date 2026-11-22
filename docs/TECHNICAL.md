@@ -114,7 +114,7 @@ validation des définitions sont dans `src/game/boards.ts`.
 Pour ajouter ou modifier du contenu :
 
 - **Monstres et attaques** : modifier `src/data/monsters.ts` en respectant les types du domaine.
-  Le champ optionnel `animation` d’une attaque accepte `attack`, `alternativeAttack1` ou `backstab`;
+  Le champ optionnel `animation` d’une attaque accepte `attack`, `alternativeAttack1`, `alternativeAttack2` ou `backstab`;
   s’il est absent, l’animation `attack` est utilisée. Ces noms correspondent aux clés de
   `MONSTER_SPRITES` dans `src/data/monsterSprites.ts`.
 - **Dés** : modifier `src/data/dice.ts` et garder les symboles synchronisés avec

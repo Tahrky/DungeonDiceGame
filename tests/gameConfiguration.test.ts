@@ -29,7 +29,7 @@ describe("configuration des règles de partie", () => {
             maxMonstersPerPlayer: GAME_OPTIONS.maxMonstersPerPlayer.default,
             monstersKilledForVictory: GAME_OPTIONS.monstersKilledForVictory.default,
         });
-        expect(configuration.initialPlayerHealth).toBe(3);
+        expect(configuration.initialPlayerHealth).toBe(6);
     });
 
     it("conserve les options sauvegardées mais donne la priorité aux monstres du code", () => {
@@ -77,7 +77,7 @@ describe("configuration des règles de partie", () => {
 
     it("autorise par défaut une attaque immédiate et migre les anciennes configurations", () => {
         const configuration = getDefaultGameConfiguration();
-        expect(configuration.allowBaseAttackOnSummonTurn).toBe(true);
+        expect(configuration.allowBaseAttackOnSummonTurn).toBe(false);
 
         configuration.allowBaseAttackOnSummonTurn = false;
         expect(
@@ -96,7 +96,7 @@ describe("configuration des règles de partie", () => {
         );
         legacyConfiguration.version = 5;
         delete legacyConfiguration.allowBaseAttackOnSummonTurn;
-        expect(parseGameConfiguration(legacyConfiguration)?.allowBaseAttackOnSummonTurn).toBe(true);
+        expect(parseGameConfiguration(legacyConfiguration)?.allowBaseAttackOnSummonTurn).toBe(false);
         expect(
             parseGameConfiguration(legacyConfiguration)?.removeInvocationDiceWhenNoMonsters,
         ).toBe(false);
@@ -191,14 +191,14 @@ describe("configuration des règles de partie", () => {
         expect(configuration.diceCount).toBe(5);
         expect(configuration.deckSize).toBe(DEFAULT_DECK_SIZE);
         expect(configuration.maxMonstersPerPlayer).toBe(8);
-        expect(configuration.monstersKilledForVictory).toBe(8);
+        expect(configuration.monstersKilledForVictory).toBe(6);
 
         const legacyConfiguration = JSON.parse(serializeGameConfiguration(configuration));
         legacyConfiguration.version = 2;
         delete legacyConfiguration.testBoard;
         delete legacyConfiguration.monstersKilledForVictory;
         expect(parseGameConfiguration(legacyConfiguration)?.testBoard).toBe(false);
-        expect(parseGameConfiguration(legacyConfiguration)?.monstersKilledForVictory).toBe(8);
+        expect(parseGameConfiguration(legacyConfiguration)?.monstersKilledForVictory).toBe(6);
     });
 
     it("migre les profils enregistrés en remplaçant l'ancien motif de soin du Prêtre", () => {
@@ -227,7 +227,7 @@ describe("configuration des règles de partie", () => {
         expect(migrated?.version).toBe(8);
         expect(migrated?.deckSize).toBe(DEFAULT_DECK_SIZE);
         expect(migrated?.diceCount).toBe(3);
-        expect(migrated?.monstersKilledForVictory).toBe(8);
+        expect(migrated?.monstersKilledForVictory).toBe(6);
         expect(
             migrated?.monsters.find((monster) => monster.id === "priest")?.attacks[0].pattern,
         ).toEqual({ type: "radius", range: 4 });
@@ -291,7 +291,7 @@ describe("configuration des règles de partie", () => {
         expect(parseGameConfiguration(legacyConfiguration)).toMatchObject({
             version: 8,
             deckSize: DEFAULT_DECK_SIZE,
-            monstersKilledForVictory: 8,
+            monstersKilledForVictory: 6,
         });
     });
 

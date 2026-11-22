@@ -5,7 +5,7 @@ export type DiceSymbol = "invocation" | "attack" | "movement";
 export type BoardCellHeight = -1 | 0 | 1;
 export type BoardHeightChange = 1 | -1;
 
-export type MonsterAttackAnimation = "attack" | "alternativeAttack1" | "backstab";
+export type MonsterAttackAnimation = "attack" | "alternativeAttack1" | "alternativeAttack2" | "backstab";
 
 export interface BoardObstacle {
     height: -1 | 1;

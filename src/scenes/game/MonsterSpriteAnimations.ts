@@ -129,6 +129,7 @@ export function createMonsterSpriteAnimations(
                     repeat:
                         action === "attack" ||
                         action === "alternativeAttack1" ||
+                        action === "alternativeAttack2" ||
                         action === "backstab" ||
                         action === "hit" ||
                         action === "death"

@@ -179,7 +179,7 @@ export const MONSTERS: Monster[] = [
 
     {
         id: "thief",
-        name: "Voleur Sournois",
+        name: "Vil Voleur",
         symbol: "V",
         color: 0xd4b35a,
         cost: 3,
@@ -227,8 +227,8 @@ export const MONSTERS: Monster[] = [
     },
 
     {
-        id: "priestBuffer",
-        name: "Prêtre Buffer",
+        id: "shaman",
+        name: "Chaman",
         symbol: "B",
         color: 0x54b8e8,
         cost: 4,
@@ -250,17 +250,18 @@ export const MONSTERS: Monster[] = [
                 movementRangeBonus: 1,
                 movementCostReduction: 1,
                 usesPerTurn: 1,
+                animation: "alternativeAttack1",
             },
             {
                 name: "Force sacrée",
                 damage: 0,
                 cost: 1,
                 pattern: { type: "radius", range: 4 },
-                animation: "alternativeAttack1",
                 targetsAlliesOnly: true,
                 attackDamageBonus: 1,
                 attackCostReduction: 1,
                 usesPerTurn: 1,
+                animation: "alternativeAttack2",
             },
         ],
         movementRange: 2,
