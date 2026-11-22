@@ -63,7 +63,6 @@ describe("profils de monstres", () => {
                 damage: 2,
                 cost: 2,
                 pattern: { type: "adjacent" },
-                cooldownTurns: 1,
             },
         ]);
     });
@@ -73,7 +72,7 @@ describe("profils de monstres", () => {
 
         expect(thief).toMatchObject({
             cost: 3,
-            hp: 5,
+            hp: 3,
             bonusDamageFromBehind: 3,
             movementRange: 3,
         });

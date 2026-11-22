@@ -31,7 +31,7 @@ const BALANCE_COLUMNS: SortableColumn<MonsterBalance>[] = [
         key: "total",
         label: "Score global / 10",
         headerTitle:
-            "Moyenne pondérée des six sous-scores, chacun ramené sur 10 :\n\nRobustesse : 20 %\nAttaque : 25 %\nPortée / zone : 15 %\nMobilité : 15 %\nUtilité : 15 %\nÉconomie d’actions : 10 %",
+            "Moyenne pondérée des cinq indicateurs principaux, chacun ramené sur 10 :\n\nRobustesse : 4/17\nAttaque : 5/17\nMobilité : 3/17\nUtilité : 3/17\nÉconomie d’actions : 2/17\n\nLa portée et les zones restent affichées à part; leurs effets sur les cibles attendues sont déjà intégrés à l’offensive.",
         getValue: (monster) => monster.scores.total,
         render: (monster) => format(monster.scores.total),
     },
@@ -135,8 +135,9 @@ const BALANCE_COLUMNS: SortableColumn<MonsterBalance>[] = [
     },
     {
         key: "range",
-        label: "Portée / zone",
-        headerTitle: "Portée utile et nombre potentiel de cases affectées par les attaques.",
+        label: "Portée / zone (complémentaire)",
+        headerTitle:
+            "Diagnostic de portée utile et de zone, affiché hors score global pour éviter un double comptage avec les dégâts attendus.",
         getValue: (monster) => monster.scores.rangeControl,
         render: (monster) => format(monster.scores.rangeControl),
     },
@@ -214,7 +215,7 @@ export function MonsterBalancePanel() {
             second: comparison.scores.offense,
         },
         {
-            label: "Portée et zone / 10",
+            label: "Portée et zone / 10 · complémentaire",
             first: selected.scores.rangeControl,
             second: comparison.scores.rangeControl,
         },

@@ -284,3 +284,60 @@ Pour reproduire la configuration, `--config` accepte un export contenant
 ```sh
 npm run simulate -- --games 420 --seed 4286584113 --max-turns 30 --profile1 cheap --profile2 offensive --cross-profile --record-decisions --config configuration-et-plateau.json
 ```
+
+### État et limites du laboratoire d’équilibrage
+
+L’écran de laboratoire réutilise le simulateur, ses workers, ses lots reprenables et son export
+JSON. Il permet une confrontation entre profils ou un tournoi des 42 paires orientées avec
+`--cross-profile`; les seeds, profils, decks, joueur de départ, configuration, plateau, résumé,
+statistiques par joueur, état final et historique d’actions sont enregistrés dans chaque rapport.
+Les rapports s’archivent actuellement par export/import JSON manuel : il n’existe pas encore
+d’historique de campagnes consultable dans l’application.
+
+Le tableau théorique est dérivé des caractéristiques de monstres et d’hypothèses fixes dans
+`src/simulation/monsterBalance.ts` : plateau 19 × 13, cinq ressources par tour, densités d’alliés et
+d’ennemis estimées, horizon d’analyse de 12 tours et efficacité de soins estimée. La robustesse
+applique théoriquement l’armure séparément à chaque attaque du catalogue; l’offensive estime les
+cibles de zone au lieu d’utiliser systématiquement leur maximum et tient compte des coûts et
+recharges. Mobilité et économie d’action sont des estimations, pas une mesure de trajectoires ou
+d’actions effectivement réalisables en match. Les cinq sous-scores du score global sont robustesse,
+offensive, mobilité, utilité et économie d’action, pondérés respectivement par 4/17, 5/17, 3/17,
+3/17 et 2/17. Portée / zone reste visible comme indicateur complémentaire, hors score global afin
+d’éviter son double comptage avec les cibles attendues de l’offensive.
+
+Les rapports fournissent déjà, par match et par joueur, les invocations par type, attaques,
+dégâts, éliminations, pertes, dégâts de base, déplacements, ressources dépensées et conservées,
+conversions, profil, seed, durée, résultat et raison de fin. L’analyse de résultats distingue
+maintenant les dégâts directs et les événements de dégâts différés, et calcule les taux de victoire
+et leurs intervalles de Wilson à 95 % par joueur, profil et joueur de départ. Les taux gardent les
+matchs nuls au dénominateur, présentés séparément. Les événements d’action fournissent aussi les
+premiers tours d’invocation et coûts par type de monstre quand l’historique contient tous les coûts;
+sinon ces coûts sont affichés comme indisponibles.
+
+Les alertes de fiabilité sont des repères d’échantillon, pas une déclaration d’équilibrage. Un
+intervalle de Wilson sur des matchs agrégés ne corrige pas les biais de composition, de profil,
+d’ordre de départ, de seeds appariées ni la corrélation entre parties. Le moteur alterne des joueurs
+de départ, mais le tournoi ne rejoue pas encore chaque matchup sur une même seed dans les deux sens.
+Les données de la version des caractéristiques existent dans l’empreinte de compatibilité des
+rapports d’entraînement; l’application n’offre pas encore d’outil de comparaison ou de validation
+avant/après entre deux campagnes.
+
+Les métriques suivantes ne sont pas déductibles de manière fiable des événements actuels et ne sont
+donc pas présentées comme des zéros : nombre exact de cibles touchées par attaque de zone, dégâts
+reçus et tours de survie par monstre, mitigations d’armure observées, soins réellement restaurés,
+buffs et bénéficiaires, cooldowns empêchant une action, camouflage ayant bloqué une attaque directe
+ou sauvé le Voleur. Les événements de dégâts différés attribuent les dégâts au monstre source quand
+elle est connue, mais les événements ne suffisent pas à établir la valeur de soutien ni la causalité
+d’une victoire.
+
+L’armure existe dans les profils et le calcul théorique, mais n’est pas appliquée par le combat du
+simulateur actuel. Les résultats de simulation ne doivent donc pas être interprétés comme une
+validation empirique de l’armure. Les parties humaines ne disposent pas encore d’un format de rapport
+importable distinct des exports simulés.
+
+Les évolutions restantes pour un laboratoire complet sont : archivage indexé des campagnes,
+campagnes miroir appariées, comparaisons de compositions et matchups ciblés depuis l’interface,
+empreinte des poids et version de stratégie par rapport, filtres multi-campagnes, diagnostics
+configurables sur des observations suffisantes, comparaison/validation avant-après sur seeds
+réservées, et collecte instrumentée des métriques actuellement indisponibles. L’interface ne
+modifie jamais automatiquement les caractéristiques ou les stratégies.

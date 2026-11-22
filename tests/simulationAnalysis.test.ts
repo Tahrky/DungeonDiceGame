@@ -4,11 +4,101 @@ import { getDefaultBoard } from "../src/game/boards";
 import {
     analyzeMatchMonsters,
     analyzeSimulationData,
+    calculateWilsonInterval,
     parseSimulationData,
 } from "../src/simulation/analysis";
 import { runSimulations } from "../src/simulation/simulator";
 
 describe("analyse des résultats de simulation", () => {
+    it("calcule un intervalle de Wilson et rejette les proportions impossibles", () => {
+        const interval = calculateWilsonInterval(5, 10);
+        expect(interval?.lowerBound).toBeCloseTo(0.2365895936, 8);
+        expect(interval?.upperBound).toBeCloseTo(0.7634104064, 8);
+        expect(calculateWilsonInterval(0, 0)).toBeNull();
+        expect(() => calculateWilsonInterval(11, 10)).toThrow(RangeError);
+    });
+
+    it("sépare les dégâts directs, les effets différés et les coûts par monstre", () => {
+        const batch = runSimulations({
+            games: 1,
+            seed: 33,
+            maxTurns: 1,
+            profile1: "balanced",
+            profile2: "balanced",
+        });
+        const data = parseSimulationData(batch);
+        if (!data) throw new Error("Export de simulation attendu comme valide.");
+        const match = data.matches[0]!;
+        for (const player of [1, 2] as const) {
+            match.statistics[player].summoned = 0;
+            match.statistics[player].summonedByMonster = {};
+            match.statistics[player].attacks = 0;
+            match.statistics[player].movements = 0;
+        }
+        match.statistics[1].summoned = 1;
+        match.statistics[1].summonedByMonster.ghost = 1;
+        match.statistics[1].attacks = 1;
+        match.statistics[1].movements = 1;
+        match.history = [
+            {
+                turn: 2,
+                player: 1,
+                type: "invocation",
+                description: "Fantôme invoqué.",
+                monsterId: "ghost-1",
+                monsterTypeId: "ghost",
+                monsterName: "Fantôme",
+                cost: 2,
+            },
+            {
+                turn: 3,
+                player: 1,
+                type: "attack",
+                description: "Le Fantôme attaque.",
+                monsterId: "ghost-1",
+                monsterTypeId: "ghost",
+                monsterName: "Fantôme",
+                attackName: "Griffe",
+                target: "Golem (J2) éliminé",
+                damage: 4,
+                cost: 1,
+            },
+            {
+                turn: 4,
+                player: 1,
+                type: "status",
+                description: "Poison.",
+                monsterId: "ghost-1",
+                monsterTypeId: "ghost",
+                monsterName: "Fantôme",
+                damage: 2,
+            },
+            {
+                turn: 4,
+                player: 1,
+                type: "movement",
+                description: "Le Fantôme se déplace.",
+                monsterId: "ghost-1",
+                monsterTypeId: "ghost",
+                monsterName: "Fantôme",
+                cost: 1,
+            },
+        ];
+
+        const ghost = analyzeSimulationData(data).monsters.find(({ id }) => id === "ghost");
+        expect(ghost).toMatchObject({
+            directDamage: 4,
+            damageOverTime: 2,
+            totalDamage: 6,
+            attacks: 1,
+            attacksWithDamage: 1,
+            kills: 1,
+            movements: 1,
+            averageFirstInvocationTurn: 2,
+            resourceCosts: { invocation: 2, attack: 1, movement: 1 },
+        });
+    });
+
     it("valide les exports et agrège les apparitions, dégâts et durées", () => {
         const batch = runSimulations({
             games: 2,
@@ -107,6 +197,18 @@ describe("analyse des résultats de simulation", () => {
 
         const analytics = analyzeSimulationData(data);
         expect(analytics.averageTurns).toBe(1);
+        expect(analytics.playerOutcomes[1]).toMatchObject({
+            wins: 1,
+            draws: 0,
+            matches: 2,
+            winRate: 0.5,
+        });
+        expect(analytics.playerOutcomes[1].confidenceInterval).not.toBeNull();
+        expect(analytics.turnLimitMatches).toBe(0);
+        expect(
+            analytics.startingPlayerOutcomes[1].matches +
+                analytics.startingPlayerOutcomes[2].matches,
+        ).toBe(2);
         expect(analytics.averageRemainingResources).toEqual({ 1: 7.5, 2: 4.5 });
         expect(analytics.averageSymbolsSpent).toEqual({
             1: { invocation: 3, attack: 5, movement: 7 },

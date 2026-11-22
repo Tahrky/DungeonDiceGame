@@ -263,12 +263,12 @@ describe("portée des actions de monstre", () => {
 
     it("permet au pirate de choisir une direction autour de lui et frappe au-delà d'une case", () => {
         const pirate = MONSTERS.find((monster) => monster.id === "pirate");
-        const pattern = { type: "directionalArea" as const, width: 3, depth: 2 };
+        const pattern = { type: "directionalArea" as const, width: 3, depth: 1 };
 
         expect(pirate?.attacks[0]?.pattern).toEqual(pattern);
         const options = getAttackZoneOptions({ x: 2, y: 3 }, "east", pattern);
         expect(options).toHaveLength(4);
-        expect(options.every((option) => option.cells.length === 6)).toBe(true);
+        expect(options.every((option) => option.cells.length === 3)).toBe(true);
     });
 
     it("génère un carré 2×2 depuis les points à cinq pas maximum, même s'il déborde", () => {

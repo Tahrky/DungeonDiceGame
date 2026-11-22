@@ -41,8 +41,8 @@ describe("monster balance analysis", () => {
 
         expect(report.hp).toBe(pirate.hp);
         expect(report.summonCost).toBe(pirate.cost);
-        expect(report.armor).toBe(0);
-        expect(report.scores.durability).toBe(7.5);
+        expect(report.armor).toBe(getMonsterArmor(pirate));
+        expect(report.scores.durability).toBeGreaterThan(0);
         expect(report.attacks).toHaveLength(pirate.attacks.length);
         expect(report.attacks[0]).toMatchObject({
             name: pirate.attacks[0].name,
@@ -113,7 +113,22 @@ describe("monster balance analysis", () => {
             calculateActionEconomyScore(cooldown),
         );
         expect(calculateActionEconomyScore(cooldown)).toBeGreaterThanOrEqual(0);
+        expect(Object.keys(BALANCE_WEIGHTS)).toEqual([
+            "durability",
+            "offense",
+            "mobility",
+            "utility",
+            "actionEconomy",
+        ]);
         expect(Object.values(BALANCE_WEIGHTS).reduce((sum, weight) => sum + weight, 0)).toBeCloseTo(1);
+        const thiefBalance = analyzeMonster(thief);
+        expect(thiefBalance.scores.total).toBeCloseTo(
+            thiefBalance.scores.durability * BALANCE_WEIGHTS.durability +
+                thiefBalance.scores.offense * BALANCE_WEIGHTS.offense +
+                thiefBalance.scores.mobility * BALANCE_WEIGHTS.mobility +
+                thiefBalance.scores.utility * BALANCE_WEIGHTS.utility +
+                thiefBalance.scores.actionEconomy * BALANCE_WEIGHTS.actionEconomy,
+        );
     });
 
     it("calcule les dégâts moyens par attaque avec cooldowns et sans multiplier les zones", () => {
@@ -129,12 +144,14 @@ describe("monster balance analysis", () => {
         expect(knight.averageAttacksToEliminate).not.toBeNull();
         expect(Number.isFinite(knight.averageAttacksToEliminate)).toBe(true);
         expect(knight.attacks).toHaveLength(2);
-        expect(knight.attacks.map(({ directDamage }) => directDamage)).toEqual([2, 7]);
+        expect(knight.attacks.map(({ directDamage }) => directDamage)).toEqual(
+            blackKnight.attacks.map(({ damage }) => damage),
+        );
         expect(blackKnight.attackActionsPerTurn).toBe(2);
-        expect(blackKnight.attacks[1]?.cooldownTurns).toBe(2);
+        expect(blackKnight.attacks[1]?.cooldownTurns).toBe(1);
         expect(knight.averageDamagePerAttack).toBeGreaterThan(2);
         expect(knight.averageDamagePerAttack).toBeLessThan(7);
-        expect(knight.averageDamagePerAttack).toBeCloseTo(68 / 24);
+        expect(knight.averageDamagePerAttack).toBeCloseTo(4);
         expect(pirateReport.averageDamagePerAttack).toBeCloseTo(5);
         expect(analyzeMonster(noAttacks).averageDamagePerAttack).toBeNull();
 

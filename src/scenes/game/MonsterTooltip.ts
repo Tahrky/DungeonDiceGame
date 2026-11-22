@@ -29,6 +29,7 @@ interface MonsterTooltipOptions {
     readonly owner: PlayerId;
     readonly attackCooldowns?: readonly number[];
     readonly statusEffects?: readonly MonsterStatusEffect[];
+    readonly isCamouflaged?: boolean;
     readonly x: number;
     readonly y: number;
     readonly alignLeft: boolean;
@@ -88,12 +89,13 @@ export class MonsterTooltip {
         if (hovered) {
             const center = this.toScreen(hovered.position);
             this.show({
-                key: `${hovered.id}:${hovered.position.x},${hovered.position.y}:${hovered.currentHp}:${hovered.attackCooldowns.join(",")}:${JSON.stringify(hovered.statusEffects)}`,
+                key: `${hovered.id}:${hovered.position.x},${hovered.position.y}:${hovered.currentHp}:${hovered.attackCooldowns.join(",")}:${JSON.stringify(hovered.statusEffects)}:${hovered.isCamouflaged === true}`,
                 monster: hovered.monster,
                 hp: hovered.currentHp,
                 owner: hovered.owner,
                 attackCooldowns: hovered.attackCooldowns,
                 statusEffects: hovered.statusEffects,
+                isCamouflaged: hovered.isCamouflaged,
                 x: center.x,
                 y: center.y - 40,
                 alignLeft: false,
@@ -130,6 +132,7 @@ export class MonsterTooltip {
             owner,
             attackCooldowns = [],
             statusEffects = [],
+            isCamouflaged = false,
             x,
             y,
             alignLeft,
@@ -170,6 +173,14 @@ export class MonsterTooltip {
                 color: owner === 1 ? "#ff8d78" : "#70bdff",
             });
             const firstLineWidth = title.width + 6 + playerLabel.width;
+            const camouflageLabel =
+                monster.id === "thief" && isCamouflaged
+                    ? this.scene.add.text(0, 6, "Camouflé", {
+                          fontFamily: "Arial",
+                          fontSize: "14px",
+                          color: "#90e5a4",
+                      })
+                    : null;
             const titleRowBottom = 6 + Math.max(title.height, playerLabel.height);
             const traitsLabel = traits
                 ? this.scene.add.text(contentX, titleRowBottom + 2, traits, {
@@ -256,7 +267,12 @@ export class MonsterTooltip {
             );
             const textWidth = Math.min(
                 contentWidth,
-                Math.max(firstLineWidth, hpRowWidth, traitsLabel?.width ?? 0, details.width),
+                Math.max(
+                    firstLineWidth + (camouflageLabel ? camouflageLabel.width + 8 : 0),
+                    hpRowWidth,
+                    traitsLabel?.width ?? 0,
+                    details.width,
+                ),
             );
             const width = contentX + textWidth;
             const tooltipVerticalPadding =
@@ -274,6 +290,7 @@ export class MonsterTooltip {
                 )
                 .setOrigin(0)
                 .setStrokeStyle(1, monster.color);
+            camouflageLabel?.setX(background.width - camouflageLabel.width - 12);
             this.container.add(background);
             this.createMonsterPreview(
                 monster,
@@ -286,6 +303,7 @@ export class MonsterTooltip {
             this.container.add([
                 title,
                 playerLabel,
+                ...(camouflageLabel ? [camouflageLabel] : []),
                 invocationCost,
                 ...(traitsLabel ? [traitsLabel] : []),
                 currentHp,

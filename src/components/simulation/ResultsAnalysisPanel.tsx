@@ -3,6 +3,7 @@ import {
     analyzeSimulationData,
     parseSimulationData,
     type MonsterAnalysis,
+    type OutcomeRate,
     type SimulationAnalytics,
     type SimulationData,
 } from "../../simulation/analysis";
@@ -68,6 +69,57 @@ function getMonsterColumns(
                 render: (monster) => (monster.totalDamage > 0 ? monster.totalDamage : ""),
             },
             {
+                key: "directDamage",
+                label: "Dégâts directs",
+                getValue: (monster) => monster.directDamage,
+            },
+            {
+                key: "damageOverTime",
+                label: "Dégâts différés",
+                headerTitle: "Dégâts enregistrés par les événements de statut, comme le poison.",
+                getValue: (monster) => monster.damageOverTime,
+            },
+            {
+                key: "attacksWithDamage",
+                label: "Attaques avec dégâts",
+                headerTitle: "Attaques ayant infligé au moins un dégât selon l’historique.",
+                getValue: (monster) => monster.attacksWithDamage,
+            },
+            {
+                key: "kills",
+                label: "Éliminations",
+                headerTitle: "Éliminations identifiées dans la cible de l’événement d’attaque.",
+                getValue: (monster) => monster.kills,
+            },
+            {
+                key: "averageFirstInvocationTurn",
+                label: "Tour moyen de 1re invocation",
+                getValue: (monster) => monster.averageFirstInvocationTurn,
+                render: (monster) =>
+                    monster.averageFirstInvocationTurn === null
+                        ? "–"
+                        : monster.averageFirstInvocationTurn.toFixed(1),
+            },
+            {
+                key: "resourceCosts",
+                label: "Ressources dépensées",
+                headerTitle: "Coûts réellement présents dans les événements du rapport.",
+                getValue: (monster) =>
+                    monster.resourceCosts === null
+                        ? null
+                        : Object.values(monster.resourceCosts).reduce(
+                              (total, cost) => total + cost,
+                              0,
+                          ),
+                render: (monster) =>
+                    monster.resourceCosts === null
+                        ? "Indisponible"
+                        : Object.values(monster.resourceCosts).reduce(
+                              (total, cost) => total + cost,
+                              0,
+                          ),
+            },
+            {
                 key: "movements",
                 label: "Déplacements cumulés",
                 getValue: (monster) => monster.movements,
@@ -88,6 +140,12 @@ function getMonsterColumns(
         );
     }
     return columns;
+}
+
+function formatRate(rate: OutcomeRate | undefined): string {
+    if (!rate || rate.winRate === null || !rate.confidenceInterval) return "Indisponible";
+    const percentage = (value: number) => `${(value * 100).toFixed(1)} %`;
+    return `${rate.wins}/${rate.matches} · ${percentage(rate.winRate)} (${percentage(rate.confidenceInterval.lowerBound)}–${percentage(rate.confidenceInterval.upperBound)})`;
 }
 
 export function ResultsAnalysisPanel({ generatedResult }: ResultsAnalysisPanelProps) {
@@ -252,6 +310,94 @@ export function ResultsAnalysisPanel({ generatedResult }: ResultsAnalysisPanelPr
                                     value={String(analytics.winsByFinishReason.monstersEliminated)}
                                 />
                                 <MetricCard label="Matchs nuls" value={String(analytics.draws)} />
+                                <MetricCard
+                                    label="Matchs arrêtés par limite de tours"
+                                    value={String(analytics.turnLimitMatches)}
+                                />
+                            </div>
+
+                            <div className="simulation-table-wrap">
+                                <h4>Résultats et incertitude statistique</h4>
+                                <p className="simulation-description">
+                                    Taux de victoire et intervalle de confiance à 95 % de Wilson.
+                                    Les matchs nuls restent dans le dénominateur; ils sont affichés
+                                    séparément.
+                                </p>
+                                <table className="simulation-table">
+                                    <thead>
+                                        <tr>
+                                            <th scope="col">Comparaison</th>
+                                            <th scope="col">Victoires / matchs · taux (IC 95 %)</th>
+                                            <th scope="col">Nuls</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {([1, 2] as const).map((player) => (
+                                            <tr key={`player-${player}`}>
+                                                <th scope="row">J{player}</th>
+                                                <td>{formatRate(analytics.playerOutcomes[player])}</td>
+                                                <td>{analytics.playerOutcomes[player].draws}</td>
+                                            </tr>
+                                        ))}
+                                        {([1, 2] as const).map((player) => (
+                                            <tr key={`starting-player-${player}`}>
+                                                <th scope="row">J{player} commence</th>
+                                                <td>
+                                                    {formatRate(
+                                                        analytics.startingPlayerOutcomes[player],
+                                                    )}
+                                                </td>
+                                                <td>
+                                                    {analytics.startingPlayerOutcomes[player].draws}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                        {BOT_PROFILES.filter(
+                                            (profile) => analytics.profileOutcomes[profile],
+                                        ).map((profile) => (
+                                            <tr key={profile}>
+                                                <th scope="row">
+                                                    {BOT_PROFILE_LABELS[profile]}
+                                                </th>
+                                                <td>
+                                                    {formatRate(
+                                                        analytics.profileOutcomes[profile],
+                                                    )}
+                                                </td>
+                                                <td>
+                                                    {analytics.profileOutcomes[profile]?.draws ?? 0}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <div className="simulation-table-wrap">
+                                <h4>Diagnostic de fiabilité</h4>
+                                <p className="simulation-description" role="status">
+                                    {data.matches.length < 50
+                                        ? "Échantillon faible : diagnostic initial seulement (< 50 matchs)."
+                                        : data.matches.length < 100
+                                          ? "Premières tendances observables (50–99 matchs), à confirmer."
+                                          : data.matches.length < 200
+                                            ? "Tendance exploratoire (100–199 matchs); l’incertitude reste importante."
+                                            : data.matches.length < 400
+                                              ? "Comparaison informative, sans garantie de précision (200–399 matchs)."
+                                                : data.matches.length < 1000
+                                                  ? "Échantillon conséquent (400–999 matchs), sans garantie de précision."
+                                                  : "Validation approfondie (1 000 matchs ou plus), sans garantie de précision."}
+                                    {" "}Les intervalles ne corrigent pas les différences de composition,
+                                    de profil, de position ou la dépendance entre matchs.
+                                </p>
+                                {analytics.turnLimitMatches > 0 && (
+                                    <p className="simulation-description" role="status">
+                                        {analytics.turnLimitMatches} match(s) sur {data.matches.length}{" "}
+                                        se sont terminés par limite de tours; leurs résultats ne
+                                        sont pas équivalents à une victoire par élimination ou base
+                                        détruite.
+                                    </p>
+                                )}
                             </div>
 
                             <div className="simulation-chart-grid">

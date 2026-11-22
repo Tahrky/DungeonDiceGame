@@ -35,12 +35,11 @@ const OPTIONS = {
 } as const;
 
 export const BALANCE_WEIGHTS = {
-    durability: 0.20,
-    offense: 0.25,
-    rangeControl: 0.15,
-    mobility: 0.15,
-    utility: 0.15,
-    actionEconomy: 0.10,
+    durability: 4 / 17,
+    offense: 5 / 17,
+    mobility: 3 / 17,
+    utility: 3 / 17,
+    actionEconomy: 2 / 17,
 } as const;
 
 const CARDINAL_DIRECTIONS = [
@@ -701,7 +700,6 @@ export function analyzeMonster(monster: Monster): MonsterBalance {
     const total =
         BALANCE_WEIGHTS.durability * durability +
         BALANCE_WEIGHTS.offense * offense +
-        BALANCE_WEIGHTS.rangeControl * rangeControl +
         BALANCE_WEIGHTS.mobility * mobility +
         BALANCE_WEIGHTS.utility * utility +
         BALANCE_WEIGHTS.actionEconomy * actionEconomy;
