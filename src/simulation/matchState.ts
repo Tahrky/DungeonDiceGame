@@ -37,11 +37,6 @@ export interface MatchState {
     turn: number;
     currentPlayer: PlayerId;
     debug?: boolean;
-    advancedSearch?: boolean;
-    searchDepth?: number;
-    branchWidth?: number;
-    nodeBudget?: number;
-    lightResults?: boolean;
     protectFirstDeployment?: boolean;
     strategyWeights?: Record<PlayerId, Readonly<BotStrategyWeights>>;
     decisionTraces?: TacticalDecisionTrace[];
@@ -454,37 +449,35 @@ export function deployMonsters(
             stats.lastMonsterSummonTurn = state.turn;
         }
         stats.summonedByMonster[monster.id] = (stats.summonedByMonster[monster.id] ?? 0) + 1;
-        if (!state.lightResults) {
-            addEvent(state, {
-                turn: state.turn,
-                player: state.currentPlayer,
-                type: "strategy",
-                description: describeDeploymentChoice(monster, profile),
-                monsterId: placed.id,
-                monsterName: monster.name,
-                ...(state.debug
-                    ? {
-                          debug: {
-                              situation: `invoquer J${state.currentPlayer}, réservation=${state.reserves[state.currentPlayer].invocation}`,
-                              candidates: choices.length,
-                              depth: 1,
-                              positionsExplored: state.monsters.length,
-                              selectedAction: monster.name,
-                          },
-                      }
-                    : {}),
-            });
-            addEvent(state, {
-                turn: state.turn,
-                player: state.currentPlayer,
-                type: "invocation",
-                description: `${monster.name} invoqué pour ${monster.cost} symbole(s).`,
-                monsterId: placed.id,
-                monsterTypeId: monster.id,
-                monsterName: monster.name,
-                cost: monster.cost,
-                to: placement.position,
-            });
-        }
+        addEvent(state, {
+            turn: state.turn,
+            player: state.currentPlayer,
+            type: "strategy",
+            description: describeDeploymentChoice(monster, profile),
+            monsterId: placed.id,
+            monsterName: monster.name,
+            ...(state.debug
+                ? {
+                      debug: {
+                          situation: `invoquer J${state.currentPlayer}, réservation=${state.reserves[state.currentPlayer].invocation}`,
+                          candidates: choices.length,
+                          depth: 1,
+                          positionsExplored: state.monsters.length,
+                          selectedAction: monster.name,
+                      },
+                  }
+                : {}),
+        });
+        addEvent(state, {
+            turn: state.turn,
+            player: state.currentPlayer,
+            type: "invocation",
+            description: `${monster.name} invoqué pour ${monster.cost} symbole(s).`,
+            monsterId: placed.id,
+            monsterTypeId: monster.id,
+            monsterName: monster.name,
+            cost: monster.cost,
+            to: placement.position,
+        });
     }
 }

@@ -304,41 +304,6 @@ describe("noyau de décision tactique", () => {
         ).toBe(49);
     }, 600_000);
 
-    it("ne déclare que la profondeur de recherche réellement explorée dans une partie courte", () => {
-        const shallow = runSimulations({
-            games: 2,
-            seed: 808,
-            maxTurns: 3,
-            profile1: "balanced",
-            profile2: "tracker",
-            advanced: true,
-            searchDepth: 1,
-            branchWidth: 3,
-            nodeBudget: 120,
-            lightResults: true,
-        });
-        const deep = runSimulations({
-            games: 2,
-            seed: 808,
-            maxTurns: 3,
-            profile1: "balanced",
-            profile2: "tracker",
-            advanced: true,
-            searchDepth: 3,
-            branchWidth: 8,
-            nodeBudget: 600,
-            lightResults: true,
-        });
-
-        const shallowStats = shallow.matches[0]?.statistics[1];
-        const deepStats = deep.matches[0]?.statistics[1];
-        expect(shallowStats?.maxSearchDepthReached).toBe(0);
-        expect(deepStats?.maxSearchDepthReached).toBe(0);
-        expect(deep.matches.map((match) => match.seed)).toEqual(
-            shallow.matches.map((match) => match.seed),
-        );
-    });
-
     it("initialise les statistiques de ressources sans confondre réserves et dépenses", () => {
         const configuration = getDefaultGameConfiguration();
         const monster = configuration.monsters[0];

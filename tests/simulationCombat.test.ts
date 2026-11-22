@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import { getStartingPositions, createCustomBoard } from "../src/game/boards";
 import { getDefaultGameConfiguration } from "../src/game/gameConfiguration";
 import { getInitialAttackCooldowns, getInitialAttackUses } from "../src/game/monsterActions";
-import { performAttacks } from "../src/simulation/combat";
+import {
+    performAttacks,
+    TACTICAL_SEARCH_CONFIGURATION,
+} from "../src/simulation/combat";
 import { createStats, type MatchState } from "../src/simulation/matchState";
 
 function createMatchState(allowBaseAttackOnSummonTurn: boolean): MatchState {
@@ -112,45 +115,42 @@ describe("combat de simulation", () => {
 
         expect(state.statistics[1].positionsExplored).toBeGreaterThan(3);
         expect(state.statistics[1].positionsExplored).toBeLessThan(20);
-        expect(state.statistics[1].maxSearchDepthReached).toBe(1);
+        expect(state.statistics[1].maxSearchDepthReached).toBeLessThanOrEqual(
+            TACTICAL_SEARCH_CONFIGURATION.depth,
+        );
     });
 
-    it("explore davantage de réponses tactiques quand la recherche avancée est activée", () => {
+    it("utilise une recherche tactique unique avec une largeur et une profondeur cohérentes", () => {
         const board = createCustomBoard(7, 7);
-        const standard = createMatchState(true);
-        const advanced = createMatchState(true);
-
-        for (const state of [standard, advanced]) {
-            const attacker = state.monsters[0]!;
-            attacker.position = { x: 3, y: 3 };
-            attacker.cells = [attacker.position];
-            state.monsters.push(
-                ...[
-                    { x: 2, y: 3 },
-                    { x: 4, y: 3 },
-                    { x: 3, y: 2 },
-                    { x: 3, y: 4 },
-                ].map((position, index) => ({
-                    ...attacker,
-                    id: `enemy-${index}`,
-                    owner: 2 as const,
-                    position,
-                    facing: "west" as const,
-                    cells: [position],
-                })),
-            );
-            state.reserves[2].attack = attacker.monster.attacks[0]?.cost ?? 1;
-        }
-        advanced.advancedSearch = true;
-
-        performAttacks(standard, board);
-        performAttacks(advanced, board);
-
-        expect(advanced.statistics[1].positionsExplored).toBeGreaterThan(
-            standard.statistics[1].positionsExplored,
+        const state = createMatchState(true);
+        const attacker = state.monsters[0]!;
+        attacker.position = { x: 3, y: 3 };
+        attacker.cells = [attacker.position];
+        state.monsters.push(
+            ...[
+                { x: 2, y: 3 },
+                { x: 4, y: 3 },
+                { x: 3, y: 2 },
+                { x: 3, y: 4 },
+            ].map((position, index) => ({
+                ...attacker,
+                id: `enemy-${index}`,
+                owner: 2 as const,
+                position,
+                facing: "west" as const,
+                cells: [position],
+            })),
         );
-        expect(standard.statistics[1].maxSearchDepthReached).toBe(1);
-        expect(advanced.statistics[1].maxSearchDepthReached).toBeGreaterThanOrEqual(1);
-        expect(advanced.statistics[1].maxSearchDepthReached).toBeLessThanOrEqual(2);
+        state.reserves[2].attack = attacker.monster.attacks[0]?.cost ?? 1;
+
+        performAttacks(state, board);
+
+        expect(state.statistics[1].positionsExplored).toBeGreaterThan(3);
+        expect(state.statistics[1].positionsExplored).toBeLessThan(30);
+        expect(state.statistics[1].maxSearchDepthReached).toBeGreaterThanOrEqual(1);
+        expect(state.statistics[1].maxSearchDepthReached).toBeLessThanOrEqual(
+            TACTICAL_SEARCH_CONFIGURATION.depth,
+        );
+        expect(TACTICAL_SEARCH_CONFIGURATION.branchWidth).toBeGreaterThan(3);
     });
 });

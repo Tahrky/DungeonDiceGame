@@ -5,6 +5,13 @@ import {
 } from "../src/simulation/strategyTraining";
 import { BOT_WEIGHT_GROUPS } from "../src/simulation/trainingVersioning";
 import { DEFAULT_BOT_STRATEGY_WEIGHTS } from "../src/game/botStrategy";
+import { getDefaultBoard } from "../src/game/boards";
+import { getDefaultGameConfiguration } from "../src/game/gameConfiguration";
+import { runSimulations } from "../src/simulation/simulator";
+import {
+    evaluateWeights,
+    type TrainingSimulationRunner,
+} from "../src/simulation/trainingMetrics";
 
 describe("apprentissage hors ligne des stratégies", () => {
     it("sépare reproductiblement les trois partitions de seeds", () => {
@@ -26,6 +33,33 @@ describe("apprentissage hors ligne des stratégies", () => {
                 ).toBe(false);
             }
         }
+    });
+
+    it("borne les lots de simulation parallèles pendant l'évaluation", async () => {
+        let activeRuns = 0;
+        let peakActiveRuns = 0;
+        const runner: TrainingSimulationRunner = async (options, configuration, board) => {
+            activeRuns++;
+            peakActiveRuns = Math.max(peakActiveRuns, activeRuns);
+            await Promise.resolve();
+            try {
+                return runSimulations(options, configuration, board);
+            } finally {
+                activeRuns--;
+            }
+        };
+
+        await evaluateWeights(
+            "balanced",
+            DEFAULT_BOT_STRATEGY_WEIGHTS,
+            [731],
+            1,
+            getDefaultGameConfiguration(),
+            getDefaultBoard(),
+            runner,
+        );
+
+        expect(peakActiveRuns).toBe(4);
     });
 
     it("cible les adversaires qui révèlent les faiblesses des profils", async () => {

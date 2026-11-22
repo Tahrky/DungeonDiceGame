@@ -24,7 +24,6 @@ export const MONSTERS: Monster[] = [
                 damage: 2,
                 cost: 2,
                 pattern: { type: "adjacent" },
-                cooldownTurns: 1,
             },
         ],
         movementRange: 1,
@@ -87,7 +86,6 @@ export const MONSTERS: Monster[] = [
             },
         ],
         movementRange: 2,
-        movementCost: 1,
     },
 
     {
@@ -103,7 +101,7 @@ export const MONSTERS: Monster[] = [
                 name: "Sabre tranchant",
                 damage: 5,
                 cost: 1,
-                pattern: { type: "directionalArea", width: 3, depth: 2 },
+                pattern: { type: "directionalArea", width: 3, depth: 1 },
                 hitsAllies: true,
             },
         ],

@@ -28,12 +28,7 @@ export interface SimulationOptions {
     profile1: BotProfile;
     profile2: BotProfile;
     profilePairs?: readonly ProfilePair[];
-    advanced?: boolean;
-    searchDepth?: number;
-    branchWidth?: number;
-    nodeBudget?: number;
     debug?: boolean;
-    lightResults?: boolean;
     recordDecisionTraces?: boolean;
     strategyWeights?: BotStrategyWeightMap;
     configurationFile?: string;

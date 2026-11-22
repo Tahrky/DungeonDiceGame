@@ -43,13 +43,11 @@ export function RunSimulationPanel({
     const [profile1, setProfile1] = useState<BotProfile>("cheap");
     const [profile2, setProfile2] = useState<BotProfile>("offensive");
     const [crossProfileMode, setCrossProfileMode] = useState(false);
-    const [advanced, setAdvanced] = useState(false);
     const [gameCount, setGameCount] = useState("100");
     const [repetitionCount, setRepetitionCount] = useState("1");
     const [seed, setSeed] = useState(() => String(Date.now() >>> 0));
     const [maxTurns, setMaxTurns] = useState(String(DEFAULT_MAX_TURNS));
     const [debug, setDebug] = useState(false);
-    const [lightResults, setLightResults] = useState(false);
     const [recordDecisionTraces, setRecordDecisionTraces] = useState(false);
     const [isRunning, setIsRunning] = useState(false);
     const [notice, setNotice] = useState("");
@@ -395,12 +393,10 @@ export function RunSimulationPanel({
                 );
                 setProfile1(saved.options.profile1);
                 setProfile2(saved.options.profile2);
-                setAdvanced(saved.options.advanced ?? false);
                 setSeed(String(saved.options.seed));
                 setMaxTurns(String(saved.options.maxTurns));
-                setLightResults(saved.options.lightResults ?? false);
                 setRecordDecisionTraces(saved.options.recordDecisionTraces ?? false);
-                setDebug((saved.options.debug ?? false) && !saved.options.lightResults);
+                setDebug(saved.options.debug ?? false);
                 setNotice("Reprise de la simulation après rechargement…");
                 await runSimulation(
                     saved.options,
@@ -454,9 +450,7 @@ export function RunSimulationPanel({
                 profile1,
                 profile2,
                 ...(profilePairs === undefined ? {} : { profilePairs }),
-                advanced,
                 debug,
-                lightResults,
                 recordDecisionTraces,
             };
             const workerCount = getSimulationWorkerCount(games, navigator.hardwareConcurrency ?? 2);
@@ -481,25 +475,18 @@ export function RunSimulationPanel({
                 profile1={profile1}
                 profile2={profile2}
                 crossProfileMode={crossProfileMode}
-                advanced={advanced}
                 count={crossProfileMode ? repetitionCount : gameCount}
                 seed={seed}
                 maxTurns={maxTurns}
                 debug={debug}
-                lightResults={lightResults}
                 recordDecisionTraces={recordDecisionTraces}
                 onProfile1Change={setProfile1}
                 onProfile2Change={setProfile2}
                 onCrossProfileModeChange={setCrossProfileMode}
-                onAdvancedChange={setAdvanced}
                 onCountChange={crossProfileMode ? setRepetitionCount : setGameCount}
                 onSeedChange={setSeed}
                 onMaxTurnsChange={setMaxTurns}
                 onDebugChange={setDebug}
-                onLightResultsChange={(enabled) => {
-                    setLightResults(enabled);
-                    if (enabled) setDebug(false);
-                }}
                 onRecordDecisionTracesChange={setRecordDecisionTraces}
             />
             <div className="deck-actions">

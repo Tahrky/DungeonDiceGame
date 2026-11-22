@@ -46,12 +46,7 @@ Options :
   --output <fichier>   Chemin du JSON de sortie
   --strategy-weights <fichier> Charge les poids d’un rapport d’entraînement
   --record-decisions   Enregistre les options légales et les scores d’attaque
-  --advanced           Active la recherche tactique avancée
-  --search-depth <n>   Phases complètes explorées (1 à 3)
-  --branch-width <n>   Branches conservées par niveau (1 à 12)
-  --node-budget <n>    Nombre maximal de nœuds explorés
   --debug              Ajoute les détails des décisions IA (avec historique complet)
-  --light-results      N'enregistre pas l'historique détaillé des matchs
   --cross-profile      Répartit le total des matchs entre les 42 confrontations orientées
   --train-bots         Ajuste hors ligne les poids stratégiques des profils
   --training-profiles  Profils à entraîner, séparés par des virgules
@@ -174,13 +169,8 @@ function parseArguments(
         "--output",
         "--strategy-weights",
         "--record-decisions",
-        "--advanced",
-        "--search-depth",
-        "--branch-width",
-        "--node-budget",
         "--allow-incompatible-transfer",
         "--debug",
-        "--light-results",
         "--cross-profile",
         "--train-bots",
         "--training-profiles",
@@ -196,10 +186,6 @@ function parseArguments(
 
     const profile1 = parseProfile(readOption(args, "--profile1", "balanced"), "--profile1");
     const profile2 = parseProfile(readOption(args, "--profile2", "balanced"), "--profile2");
-    const lightResults = args.includes("--light-results");
-    if (lightResults && args.includes("--debug")) {
-        throw new Error("--debug ne peut pas être combiné avec --light-results.");
-    }
     const options: SimulationOptions = {
         games: parseInteger(readOption(args, "--games", "100"), "--games", 1, 10000),
         seed: parseInteger(
@@ -217,18 +203,7 @@ function parseArguments(
         profile1,
         profile2,
         debug: args.includes("--debug"),
-        lightResults,
         recordDecisionTraces: args.includes("--record-decisions"),
-        advanced: args.includes("--advanced"),
-        searchDepth: args.includes("--search-depth")
-            ? parseInteger(readOption(args, "--search-depth", "1"), "--search-depth", 1, 3)
-            : undefined,
-        branchWidth: args.includes("--branch-width")
-            ? parseInteger(readOption(args, "--branch-width", "3"), "--branch-width", 1, 12)
-            : undefined,
-        nodeBudget: args.includes("--node-budget")
-            ? parseInteger(readOption(args, "--node-budget", "120"), "--node-budget", 20, 10000)
-            : undefined,
         strategyWeights,
         ...(configurationFile === undefined ? {} : { configurationFile }),
         deck1: parseOptionalDeck(

@@ -111,7 +111,7 @@ function parseRoomRole(value: unknown): "host" | "guest" | null | undefined {
     return value === "host" || value === "guest" ? value : undefined;
 }
 
-function isSimulationOptions(value: unknown): value is SimulationOptions {
+export function parseSimulationOptions(value: unknown): SimulationOptions | null {
     if (
         !isRecord(value) ||
         !Number.isInteger(value.games) ||
@@ -119,25 +119,46 @@ function isSimulationOptions(value: unknown): value is SimulationOptions {
         !Number.isInteger(value.maxTurns) ||
         !isProfile(value.profile1) ||
         !isProfile(value.profile2) ||
-        (value.advanced !== undefined && typeof value.advanced !== "boolean") ||
-        (value.lightResults !== undefined && typeof value.lightResults !== "boolean") ||
         (value.recordDecisionTraces !== undefined &&
             typeof value.recordDecisionTraces !== "boolean")
     ) {
-        return false;
+        return null;
     }
 
-    return (
-        value.profilePairs === undefined ||
-        (Array.isArray(value.profilePairs) &&
-            value.profilePairs.every(
+    if (
+        value.profilePairs !== undefined &&
+        (!Array.isArray(value.profilePairs) ||
+            !value.profilePairs.every(
                 (pair) =>
                     isRecord(pair) &&
                     isProfile(pair.profile1) &&
                     isProfile(pair.profile2) &&
                     pair.profile1 !== pair.profile2,
             ))
+    ) {
+        return null;
+    }
+
+    const options = Object.fromEntries(
+        Object.entries(value).filter(
+            ([key]) =>
+                ![
+                    "advanced",
+                    "searchDepth",
+                    "branchWidth",
+                    "nodeBudget",
+                    "lightResults",
+                ].includes(key),
+        ),
     );
+    return {
+        ...options,
+        games: value.games as number,
+        seed: value.seed as number,
+        maxTurns: value.maxTurns as number,
+        profile1: value.profile1 as BotProfile,
+        profile2: value.profile2 as BotProfile,
+    } satisfies SimulationOptions;
 }
 
 function parseGameSetup(value: unknown): GameSetup | null {
@@ -315,10 +336,11 @@ export async function saveSimulationRun(sessionId: string, run: SavedSimulationR
 export async function loadSimulationRun(sessionId: string): Promise<SavedSimulationRun | null> {
     const value = await getRecord(SIMULATION_RUN_STORE, sessionId);
     if (value === undefined) return null;
+    const options = isRecord(value) ? parseSimulationOptions(value.options) : null;
     if (
         !isRecord(value) ||
         value.version !== RECORD_VERSION ||
-        !isSimulationOptions(value.options) ||
+        !options ||
         !Array.isArray(value.chunks)
     ) {
         throw new Error("La simulation à reprendre est invalide ou incompatible.");
@@ -340,10 +362,10 @@ export async function loadSimulationRun(sessionId: string): Promise<SavedSimulat
         expectedStartIndex += validChunk.games;
         chunks.push(validChunk);
     }
-    if (!configuration || !board || expectedStartIndex !== value.options.games) {
+    if (!configuration || !board || expectedStartIndex !== options.games) {
         throw new Error("La configuration de la simulation à reprendre est invalide.");
     }
-    return { options: value.options, configuration, board, chunks };
+    return { options, configuration, board, chunks };
 }
 
 export async function saveSimulationChunk(

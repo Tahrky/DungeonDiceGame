@@ -171,8 +171,11 @@ compilation TypeScript de l’application, de l’API et des tests.
 Le simulateur reproductible s’exécute sans interface :
 
 ```sh
-npm run simulate -- --games 20 --seed 731 --profile1 tracker --profile2 defensive --light-results
+npm run simulate -- --games 20 --seed 731 --profile1 tracker --profile2 defensive
 ```
+
+Chaque match conserve son historique détaillé; l’interface et la CLI exportent ainsi le même
+format de résultats.
 
 Le réglage hors ligne explore les multiplicateurs des heuristiques de combat, d’économie, de
 placement et de déplacement. Il ne modifie ni les règles ni les options légales. Le score vaut une
@@ -240,18 +243,17 @@ rend un ancien rapport incompatible pour le transfert d’entraînement sans aut
 
 ### Recherche tactique
 
-La recherche tactique distingue explicitement trois réglages :
+Tous les modes d’exécution partagent `TACTICAL_SEARCH_CONFIGURATION` dans
+`src/simulation/combat.ts` : profondeur 2, largeur 5 et budget de 250 nœuds. La profondeur 1 évalue
+l’action immédiate et la réponse adverse; la profondeur 2 ajoute la phase complète suivante. La
+largeur borne les actions conservées à chaque niveau et le budget borne les nœuds évalués.
 
-- `searchDepth` compte les phases complètes explorées : une profondeur de 1 compare l’action
-  immédiate puis une réponse adverse, une profondeur de 2 ajoute une phase complète suivante ;
-- `branchWidth` limite le nombre d’actions conservées à chaque niveau ;
-- `nodeBudget` borne le nombre total de nœuds évalués.
-
-Le mode `--advanced` utilise par défaut une profondeur de 2, une largeur de 8 et un budget de 600.
-Les options `--search-depth`, `--branch-width` et `--node-budget` permettent des configurations
-bornées de 1 à 3 phases, 1 à 12 branches et 20 à 10 000 nœuds. Les statistiques enregistrées
-incluent les décisions recherchées, les changements de choix, les nœuds explorés, la profondeur
-atteinte et les branches situées au-delà des trois premières.
+Sur 420 matchs reproductibles (seed `731`, profils `balanced` et `defensive`, plateau et
+configuration par défaut), le réglage 5/2/250 a pris 236,8 s contre 283,0 s pour 8/2/600 et
+155,0 s pour le réglage historique 3/1/120. Le résultat observé du joueur 1 était respectivement
+126, 129 et 117 victoires; ces résultats d’un seul appariement servent à comparer les compromis,
+pas à établir une supériorité statistique. Les statistiques enregistrées incluent les décisions
+recherchées, les changements de choix, les nœuds explorés et la profondeur atteinte.
 
 ### Performances du simulateur
 
@@ -263,8 +265,8 @@ les 42 confrontations orientées; par exemple, 420 matchs en exécutent 10 par c
 
 Mesure comparative sur Node 21.7.1, Windows, seed `4286584113`, 420 matchs, 30 tours maximum,
 plateau `wide-arena`, configuration historique migrée en v8, historique complet et traces de
-décisions activées; la recherche avancée était désactivée. Le temps affiché exclut la sérialisation
-et l’écriture du JSON.
+décisions activées; le réglage historique 3/1/120 était utilisé. Le temps affiché exclut la
+sérialisation et l’écriture du JSON.
 
 | Version | Temps des exécutions | Médiane | Gain |
 | --- | --- | --- | --- |

@@ -51,7 +51,7 @@ describe("simulation de matchs", () => {
         expect(first.matches).toEqual(second.matches);
     });
 
-    it("allège les résultats sans modifier le déroulement du match", () => {
+    it("conserve un historique complet et exploitable pour chaque match", () => {
         const options: SimulationOptions = {
             games: 1,
             seed: 42,
@@ -59,19 +59,15 @@ describe("simulation de matchs", () => {
             profile1: "cheap",
             profile2: "offensive",
         };
-        const fullResult = runSimulations(options);
-        const lightResult = runSimulations({ ...options, lightResults: true });
-        const fullMatch = fullResult.matches[0];
-        const lightMatch = lightResult.matches[0];
-        if (!fullMatch || !lightMatch) throw new Error("Matchs de test attendus.");
+        const result = runSimulations(options);
+        const match = result.matches[0];
+        if (!match) throw new Error("Match de test attendu.");
 
-        expect(lightMatch).toEqual({ ...fullMatch, history: [] });
-        expect(lightResult.summary).toEqual(fullResult.summary);
-        expect(fullMatch.history.length).toBeGreaterThan(0);
-        expect(parseSimulationData(lightResult)).not.toBeNull();
-        expect(() => runSimulations({ ...options, debug: true, lightResults: true })).toThrow(
-            "--debug ne peut pas être combiné avec --light-results.",
-        );
+        expect(match.history.length).toBeGreaterThan(0);
+        expect(match.history.some((event) => event.type === "invocation")).toBe(true);
+        expect(match.history.some((event) => event.type === "turnEnd")).toBe(true);
+        expect(parseSimulationData(result)).not.toBeNull();
+        expect(result.options).not.toHaveProperty("lightResults");
     });
 
     it("ne trace les attaques que sur demande et conserve les options légales avec d’autres poids", () => {
@@ -81,7 +77,6 @@ describe("simulation de matchs", () => {
             maxTurns: 10,
             profile1: "balanced",
             profile2: "defensive",
-            lightResults: true,
         };
         const withoutTrace = runSimulations(options).matches[0];
         const baseline = runSimulations({ ...options, recordDecisionTraces: true }).matches[0];

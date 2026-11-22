@@ -176,33 +176,39 @@ export async function evaluateWeights(
         matchupTotals.set(opponent, createAccumulator());
     }
 
-    const tasks = BOT_PROFILES.filter((opponent) => opponent !== profile).flatMap((opponent) =>
-        seeds.map(async (seed) => ({
-            opponent,
-            seed,
-            result: await runner(
-                {
-                    games: 2,
-                    seed,
-                    maxTurns,
-                    profile1: profile,
-                    profile2: opponent,
-                    lightResults: true,
-                    strategyWeights: { [profile]: weights },
-                },
-                configuration,
-                board,
-            ),
-        })),
+    const evaluations = BOT_PROFILES.filter((opponent) => opponent !== profile).flatMap(
+        (opponent) => seeds.map((seed) => ({ opponent, seed })),
     );
-    for (const { opponent, seed, result } of await Promise.all(tasks)) {
-        const matchup = matchupTotals.get(opponent);
-        if (!matchup) throw new Error(`Résultats absents pour l’adversaire « ${opponent} ».`);
-        for (const [index, match] of result.matches.entries()) {
-            const score = addMatch(totals, match, 1, configuration);
-            addMatch(matchup, match, 1, configuration);
-            pairedScores.set(`${opponent}:${seed}:${index}`, score);
+    const batchSize = 4;
+    for (let offset = 0; offset < evaluations.length; offset += batchSize) {
+        const batch = await Promise.all(
+            evaluations.slice(offset, offset + batchSize).map(async ({ opponent, seed }) => ({
+                opponent,
+                seed,
+                result: await runner(
+                    {
+                        games: 2,
+                        seed,
+                        maxTurns,
+                        profile1: profile,
+                        profile2: opponent,
+                        strategyWeights: { [profile]: weights },
+                    },
+                    configuration,
+                    board,
+                ),
+            })),
+        );
+        for (const { opponent, seed, result } of batch) {
+            const matchup = matchupTotals.get(opponent);
+            if (!matchup) throw new Error(`Résultats absents pour l’adversaire « ${opponent} ».`);
+            for (const [index, match] of result.matches.entries()) {
+                const score = addMatch(totals, match, 1, configuration);
+                addMatch(matchup, match, 1, configuration);
+                pairedScores.set(`${opponent}:${seed}:${index}`, score);
+            }
         }
+        batch.length = 0;
     }
 
     const outcome = createMetrics(totals);

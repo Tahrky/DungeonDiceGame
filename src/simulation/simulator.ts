@@ -95,11 +95,6 @@ function createMatch(
         turn: 1,
         currentPlayer: startingPlayer,
         debug: options.debug ?? false,
-        advancedSearch: options.advanced ?? false,
-        searchDepth: options.searchDepth ?? (options.advanced ? 2 : 1),
-        branchWidth: options.branchWidth ?? (options.advanced ? 8 : 3),
-        nodeBudget: options.nodeBudget ?? (options.advanced ? 600 : 120),
-        lightResults: options.lightResults ?? false,
         protectFirstDeployment: configuration.protectFirstDeployment,
         strategyWeights,
         ...(options.recordDecisionTraces ? { decisionTraces: [] } : {}),
@@ -144,30 +139,26 @@ function createMatch(
                 return faces[Math.floor(random() * faces.length)]!;
             });
             for (const symbol of rolled) state.reserves[player][symbol]++;
-            if (!state.lightResults) {
-                addEvent(state, {
-                    turn,
-                    player,
-                    type: "dice",
-                    description: `Dés : ${rolled.join(", ")}. Ressources conservées en réserve.`,
-                });
-                addEvent(state, {
-                    turn,
-                    player,
-                    type: "strategy",
-                    description: `Profil « ${profiles[player]} » ; deck : ${decks[player].join(", ")}.`,
-                });
-            }
+            addEvent(state, {
+                turn,
+                player,
+                type: "dice",
+                description: `Dés : ${rolled.join(", ")}. Ressources conservées en réserve.`,
+            });
+            addEvent(state, {
+                turn,
+                player,
+                type: "strategy",
+                description: `Profil « ${profiles[player]} » ; deck : ${decks[player].join(", ")}.`,
+            });
             const decision = chooseBotTactic(profiles[player], profiles[player === 1 ? 2 : 1]);
             state.tactics[player] = decision.tactic;
-            if (!state.lightResults) {
-                addEvent(state, {
-                    turn,
-                    player,
-                    type: "strategy",
-                    description: `Décision stratégique : ${decision.description}.`,
-                });
-            }
+            addEvent(state, {
+                turn,
+                player,
+                type: "strategy",
+                description: `Décision stratégique : ${decision.description}.`,
+            });
 
             const deployedCosts = state.monsters
                 .filter((monster) => monster.owner === player)
@@ -289,29 +280,30 @@ function createMatch(
                 if (!convertReservedSymbols(reserve, choice.sourceSymbols, choice.targetSymbol))
                     break;
                 state.statistics[player].conversionLosses++;
-                if (!state.lightResults) {
-                    addEvent(state, {
-                        turn,
-                        player,
-                        type: "strategy",
-                        description: `Conversion tactique : ${choice.sourceSymbols.join(" + ")} vers ${choice.targetSymbol}.`,
-                    });
-                }
+                addEvent(state, {
+                    turn,
+                    player,
+                    type: "strategy",
+                    description: `Conversion tactique : ${choice.sourceSymbols.join(" + ")} vers ${choice.targetSymbol}.`,
+                });
             }
 
-            const turnStartStats = { ...state.statistics[player] };
+            const turnStartStats = state.statistics[player];
+            const summonsAtTurnStart = turnStartStats.summoned;
+            const attacksAtTurnStart = turnStartStats.attacks;
+            const movementsAtTurnStart = turnStartStats.movements;
             deployMonsters(state, configuration, board, profiles[player], deckMonsters[player]);
             performAttacks(state, board);
             performMovements(state, board);
             performAttacks(state, board);
             const stats = state.statistics[player];
-            if (stats.summoned === turnStartStats.summoned) stats.turnsWithoutSummon++;
-            if (stats.attacks === turnStartStats.attacks) stats.turnsWithoutAttack++;
-            if (stats.movements === turnStartStats.movements) stats.turnsWithoutMovement++;
+            if (stats.summoned === summonsAtTurnStart) stats.turnsWithoutSummon++;
+            if (stats.attacks === attacksAtTurnStart) stats.turnsWithoutAttack++;
+            if (stats.movements === movementsAtTurnStart) stats.turnsWithoutMovement++;
             if (
-                stats.summoned === turnStartStats.summoned &&
-                stats.attacks === turnStartStats.attacks &&
-                stats.movements === turnStartStats.movements
+                stats.summoned === summonsAtTurnStart &&
+                stats.attacks === attacksAtTurnStart &&
+                stats.movements === movementsAtTurnStart
             ) {
                 stats.turnsWithoutUsefulAction++;
             }
@@ -375,38 +367,11 @@ export function runSimulations(
     if (!Number.isInteger(options.maxTurns) || options.maxTurns < 1) {
         throw new RangeError("La limite de tours doit être un entier positif.");
     }
-    if (options.lightResults && options.debug) {
-        throw new RangeError("--debug ne peut pas être combiné avec --light-results.");
-    }
     if (options.strategyWeights && !parseBotStrategyWeightMap(options.strategyWeights)) {
         throw new RangeError("Les poids stratégiques sont invalides.");
     }
     if (!Number.isInteger(options.seed) || options.seed < 0 || options.seed > 0xffff_ffff) {
         throw new RangeError("La seed doit être un entier non signé de 32 bits.");
-    }
-    if (
-        options.searchDepth !== undefined &&
-        (!Number.isInteger(options.searchDepth) ||
-            options.searchDepth < 1 ||
-            options.searchDepth > 3)
-    ) {
-        throw new RangeError("searchDepth doit être un entier compris entre 1 et 3.");
-    }
-    if (
-        options.branchWidth !== undefined &&
-        (!Number.isInteger(options.branchWidth) ||
-            options.branchWidth < 1 ||
-            options.branchWidth > 12)
-    ) {
-        throw new RangeError("branchWidth doit être un entier compris entre 1 et 12.");
-    }
-    if (
-        options.nodeBudget !== undefined &&
-        (!Number.isInteger(options.nodeBudget) ||
-            options.nodeBudget < 20 ||
-            options.nodeBudget > 10000)
-    ) {
-        throw new RangeError("nodeBudget doit être un entier compris entre 20 et 10000.");
     }
     if (
         options.profilePairs !== undefined &&

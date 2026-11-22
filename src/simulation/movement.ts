@@ -159,32 +159,30 @@ export function performMovements(state: MatchState, board: BoardDefinition): voi
             monster.movementsUsedThisTurn++;
             state.movementStagnation[monster.id] = 0;
             state.statistics[player].movements++;
-            if (!state.lightResults) {
-                const reEvaluated =
-                    selectedObjective.x !== roleObjective.x ||
-                    selectedObjective.y !== roleObjective.y;
-                addEvent(state, {
-                    turn: state.turn,
-                    player,
-                    type: "strategy",
-                    description: `${reEvaluated ? "Réévalue son objectif ; " : ""}suit le chemin vers ${movementGoal} : ${best.routeProgress} case(s) plus près.`,
-                    monsterId: monster.id,
-                    monsterTypeId: monster.monster.id,
-                    monsterName: monster.monster.name,
-                });
-                addEvent(state, {
-                    turn: state.turn,
-                    player,
-                    type: "movement",
-                    description: `${monster.monster.name} se déplace de ${best.path.length - 1} case(s).`,
-                    monsterId: monster.id,
-                    monsterTypeId: monster.monster.id,
-                    monsterName: monster.monster.name,
-                    from,
-                    to: best.position,
-                    cost,
-                });
-            }
+            const reEvaluated =
+                selectedObjective.x !== roleObjective.x ||
+                selectedObjective.y !== roleObjective.y;
+            addEvent(state, {
+                turn: state.turn,
+                player,
+                type: "strategy",
+                description: `${reEvaluated ? "Réévalue son objectif ; " : ""}suit le chemin vers ${movementGoal} : ${best.routeProgress} case(s) plus près.`,
+                monsterId: monster.id,
+                monsterTypeId: monster.monster.id,
+                monsterName: monster.monster.name,
+            });
+            addEvent(state, {
+                turn: state.turn,
+                player,
+                type: "movement",
+                description: `${monster.monster.name} se déplace de ${best.path.length - 1} case(s).`,
+                monsterId: monster.id,
+                monsterTypeId: monster.monster.id,
+                monsterName: monster.monster.name,
+                from,
+                to: best.position,
+                cost,
+            });
         }
     }
 }
