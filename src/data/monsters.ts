@@ -96,7 +96,8 @@ export const MONSTERS: Monster[] = [
         symbol: "P",
         color: 0x993f00,
         cost: 3,
-        hp: 6,
+        hp: 5,
+        armor: 1,
         attacks: [
             {
                 name: "Sabre tranchant",
@@ -115,7 +116,7 @@ export const MONSTERS: Monster[] = [
         symbol: "V",
         color: 0xd4b35a,
         cost: 3,
-        hp: 5,
+        hp: 3,
         attacks: [
             {
                 name: "Corps à corps",
@@ -136,7 +137,8 @@ export const MONSTERS: Monster[] = [
         symbol: "C",
         color: 0x415d10,
         cost: 4,
-        hp: 7,
+        hp: 6,
+        armor: 1,
         attacks: [
             {
                 name: "Magie de Poison",
@@ -180,16 +182,16 @@ export const MONSTERS: Monster[] = [
         attacks: [
             {
                 name: "Corps à corps",
-                damage: 2,
+                damage: 3,
                 cost: 1,
                 pattern: { type: "adjacent" },
             },
             {
                 name: "Attaque tranchante",
                 damage: 7,
-                cost: 3,
+                cost: 2,
                 pattern: { type: "radius", range: 2 },
-                cooldownTurns: 2,
+                cooldownTurns: 1,
                 animation: "alternativeAttack1",
             },
         ],
@@ -205,7 +207,8 @@ export const MONSTERS: Monster[] = [
         symbol: "B",
         color: 0x54b8e8,
         cost: 4,
-        hp: 6,
+        hp: 5,
+        armor: 1,
         attacks: [
             {
                 name: "Coup de baton",

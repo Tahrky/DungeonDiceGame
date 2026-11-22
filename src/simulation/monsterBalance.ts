@@ -61,6 +61,7 @@ export interface MonsterAttackBalance {
     name: string;
     cost: number;
     directDamage: number;
+    damagePerTarget: number;
     expectedDamagePerUse: number;
     expectedFriendlyDamagePerUse: number;
     netDamagePerUse: number;
@@ -78,6 +79,7 @@ export interface MonsterBalance {
     hp: number;
     armor: number;
     averageAttacksToEliminate: number | null;
+    averageDamagePerAttack: number | null;
     movementRange: number;
     scores: {
         durability: number;
@@ -117,6 +119,7 @@ interface Plan {
     totalUses: number;
     totalAttackCost: number;
     totalExpectedDamage: number;
+    totalDamagePerTarget: number;
     totalSupportValue: number;
     averageUsesPerTurn: number;
     averageAttackCostPerTurn: number;
@@ -189,7 +192,8 @@ export function calculateMonsterAverageAttacks(
                     (attack.cooldownTurns ?? 0) * 0.25);
             const weight = availability / Math.max(attack.cost, 0.25);
             const attacksNeeded = calculateAttacksNeeded(monster.hp, armor, attack.damage);
-            weightedSum += attacksNeeded === null ? Number.POSITIVE_INFINITY * weight : attacksNeeded * weight;
+            if (attacksNeeded === null) continue;
+            weightedSum += attacksNeeded * weight;
             totalWeight += weight;
         }
     }
@@ -428,6 +432,7 @@ function analyzeMonsterAttack(
         name: attack.name,
         cost: attack.cost,
         directDamage: attack.damage,
+        damagePerTarget,
         expectedDamagePerUse,
         expectedFriendlyDamagePerUse,
         netDamagePerUse,
@@ -452,6 +457,7 @@ function simulatePlan(
     let totalUses = 0;
     let totalAttackCost = 0;
     let totalExpectedDamage = 0;
+    let totalDamagePerTarget = 0;
     let totalSupportValue = 0;
     let firstTurnAttackCost = 0;
 
@@ -492,6 +498,7 @@ function simulatePlan(
             totalUses++;
             totalAttackCost += best.attack.cost;
             totalExpectedDamage += best.analysis.netDamagePerUse;
+            totalDamagePerTarget += best.analysis.damagePerTarget;
             totalSupportValue += best.analysis.supportValuePerUse;
             usesThisTurn.set(best.attack.name, (usesThisTurn.get(best.attack.name) ?? 0) + 1);
             if (turn === 1) firstTurnAttackCost += best.attack.cost;
@@ -504,6 +511,7 @@ function simulatePlan(
         totalUses,
         totalAttackCost,
         totalExpectedDamage,
+        totalDamagePerTarget,
         totalSupportValue,
         averageUsesPerTurn: totalUses / OPTIONS.analysisHorizon,
         averageAttackCostPerTurn: totalAttackCost / OPTIONS.analysisHorizon,
@@ -642,6 +650,10 @@ export function analyzeMonster(monster: Monster): MonsterBalance {
 
     const armor = getMonsterArmor(monster);
     const averageAttacksToEliminate = calculateMonsterAverageAttacks(monster);
+    const averageDamagePerAttack =
+        offensePlan.totalUses > 0
+            ? offensePlan.totalDamagePerTarget / offensePlan.totalUses
+            : null;
     const durability =
         armor === 0
             ? clamp((monster.hp / 8) * 10, 0, 10)
@@ -701,6 +713,7 @@ export function analyzeMonster(monster: Monster): MonsterBalance {
         hp: monster.hp,
         armor,
         averageAttacksToEliminate,
+        averageDamagePerAttack,
         movementRange: monster.movementRange,
         scores: { durability, offense, rangeControl, mobility, utility, actionEconomy, total },
         economy: {

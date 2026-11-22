@@ -55,9 +55,22 @@ const BALANCE_COLUMNS: SortableColumn<MonsterBalance>[] = [
     },
     {
         key: "averageAttacks",
-        label: "Attaques moyennes",
+        label: "Attaques moyennes nécessaires",
+        headerTitle:
+            "Nombre moyen d’attaques capables de blesser nécessaires pour éliminer le monstre. Les attaques neutralisées par l’armure sont exclues.",
         getValue: (monster) => monster.averageAttacksToEliminate,
         render: (monster) => format(monster.averageAttacksToEliminate),
+    },
+    {
+        key: "averageAttackDamage",
+        label: "Attaque moyenne (dégâts/cible)",
+        headerTitle:
+            "Dégâts moyens par attaque et par cible, pondérés par les utilisations réalisables sur 12 tours; cooldowns et limites d’utilisation inclus. Les attaques de zone ne sont pas multipliées par leurs cibles potentielles.",
+        getValue: (monster) => monster.averageDamagePerAttack,
+        render: (monster) =>
+            monster.averageDamagePerAttack === null
+                ? "–"
+                : format(monster.averageDamagePerAttack),
     },
     {
         key: "durability",
@@ -168,6 +181,11 @@ export function MonsterBalancePanel() {
     const comparisonRows: ComparisonRow[] = [
         { label: "PV", first: selected.hp, second: comparison.hp },
         { label: "Armure", first: selected.armor, second: comparison.armor },
+        {
+            label: "Attaque moyenne (dégâts/cible)",
+            first: selected.averageDamagePerAttack,
+            second: comparison.averageDamagePerAttack,
+        },
         {
             label: "Attaques moyennes nécessaires",
             first: selected.averageAttacksToEliminate,

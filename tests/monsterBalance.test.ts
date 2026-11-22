@@ -115,4 +115,32 @@ describe("monster balance analysis", () => {
         expect(calculateActionEconomyScore(cooldown)).toBeGreaterThanOrEqual(0);
         expect(Object.values(BALANCE_WEIGHTS).reduce((sum, weight) => sum + weight, 0)).toBeCloseTo(1);
     });
+
+    it("calcule les dégâts moyens par attaque avec cooldowns et sans multiplier les zones", () => {
+        const blackKnight = MONSTERS.find((monster) => monster.id === "black-knight");
+        const pirate = MONSTERS.find((monster) => monster.id === "pirate");
+        const noAttacks = { ...MONSTERS[0]!, attacks: [] };
+        if (!blackKnight || !pirate) throw new Error("Profils de test indisponibles.");
+
+        const knight = analyzeMonster(blackKnight);
+        const pirateReport = analyzeMonster(pirate);
+        expect(knight.averageDamagePerAttack).not.toBeNull();
+        expect(Number.isFinite(knight.averageDamagePerAttack)).toBe(true);
+        expect(knight.averageAttacksToEliminate).not.toBeNull();
+        expect(Number.isFinite(knight.averageAttacksToEliminate)).toBe(true);
+        expect(knight.attacks).toHaveLength(2);
+        expect(knight.attacks.map(({ directDamage }) => directDamage)).toEqual([2, 7]);
+        expect(blackKnight.attackActionsPerTurn).toBe(2);
+        expect(blackKnight.attacks[1]?.cooldownTurns).toBe(2);
+        expect(knight.averageDamagePerAttack).toBeGreaterThan(2);
+        expect(knight.averageDamagePerAttack).toBeLessThan(7);
+        expect(knight.averageDamagePerAttack).toBeCloseTo(68 / 24);
+        expect(pirateReport.averageDamagePerAttack).toBeCloseTo(5);
+        expect(analyzeMonster(noAttacks).averageDamagePerAttack).toBeNull();
+
+        for (const monster of MONSTERS) {
+            const averageDamage = analyzeMonster(monster).averageDamagePerAttack;
+            expect(averageDamage === null || Number.isFinite(averageDamage)).toBe(true);
+        }
+    });
 });
