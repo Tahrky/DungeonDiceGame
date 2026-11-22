@@ -2,98 +2,12 @@ import type { Monster } from "../types/GameTypes";
 
 export const MONSTERS: Monster[] = [
     {
-        id: "pirate",
-        name: "Pirate",
-        symbol: "P",
-        color: 0x993f00,
-        cost: 3,
-        hp: 5,
-        attacks: [
-            {
-                name: "Corps à corps",
-                damage: 4,
-                cost: 2,
-                pattern: { type: "directionalArea", width: 3, depth: 1 },
-                hitsAllies: true,
-            },
-        ],
-        movementRange: 2,
-    },
-
-    {
-        id: "frost-mage",
-        name: "Mage de Givre",
-        symbol: "M",
-        color: 0x54b8e8,
-        cost: 5,
-        hp: 5,
-        attacks: [
-            {
-                name: "Boule de Givre",
-                damage: 3,
-                cost: 1,
-                pattern: { type: "line", range: 4, length: 3, allDirections: true },
-                hitsAllies: true,
-            },
-            {
-                name: "Explosion de Givre",
-                damage: 5,
-                cost: 3,
-                pattern: { type: "selfRadius", range: 2 },
-                hitsAllies: true,
-                animation: "alternativeAttack1",
-            },
-        ],
-        movementRange: 2,
-    },
-
-    {
-        id: "swamp-thing",
-        name: "Créature des Marais",
-        symbol: "C",
-        color: 0x415d10,
-        cost: 4,
-        hp: 5,
-        attacks: [
-            {
-                name: "Magie de Poison",
-                damage: 0,
-                cost: 1,
-                pattern: { type: "radius", range: 4 },
-                cooldownTurns: 1,
-                statusEffect: {
-                    type: "damageOverTime",
-                    damagePerTurn: 2,
-                    duration: "untilDeath",
-                    color: "green",
-                },
-            },
-            {
-                name: "Explosion de Poison",
-                damage: 2,
-                cost: 2,
-                pattern: { type: "selfRadius", range: 2 },
-                hitsAllies: true,
-                cooldownTurns: 2,
-                animation: "alternativeAttack1",
-                statusEffect: {
-                    type: "damageOverTime",
-                    damagePerTurn: 2,
-                    duration: "untilDeath",
-                    color: "green",
-                },
-            },
-        ],
-        movementRange: 2,
-    },
-
-    {
         id: "ghost",
         name: "Fantôme",
         symbol: "G",
         color: 0xffffff,
         cost: 1,
-        hp: 3,
+        hp: 2,
         attacks: [
             /*
             {
@@ -107,13 +21,13 @@ export const MONSTERS: Monster[] = [
             */
             {
                 name: "Coup au corps à corps",
-                damage: 1,
-                cost: 1,
+                damage: 2,
+                cost: 2,
                 pattern: { type: "adjacent" },
+                cooldownTurns: 1,
             },
         ],
-        movementRange: 2,
-        movementCost: 1,
+        movementRange: 1,
         canPassHostiles: true,
     },
 
@@ -123,11 +37,11 @@ export const MONSTERS: Monster[] = [
         symbol: "S",
         color: 0x8e10de,
         cost: 2,
-        hp: 3,
+        hp: 4,
         attacks: [
             {
                 name: "Matière nébuleuse",
-                damage: 2,
+                damage: 3,
                 cost: 2,
                 pattern: { type: "selfRadius", range: 2 },
                 hitsAllies: true,
@@ -135,7 +49,7 @@ export const MONSTERS: Monster[] = [
             },
             {
                 name: "Coup au corps à corps",
-                damage: 1,
+                damage: 2,
                 cost: 1,
                 cooldownTurns: 1,
                 pattern: { type: "radius", range: 2 },
@@ -149,12 +63,120 @@ export const MONSTERS: Monster[] = [
     },
 
     {
+        id: "archer",
+        name: "Archer Squelette",
+        symbol: "A",
+        color: 0x888888,
+        cost: 3,
+        hp: 4,
+        attacks: [
+            {
+                name: "Flèche simple",
+                damage: 2,
+                cost: 1,
+                pattern: { type: "radius", range: 4 },
+            },
+            {
+                name: "Tir puissant",
+                damage: 5,
+                cost: 2,
+                pattern: { type: "radius", range: 5 },
+                animation: "alternativeAttack1",
+                cooldownTurns: 1,
+                initialCooldownTurns: 1,
+            },
+        ],
+        movementRange: 2,
+        movementCost: 1,
+    },
+
+    {
+        id: "pirate",
+        name: "Pirate",
+        symbol: "P",
+        color: 0x993f00,
+        cost: 3,
+        hp: 6,
+        attacks: [
+            {
+                name: "Sabre tranchant",
+                damage: 5,
+                cost: 1,
+                pattern: { type: "directionalArea", width: 3, depth: 2 },
+                hitsAllies: true,
+            },
+        ],
+        movementRange: 2,
+    },
+
+    {
+        id: "thief",
+        name: "Vil Voleur",
+        symbol: "V",
+        color: 0xd4b35a,
+        cost: 3,
+        hp: 5,
+        attacks: [
+            {
+                name: "Corps à corps",
+                damage: 4,
+                cost: 1,
+                pattern: { type: "adjacent" },
+                animation: "backstab",
+            },
+        ],
+        movementRange: 3,
+        movementActionsPerTurn: 2,
+        bonusDamageFromBehind: 3,
+    },
+
+    {
+        id: "swamp-thing",
+        name: "Créature des Marais",
+        symbol: "C",
+        color: 0x415d10,
+        cost: 4,
+        hp: 7,
+        attacks: [
+            {
+                name: "Magie de Poison",
+                damage: 1,
+                cost: 1,
+                pattern: { type: "radius", range: 4 },
+                statusEffect: {
+                    type: "damageOverTime",
+                    damagePerTurn: 2,
+                    duration: "untilDeath",
+                    color: "green",
+                },
+            },
+            {
+                name: "Explosion de Poison",
+                damage: 3,
+                cost: 2,
+                pattern: { type: "selfRadius", range: 2 },
+                hitsAllies: true,
+                cooldownTurns: 1,
+                animation: "alternativeAttack1",
+                statusEffect: {
+                    type: "damageOverTime",
+                    damagePerTurn: 2,
+                    duration: "untilDeath",
+                    color: "green",
+                },
+            },
+        ],
+        movementRange: 2,
+    },
+
+    {
         id: "black-knight",
         name: "Chevalier Noir",
         symbol: "K",
         color: 0x111111,
         cost: 4,
-        hp: 8,
+        hp: 9,
+        armor: 2,
         attacks: [
             {
                 name: "Corps à corps",
@@ -164,8 +186,8 @@ export const MONSTERS: Monster[] = [
             },
             {
                 name: "Attaque tranchante",
-                damage: 5,
-                cost: 2,
+                damage: 7,
+                cost: 3,
                 pattern: { type: "radius", range: 2 },
                 cooldownTurns: 2,
                 animation: "alternativeAttack1",
@@ -178,61 +200,12 @@ export const MONSTERS: Monster[] = [
     },
 
     {
-        id: "thief",
-        name: "Vil Voleur",
-        symbol: "V",
-        color: 0xd4b35a,
-        cost: 3,
-        hp: 4,
-        attacks: [
-            {
-                name: "Corps à corps",
-                damage: 3,
-                cost: 1,
-                pattern: { type: "adjacent" },
-                animation: "backstab",
-            },
-        ],
-        movementRange: 3,
-        movementActionsPerTurn: 2,
-        bonusDamageFromBehind: 2,
-    },
-
-    {
-        id: "archer",
-        name: "Archer Squelette",
-        symbol: "A",
-        color: 0x888888,
-        cost: 3,
-        hp: 2,
-        attacks: [
-            {
-                name: "Tir précis",
-                damage: 1,
-                cost: 1,
-                pattern: { type: "radius", range: 4 },
-            },
-            {
-                name: "Tir chargé",
-                damage: 3,
-                cost: 2,
-                pattern: { type: "radius", range: 4 },
-                animation: "alternativeAttack1",
-                cooldownTurns: 1,
-                initialCooldownTurns: 1,
-            },
-        ],
-        movementRange: 2,
-        movementCost: 1,
-    },
-
-    {
         id: "shaman",
         name: "Chaman",
         symbol: "B",
         color: 0x54b8e8,
         cost: 4,
-        hp: 4,
+        hp: 6,
         attacks: [
             {
                 name: "Coup de baton",
@@ -244,7 +217,7 @@ export const MONSTERS: Monster[] = [
                 name: "Foulée bénie",
                 damage: 0,
                 cost: 1,
-                pattern: { type: "radius", range: 4 },
+                pattern: { type: "radius", range: 5},
                 targetsAlliesOnly: true,
                 targetsSelf: true,
                 movementRangeBonus: 1,
@@ -256,7 +229,7 @@ export const MONSTERS: Monster[] = [
                 name: "Force sacrée",
                 damage: 0,
                 cost: 1,
-                pattern: { type: "radius", range: 4 },
+                pattern: { type: "radius", range: 5 },
                 targetsAlliesOnly: true,
                 attackDamageBonus: 1,
                 attackCostReduction: 1,
@@ -274,30 +247,30 @@ export const MONSTERS: Monster[] = [
         symbol: "R",
         color: 0x54b8e8,
         cost: 4,
-        hp: 5,
+        hp: 7,
         attacks: [
             {
                 name: "Coup de baton",
-                damage: 2,
-                cost: 1,
+                damage: 1,
+                cost: 2,
                 pattern: { type: "adjacent" },
             },
             {
                 name: "Soin",
                 damage: 0,
                 cost: 1,
-                pattern: { type: "radius", range: 4 },
+                pattern: { type: "radius", range: 5 },
                 targetsAlliesOnly: true,
                 targetsSelf: true,
                 clearsStatusEffects: true,
-                healAmount: 3,
+                healAmount: 5,
                 usesPerTurn: 1,
             },
             {
                 name: "Récupération de sorts",
                 damage: 0,
                 cost: 1,
-                pattern: { type: "radius", range: 4 },
+                pattern: { type: "radius", range: 5 },
                 animation: "alternativeAttack1",
                 targetsAlliesOnly: true,
                 cooldownReduction: 1,
@@ -306,5 +279,32 @@ export const MONSTERS: Monster[] = [
         ],
         movementRange: 2,
         attackActionsPerTurn: 2,
+    },
+
+    {
+        id: "frost-mage",
+        name: "Mage de Givre",
+        symbol: "M",
+        color: 0x54b8e8,
+        cost: 5,
+        hp: 7,
+        attacks: [
+            {
+                name: "Boule de Givre",
+                damage: 5,
+                cost: 1,
+                pattern: { type: "line", range: 6, length: 3, allDirections: true },
+                hitsAllies: true,
+            },
+            {
+                name: "Explosion de Givre",
+                damage: 8,
+                cost: 3,
+                pattern: { type: "selfRadius", range: 3 },
+                hitsAllies: true,
+                animation: "alternativeAttack1",
+            },
+        ],
+        movementRange: 2,
     },
 ];
