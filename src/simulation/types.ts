@@ -117,6 +117,7 @@ export interface FinalMonster {
     position: Position;
     cells: Position[];
     statusEffects: MonsterStatusEffect[];
+    isCamouflaged?: boolean;
     turnBuffs?: MonsterTurnBuffs;
 }
 

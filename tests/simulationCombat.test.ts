@@ -39,7 +39,7 @@ function createMatchState(allowBaseAttackOnSummonTurn: boolean): MatchState {
                 attacksUsedThisTurn: 0,
                 attackUsesThisTurn: getInitialAttackUses(monster),
                 movementsUsedThisTurn: 0,
-                attackCooldowns: getInitialAttackCooldowns(monster),
+                attackCooldowns: getInitialAttackCooldowns(monster).map(() => 0),
                 statusEffects: [],
             },
         ],

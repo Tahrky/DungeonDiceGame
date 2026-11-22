@@ -342,6 +342,7 @@ function createMatch(
             position: monster.position,
             cells: monster.cells,
             statusEffects: monster.statusEffects,
+            isCamouflaged: monster.isCamouflaged === true,
             ...(monster.turnBuffs === undefined ? {} : { turnBuffs: monster.turnBuffs }),
         })),
         remainingResources: state.reserves,

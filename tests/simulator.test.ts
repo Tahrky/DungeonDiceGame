@@ -211,7 +211,7 @@ describe("simulation de matchs", () => {
             profile1: "cheap" as const,
             profile2: "defensive" as const,
             deck1: ["ghost", "thief", "spectre", "black-knight", "pirate"],
-            deck2: ["frost-mage", "archer", "pirate", "priestBuffer", "black-knight"],
+            deck2: ["frost-mage", "archer", "pirate", "shaman", "black-knight"],
         };
         const protectedMatch = runSimulations(options, configuration).matches[0];
         const unprotectedMatch = runSimulations(options, {

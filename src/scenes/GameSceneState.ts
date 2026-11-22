@@ -279,7 +279,9 @@ export abstract class GameSceneState extends Phaser.Scene {
     protected getGrayscaleMonsterIds(): ReadonlySet<string> {
         const grayscaled = new Set<string>();
         for (const monster of this.placedMonsters) {
-            if (this.winner !== null) {
+            if (monster.isCamouflaged) {
+                grayscaled.add(monster.id);
+            } else if (this.winner !== null) {
                 grayscaled.add(monster.id);
             } else if (
                 monster.currentHp > 0 &&
@@ -450,6 +452,7 @@ export abstract class GameSceneState extends Phaser.Scene {
         this.placedMonsters = value.placedMonsters.map((monster) => ({
             ...monster,
             statusEffects: monster.statusEffects ?? [],
+            isCamouflaged: monster.isCamouflaged === true,
         }));
         this.obstacles = value.obstacles;
         this.actionHistory = value.actionHistory;

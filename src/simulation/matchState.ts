@@ -442,6 +442,7 @@ export function deployMonsters(
             movementsUsedThisTurn: 0,
             attackCooldowns: getInitialAttackCooldowns(monster),
             statusEffects: [],
+            isCamouflaged: false,
         };
         state.monsters.push(placed);
         const stats = state.statistics[state.currentPlayer];

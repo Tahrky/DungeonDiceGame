@@ -48,8 +48,22 @@ const BALANCE_COLUMNS: SortableColumn<MonsterBalance>[] = [
         render: (monster) => format(monster.hp),
     },
     {
+        key: "armor",
+        label: "Armure",
+        getValue: (monster) => monster.armor,
+        render: (monster) => monster.armor.toString(),
+    },
+    {
+        key: "averageAttacks",
+        label: "Attaques moyennes",
+        getValue: (monster) => monster.averageAttacksToEliminate,
+        render: (monster) => format(monster.averageAttacksToEliminate),
+    },
+    {
         key: "durability",
         label: "Robustesse",
+        headerTitle:
+            "Nombre moyen d’attaques nécessaires pour éliminer le monstre, normalisé à partir des PV et de l’armure.",
         getValue: (monster) => monster.scores.durability,
         render: (monster) => format(monster.scores.durability),
     },
@@ -101,24 +115,39 @@ const BALANCE_COLUMNS: SortableColumn<MonsterBalance>[] = [
     {
         key: "offense",
         label: "Attaque",
+        headerTitle:
+            "Dégâts directs et différés pondérés par les ressources, la portée, la zone d’effet et la disponibilité des attaques.",
         getValue: (monster) => monster.scores.offense,
         render: (monster) => format(monster.scores.offense),
     },
     {
         key: "range",
         label: "Portée / zone",
+        headerTitle: "Portée utile et nombre potentiel de cases affectées par les attaques.",
         getValue: (monster) => monster.scores.rangeControl,
         render: (monster) => format(monster.scores.rangeControl),
     },
     {
         key: "mobility",
         label: "Mobilité",
+        headerTitle:
+            "Portée atteignable, nombre et coût des déplacements, avec vol et traversée des ennemis.",
         getValue: (monster) => monster.scores.mobility,
         render: (monster) => format(monster.scores.mobility),
     },
     {
+        key: "actionEconomy",
+        label: "Économie d’action",
+        headerTitle:
+            "Valeur moyenne des attaques et déplacements réellement réalisables avec les ressources disponibles, les usages par tour et les cooldowns.",
+        getValue: (monster) => monster.scores.actionEconomy,
+        render: (monster) => format(monster.scores.actionEconomy),
+    },
+    {
         key: "utility",
         label: "Utilité",
+        headerTitle:
+            "Soins, suppression d’effets, buffs, réductions de recharge/coût et effets défensifs comme le camouflage.",
         getValue: (monster) => monster.scores.utility,
         render: (monster) => format(monster.scores.utility),
     },
@@ -138,6 +167,13 @@ export function MonsterBalancePanel() {
 
     const comparisonRows: ComparisonRow[] = [
         { label: "PV", first: selected.hp, second: comparison.hp },
+        { label: "Armure", first: selected.armor, second: comparison.armor },
+        {
+            label: "Attaques moyennes nécessaires",
+            first: selected.averageAttacksToEliminate,
+            second: comparison.averageAttacksToEliminate,
+            lowerIsBetter: false,
+        },
         {
             label: "Coût d’invocation",
             first: selected.summonCost,

@@ -3,6 +3,7 @@ import { isBoardCell } from "../game/boards";
 import {
     canAttackBaseThisTurn,
     canAttackMonster,
+    canDirectlyTargetMonster,
     canTargetMonsterOwner,
     canUseActionThisTurn,
     canUseMonsterAttackThisTurn,
@@ -143,6 +144,7 @@ export abstract class GameSceneAttackTargeting extends GameSceneInvocation {
             }
             const target = this.getLivingMonsterAt(cell);
             if (!target || (target.id === attacker.id && !attack.targetsSelf)) return false;
+            if (!canDirectlyTargetMonster(attack, target)) return false;
             if (!canTargetMonsterOwner(attack, target.owner, this.currentPlayer)) return false;
             if (
                 attack.healAmount !== undefined &&

@@ -86,6 +86,7 @@ describe("effets de statut au début du tour", () => {
     it("attribue les dégâts de poison à la créature qui l'a infligé", () => {
         const source = createPlacedMonster("m1", "swamp-thing", 1, { x: 5, y: 7 });
         const target = createPlacedMonster("m2", "ghost", 2, { x: 7, y: 7 });
+        target.currentHp = 10;
         source.attackCooldowns = [0, 0];
         const state: MatchState = {
             turn: 1,
@@ -113,14 +114,14 @@ describe("effets de statut au début du tour", () => {
         state.turn = 2;
         beginTurn(state, getDefaultGameConfiguration(), 2);
 
-        expect(state.statistics[1].damageDealt).toBe(3);
-        expect(state.statistics[2].damageReceived).toBe(3);
+        expect(state.statistics[1].damageDealt).toBe(5);
+        expect(state.statistics[2].damageReceived).toBe(5);
         expect(state.history.find((event) => event.type === "status")).toMatchObject({
             player: 1,
             monsterTypeId: "swamp-thing",
             monsterName: "Créature des Marais",
             target: "Fantôme (J2)",
-            damage: 1,
+            damage: 2,
         });
     });
 

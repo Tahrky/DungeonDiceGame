@@ -451,6 +451,8 @@ export function parseMonsterConfiguration(value: unknown, expectedId?: string): 
         (value.flying !== undefined && typeof value.flying !== "boolean") ||
         (value.highAltitude !== undefined && typeof value.highAltitude !== "boolean") ||
         (value.canPassHostiles !== undefined && typeof value.canPassHostiles !== "boolean") ||
+        (value.armor !== undefined &&
+            (!isIntegerInRange(value.armor, 0, 50))) ||
         (value.bonusDamageFromBehind !== undefined &&
             !isIntegerInRange(value.bonusDamageFromBehind, 0, 50))
     ) {
@@ -470,6 +472,10 @@ export function parseMonsterConfiguration(value: unknown, expectedId?: string): 
             : defaultMonster?.canPassHostiles;
     const bonusDamageFromBehind =
         typeof value.bonusDamageFromBehind === "number" ? value.bonusDamageFromBehind : undefined;
+    const armor =
+        typeof value.armor === "number"
+            ? value.armor
+            : defaultMonster?.armor;
 
     return {
         id: value.id,
@@ -478,6 +484,7 @@ export function parseMonsterConfiguration(value: unknown, expectedId?: string): 
         color: value.color,
         cost: value.cost,
         hp: value.hp,
+        ...(armor === undefined ? {} : { armor }),
         attacks,
         movementRange: value.movementRange,
         ...(attackActionsPerTurn === undefined ? {} : { attackActionsPerTurn }),

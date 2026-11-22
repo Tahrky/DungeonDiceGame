@@ -144,6 +144,7 @@ export abstract class GameSceneComputer extends GameSceneComputerConversion {
                     movementsUsedThisTurn: 0,
                     attackCooldowns: getInitialAttackCooldowns(monster),
                     statusEffects: [],
+                    isCamouflaged: false,
                 });
                 this.recordAction({
                     type: "invocation",

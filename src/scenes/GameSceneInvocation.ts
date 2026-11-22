@@ -278,6 +278,7 @@ export abstract class GameSceneInvocation extends GameSceneState {
                 movementsUsedThisTurn: 0,
                 attackCooldowns: getInitialAttackCooldowns(this.selectedMonster),
                 statusEffects: [],
+                isCamouflaged: false,
             });
             this.recordAction({
                 type: "invocation",

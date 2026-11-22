@@ -4,7 +4,9 @@ import { getMonsterEliminationWinner } from "../game/matchRules";
 import {
     applyMonsterTurnBuff,
     canAttackMonster,
+    clearCamouflageOnFirstAction,
     consumeAttackTurnBuff,
+    isAreaAttack,
     getAttackCost,
     getAttackDamage,
     getFacingFromMovement,
@@ -59,6 +61,7 @@ export abstract class GameSceneAttackExecution extends GameSceneAttackTargeting 
         ) {
             return;
         }
+        clearCamouflageOnFirstAction(attacker);
         consumeAttackTurnBuff(attacker);
         const attackFacing = getFacingFromMovement(
             attacker.position,
@@ -84,12 +87,7 @@ export abstract class GameSceneAttackExecution extends GameSceneAttackTargeting 
             return;
         }
 
-        if (
-            attack.hitsAllies ||
-            attack.movesToZone ||
-            attack.pattern.type === "directionalArea" ||
-            attack.pattern.type === "selfRadius"
-        ) {
+        if (isAreaAttack(attack)) {
             this.executeAreaAttack(attacker, attack, zone.cells, attackDamageBonus);
             return;
         }
@@ -203,6 +201,7 @@ export abstract class GameSceneAttackExecution extends GameSceneAttackTargeting 
                 (attack.hitsAllies || monster.owner !== this.currentPlayer) &&
                 canAttackMonster(attacker.monster, attack, monster.monster)
             ) {
+                if (monster.isCamouflaged) monster.isCamouflaged = false;
                 monster.currentHp -= damage;
                 this.applyAttackStatusEffect(
                     monster,
@@ -215,6 +214,9 @@ export abstract class GameSceneAttackExecution extends GameSceneAttackTargeting 
                         monster.currentHp,
                         monster.position,
                     );
+                }
+                if (monster.currentHp <= 0 && attacker.monster.id === "thief") {
+                    attacker.isCamouflaged = true;
                 }
                 this.recordAttack(
                     attacker,
@@ -264,6 +266,9 @@ export abstract class GameSceneAttackExecution extends GameSceneAttackTargeting 
             getAttackDamage(attack, attackDamageBonus) +
             (isBackstab ? backstabBonus : 0);
         target.currentHp -= damage;
+        if (target.currentHp <= 0 && attacker.monster.id === "thief") {
+            attacker.isCamouflaged = true;
+        }
         this.applyAttackStatusEffect(target, attack.statusEffect, attack.clearsStatusEffects);
         if (damage > 0) {
             this.monsterSpriteView.takeDamage(target.id, target.currentHp, target.position);

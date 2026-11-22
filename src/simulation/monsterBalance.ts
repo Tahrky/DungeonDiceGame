@@ -1,4 +1,5 @@
 import type { Monster } from "../types/GameTypes";
+import { MONSTERS } from "../data/monsters";
 
 const OPTIONS = {
     boardWidth: 19,
@@ -31,6 +32,15 @@ const OPTIONS = {
     areaReferenceCells: 25,
     analysisHorizon: 12,
     invocationEfficiencyHorizon: 5,
+} as const;
+
+export const BALANCE_WEIGHTS = {
+    durability: 0.20,
+    offense: 0.25,
+    rangeControl: 0.15,
+    mobility: 0.15,
+    utility: 0.15,
+    actionEconomy: 0.10,
 } as const;
 
 const CARDINAL_DIRECTIONS = [
@@ -66,6 +76,8 @@ export interface MonsterBalance {
     name: string;
     summonCost: number;
     hp: number;
+    armor: number;
+    averageAttacksToEliminate: number | null;
     movementRange: number;
     scores: {
         durability: number;
@@ -115,6 +127,76 @@ interface Plan {
 
 function clamp(value: number, min: number, max: number): number {
     return Math.max(min, Math.min(max, value));
+}
+
+export function getMonsterArmor(monster: Pick<Monster, "armor">): number {
+    return typeof monster.armor === "number" && Number.isFinite(monster.armor)
+        ? Math.max(0, monster.armor)
+        : 0;
+}
+
+export function calculateEffectiveDamage(attackDamage: number, armor: number | null | undefined): number {
+    const safeAttackDamage = Number.isFinite(attackDamage) ? Math.max(0, attackDamage) : 0;
+    const safeArmor =
+        typeof armor === "number" && Number.isFinite(armor) ? Math.max(0, armor) : 0;
+    return Math.max(0, safeAttackDamage - safeArmor);
+}
+
+export function calculateAttacksNeeded(
+    hp: number,
+    armor: number | null | undefined,
+    attackDamage: number,
+): number | null {
+    const effectiveDamage = calculateEffectiveDamage(attackDamage, armor);
+    if (effectiveDamage <= 0) return null;
+    return Math.ceil(Math.max(0, hp) / effectiveDamage);
+}
+
+export function calculateAverageAttacksNeeded(
+    hp: number,
+    armor: number | null | undefined,
+    representativeDamages: readonly number[],
+): number | null {
+    const values = representativeDamages
+        .map((damage) => calculateAttacksNeeded(hp, armor, damage))
+        .filter((value): value is number => value !== null);
+    if (values.length === 0) return null;
+    if (values.length !== representativeDamages.length) return null;
+    return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+export function calculateMonsterAverageAttacks(
+    monster: Monster,
+    attackCatalog: readonly Monster[] = MONSTERS,
+): number | null {
+    const armor = getMonsterArmor(monster);
+    let weightedSum = 0;
+    let totalWeight = 0;
+
+    for (const attacker of attackCatalog) {
+        for (const attack of attacker.attacks) {
+            if (
+                attack.targetsAlliesOnly ||
+                attack.healAmount !== undefined ||
+                attack.damage <= 0
+            ) {
+                continue;
+            }
+            const availability =
+                (attack.usesPerTurn ?? 1) /
+                (1 +
+                    (attack.initialCooldownTurns ?? 0) * 0.5 +
+                    (attack.cooldownTurns ?? 0) * 0.25);
+            const weight = availability / Math.max(attack.cost, 0.25);
+            const attacksNeeded = calculateAttacksNeeded(monster.hp, armor, attack.damage);
+            weightedSum += attacksNeeded === null ? Number.POSITIVE_INFINITY * weight : attacksNeeded * weight;
+            totalWeight += weight;
+        }
+    }
+
+    if (totalWeight <= 0) return null;
+    const average = weightedSum / totalWeight;
+    return Number.isFinite(average) ? average : null;
 }
 
 function inside(x: number, y: number): boolean {
@@ -447,6 +529,106 @@ function averageMovementCells(range: number): number {
     return reachableTotal / (OPTIONS.boardWidth * OPTIONS.boardHeight);
 }
 
+export function calculateMobilityScore(monster: Monster): number {
+    const movementActions = Math.max(1, monster.movementActionsPerTurn ?? 1);
+    const movementCost = monster.movementCost ?? 1;
+    const reachableCells = averageMovementCells(monster.movementRange);
+    const reachRatio = clamp(reachableCells / OPTIONS.movementReferenceCells, 0, 1);
+    const costEfficiency = 1 / (1 + Math.max(0, movementCost - 1) * 0.35);
+    const actionAvailability = movementActions / (1 + movementActions * 0.25);
+    const specialValue =
+        (monster.flying ? 0.8 : 0) +
+        (monster.canPassHostiles ? 0.6 : 0);
+    return clamp(
+        10 *
+            (0.68 * Math.sqrt(reachRatio) +
+                0.22 * costEfficiency +
+                0.10 * actionAvailability) +
+            specialValue,
+        0,
+        10,
+    );
+}
+
+export function calculateActionEconomyScore(
+    monster: Monster,
+    averageAttackUsesPerTurn?: number,
+    averageMovementCostPerTurn?: number,
+): number {
+    const attackSlots = Math.max(1, monster.attackActionsPerTurn ?? 1);
+    const movementActions = Math.max(1, monster.movementActionsPerTurn ?? 1);
+    const movementCost = averageMovementCostPerTurn ?? movementActions * (monster.movementCost ?? 1);
+    const attackUses =
+        averageAttackUsesPerTurn === undefined
+            ? monster.attacks.reduce((sum, attack) => {
+                  if (attack.initialCooldownTurns && attack.initialCooldownTurns > 0) return sum;
+                  const perTurn = attack.usesPerTurn ?? attackSlots;
+                  const cooldownPenalty =
+                      attack.cooldownTurns && attack.cooldownTurns > 0
+                          ? 1 / (attack.cooldownTurns + 1)
+                          : 1;
+                  return sum + Math.min(perTurn, attackSlots) * cooldownPenalty;
+              }, 0) / Math.max(1, monster.attacks.length)
+            : averageAttackUsesPerTurn;
+    const attackCost = monster.attacks.reduce((sum, attack) => {
+        const usable = attack.initialCooldownTurns === undefined ||
+            attack.initialCooldownTurns === 0;
+        return usable ? sum + attack.cost : sum;
+    }, 0);
+    const resourcePressure = clamp(
+        (attackCost / Math.max(1, monster.attacks.length) + movementCost) /
+            OPTIONS.resourcesPerTurn,
+        0,
+        1,
+    );
+    const realizableActions = clamp(
+        (attackUses + movementActions) / (attackSlots + movementActions),
+        0,
+        1,
+    );
+    const conversionEfficiency = resourcePressure > 0
+        ? clamp(realizableActions / (1 + resourcePressure), 0, 1)
+        : realizableActions;
+    return clamp(10 * conversionEfficiency, 0, 10);
+}
+
+export function calculateUtilityScore(monster: Monster, attackSupportValue = 0): number {
+    let inherentSupport = attackSupportValue;
+    if (attackSupportValue === 0) {
+        for (const attack of monster.attacks) {
+            if (attack.initialCooldownTurns && attack.initialCooldownTurns > 0) continue;
+            const availability =
+                (attack.usesPerTurn ?? 1) /
+                (1 + (attack.cooldownTurns ?? 0));
+            if (attack.healAmount) {
+                inherentSupport += attack.healAmount * OPTIONS.healEffectiveness * availability;
+            }
+            if (attack.clearsStatusEffects) {
+                inherentSupport += OPTIONS.cleanseValue * availability;
+            }
+            if (attack.attackDamageBonus) {
+                inherentSupport += attack.attackDamageBonus * OPTIONS.attackDamageBuffValue * availability;
+            }
+            if (attack.movementRangeBonus) {
+                inherentSupport += attack.movementRangeBonus * OPTIONS.movementRangeBonusValue * availability;
+            }
+            if (attack.cooldownReduction) {
+                inherentSupport += attack.cooldownReduction * OPTIONS.cooldownReductionValue * availability;
+            }
+        }
+    }
+    const passiveCamouflage =
+        monster.id === "thief" ? 1.8 : 0;
+    const passiveArmor = getMonsterArmor(monster) > 0 ? 0.25 : 0;
+    const defensiveSupport = passiveCamouflage + passiveArmor;
+    return clamp(
+        (inherentSupport / OPTIONS.supportReferenceValue) * 10 +
+            defensiveSupport,
+        0,
+        10,
+    );
+}
+
 export function analyzeMonster(monster: Monster): MonsterBalance {
     const attacks = monster.attacks.map((attack) => analyzeMonsterAttack(monster, attack));
     const offensePlan = simulatePlan(monster, monster.attacks, attacks, "offense");
@@ -458,35 +640,27 @@ export function analyzeMonster(monster: Monster): MonsterBalance {
         undefined,
     );
 
-    const durability = clamp((monster.hp / 8) * 10, 0, 10);
+    const armor = getMonsterArmor(monster);
+    const averageAttacksToEliminate = calculateMonsterAverageAttacks(monster);
+    const durability =
+        armor === 0
+            ? clamp((monster.hp / 8) * 10, 0, 10)
+            : averageAttacksToEliminate === null
+              ? 10
+              : clamp((averageAttacksToEliminate / 4.8) * 10, 0, 10);
     const offense =
         offensePlan.totalAttackCost > 0
             ? clamp((2 * offensePlan.totalExpectedDamage) / offensePlan.totalAttackCost, 0, 10)
             : 0;
-    const mobility = clamp(
-        10 *
-            Math.sqrt(
-                clamp(
-                    averageMovementCells(monster.movementRange) / OPTIONS.movementReferenceCells,
-                    0,
-                    1,
-                ),
-            ) +
-            (monster.flying ? 1 : 0) +
-            (monster.canPassHostiles ? 0.75 : 0),
-        0,
-        10,
-    );
-    const utility = clamp(
-        (supportPlan.averageSupportValuePerTurn / OPTIONS.supportReferenceValue) * 10,
-        0,
-        10,
-    );
+    const mobility = calculateMobilityScore(monster);
+    const utility = calculateUtilityScore(monster, supportPlan.averageSupportValuePerTurn);
     const movementActions = Math.max(1, monster.movementActionsPerTurn ?? 1);
-    const actionEconomy = clamp(
-        ((combinedPlan.averageUsesPerTurn + movementActions) / 4) * 10,
-        0,
-        10,
+    const movementCost = monster.movementCost ?? 1;
+    const averageMovementCostPerTurn = movementActions * movementCost;
+    const actionEconomy = calculateActionEconomyScore(
+        monster,
+        combinedPlan.averageUsesPerTurn,
+        averageMovementCostPerTurn,
     );
 
     const standardAttack = monster.attacks
@@ -501,8 +675,6 @@ export function analyzeMonster(monster: Monster): MonsterBalance {
             };
         })
         .sort((a, b) => b.valuePerCost - a.valuePerCost)[0];
-    const movementCost = monster.movementCost ?? 1;
-    const averageMovementCostPerTurn = movementActions * movementCost;
     const averageOperatingCostPerTurn =
         combinedPlan.averageAttackCostPerTurn + averageMovementCostPerTurn;
     const invocationDemand = monster.cost / OPTIONS.invocationEfficiencyHorizon;
@@ -515,18 +687,20 @@ export function analyzeMonster(monster: Monster): MonsterBalance {
     const grossEquivalentCostPerTurn = totalDemand + deficit;
     const rangeControl = bestAttack?.rangeControlScore ?? 0;
     const total =
-        0.2 * durability +
-        0.25 * offense +
-        0.15 * rangeControl +
-        0.15 * mobility +
-        0.15 * utility +
-        0.1 * actionEconomy;
+        BALANCE_WEIGHTS.durability * durability +
+        BALANCE_WEIGHTS.offense * offense +
+        BALANCE_WEIGHTS.rangeControl * rangeControl +
+        BALANCE_WEIGHTS.mobility * mobility +
+        BALANCE_WEIGHTS.utility * utility +
+        BALANCE_WEIGHTS.actionEconomy * actionEconomy;
 
     return {
         id: monster.id,
         name: monster.name,
         summonCost: monster.cost,
         hp: monster.hp,
+        armor,
+        averageAttacksToEliminate,
         movementRange: monster.movementRange,
         scores: { durability, offense, rangeControl, mobility, utility, actionEconomy, total },
         economy: {

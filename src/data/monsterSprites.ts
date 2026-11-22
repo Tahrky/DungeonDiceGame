@@ -479,7 +479,7 @@ export const MONSTER_SPRITES: Readonly<Record<string, MonsterSpriteDefinition>> 
             },
             alternativeAttack1: {
                 frameRate: 15,
-                ...monsterAtlas(SHAMAN_ASSET_ROOT, "AttackAlt1"),
+                ...monsterAtlas(SHAMAN_ASSET_ROOT, "AttackAlt"),
             },
             alternativeAttack2: {
                 frameRate: 15,

@@ -21,6 +21,7 @@ import { ACTION_LOG_VISIBLE_COUNT } from "./game/GameHudBase";
 import type { PlacedMonster, Position } from "../types/GameTypes";
 import { applyStatusEffectsAtTurnStart } from "../game/statusEffects";
 import { getMonsterEliminationWinner } from "../game/matchRules";
+import { clearCamouflageOnFirstAction } from "../game/monsterActions";
 
 export abstract class GameSceneMovement extends GameSceneCombat {
     protected handleMovementAction(position: Position, monsterId: string | null): void {
@@ -64,6 +65,7 @@ export abstract class GameSceneMovement extends GameSceneCombat {
             return;
         }
         consumeMovementTurnBuff(monster);
+        clearCamouflageOnFirstAction(monster);
         monster.movementsUsedThisTurn++;
 
         const distance = path.length - 1;

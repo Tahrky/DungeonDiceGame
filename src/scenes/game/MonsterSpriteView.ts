@@ -309,6 +309,7 @@ export class MonsterSpriteView {
             if (state.grayscaleEffect) state.grayscaleEffect.active = false;
             state.isGrayscale = false;
         }
+        state.sprite.setAlpha(state.shouldBeGrayscale ? 0.8 : 1);
     }
 
     private updateStatusTint(state: MonsterSpriteState, color: StatusEffectColor | null): void {

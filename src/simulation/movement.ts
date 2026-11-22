@@ -2,6 +2,7 @@ import {
     canPassHostileMonsters,
     canUseActionThisTurn,
     consumeMovementTurnBuff,
+    clearCamouflageOnFirstAction,
     getFacingFromMovement,
     getMovementActionsPerTurn,
     getMovementCost,
@@ -151,6 +152,7 @@ export function performMovements(state: MatchState, board: BoardDefinition): voi
             if (!spend(state, player, "movement", cost)) break;
 
             consumeMovementTurnBuff(monster);
+            clearCamouflageOnFirstAction(monster);
             const from = monster.position;
             monster.facing = getFacingFromMovement(from, best.position, monster.facing);
             monster.position = best.position;

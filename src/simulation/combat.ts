@@ -2,7 +2,10 @@ import {
     applyMonsterTurnBuff,
     canAttackBaseThisTurn,
     canAttackMonster,
+    canDirectlyTargetMonster,
     canTargetMonsterOwner,
+    clearCamouflageOnFirstAction,
+    isAreaAttack,
     canUseActionThisTurn,
     canUseMonsterAttackThisTurn,
     clearMonsterTurnBuff,
@@ -57,15 +60,6 @@ interface AttackChoice {
     isDefaultCandidate: boolean;
 }
 
-function isAreaAttack(attack: Monster["attacks"][number]): boolean {
-    return (
-        attack.hitsAllies === true ||
-        attack.movesToZone === true ||
-        attack.pattern.type === "directionalArea" ||
-        attack.pattern.type === "selfRadius"
-    );
-}
-
 function hasJumpLanding(
     state: MatchState,
     board: BoardDefinition,
@@ -117,6 +111,7 @@ function isValidAttackCell(
             monster.currentHp > 0 && monster.position.x === cell.x && monster.position.y === cell.y,
     );
     if (!target || (target.id === attacker.id && !attack.targetsSelf)) return false;
+    if (!canDirectlyTargetMonster(attack, target)) return false;
     if (!canTargetMonsterOwner(attack, target.owner, state.currentPlayer)) return false;
     if (
         attack.healAmount !== undefined &&
@@ -198,6 +193,7 @@ function evaluateAttack(
                 monster.position.y === cell.y,
         );
         if (!victim || (victim.id === attacker.id && !attack.targetsSelf)) continue;
+        if (!canDirectlyTargetMonster(attack, victim)) continue;
         if (!canTargetMonsterOwner(attack, victim.owner, state.currentPlayer)) continue;
         if (!canAttackMonster(attacker.monster, attack, victim.monster)) continue;
         const damage = getAttackDamage(attack, attacker.turnBuffs?.attackDamageBonus ?? 0);
@@ -370,7 +366,7 @@ const MAX_ADVANCED_ATTACK_SEARCH_BRANCHES = 8;
 const MAX_ADVANCED_SEARCH_NODES = 600;
 const MAX_BASIC_SEARCH_NODES = 120;
 
-function cloneMatchState(state: MatchState): MatchState {
+export function cloneMatchState(state: MatchState): MatchState {
     const cloneMonster = (monster: PlacedMonster): PlacedMonster => ({
         ...monster,
         attackUsesThisTurn: [...monster.attackUsesThisTurn],
@@ -806,6 +802,7 @@ function executeAttack(state: MatchState, board: BoardDefinition, choice: Attack
     const attackDamageBonus = attacker.turnBuffs?.attackDamageBonus ?? 0;
     const cost = getAttackCost(attack, attacker.turnBuffs?.attackCostReduction ?? 0);
     if (!spend(state, player, "attack", cost)) return;
+    clearCamouflageOnFirstAction(attacker);
     consumeAttackTurnBuff(attacker);
     attacker.facing = getFacingFromMovement(attacker.position, target, attacker.facing);
     attacker.attacksUsedThisTurn++;
@@ -865,6 +862,7 @@ function executeAttack(state: MatchState, board: BoardDefinition, choice: Attack
                 continue;
             }
             const damage = getAttackDamage(attack, attackDamageBonus);
+            if (victim.isCamouflaged) victim.isCamouflaged = false;
             victim.currentHp -= damage;
             actualDamage += damage;
             stats.damageDealt += damage;
@@ -875,6 +873,7 @@ function executeAttack(state: MatchState, board: BoardDefinition, choice: Attack
                 stats.monstersKilled++;
                 state.statistics[victim.owner].monstersLost++;
                 actionTarget += " éliminé";
+                if (attacker.monster.id === "thief") attacker.isCamouflaged = true;
             }
         }
         if (
@@ -906,6 +905,7 @@ function executeAttack(state: MatchState, board: BoardDefinition, choice: Attack
             stats.monstersKilled++;
             state.statistics[targetMonster.owner].monstersLost++;
             actionTarget += " éliminé";
+            if (attacker.monster.id === "thief") attacker.isCamouflaged = true;
         }
     } else {
         const enemyStart = getStartingPositions(board)[opposingPlayer(player)];

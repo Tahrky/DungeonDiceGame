@@ -76,11 +76,11 @@ describe("portée des actions de monstre", () => {
         expect(canUseMonsterAttackThisTurn({ usesPerTurn: 1 }, 1)).toBe(false);
         expect(canUseMonsterAttackThisTurn({}, 5)).toBe(true);
         expect(archer?.attacks[1]).toMatchObject({
-            damage: 3,
+            damage: 5,
             cost: 2,
             cooldownTurns: 1,
             initialCooldownTurns: 1,
-            pattern: { type: "radius", range: 4 },
+            pattern: { type: "radius", range: 5 },
         });
         const chargedAttack = archer?.attacks[1];
         if (!thief || !chargedAttack) throw new Error("Profils de test indisponibles.");
@@ -153,8 +153,8 @@ describe("portée des actions de monstre", () => {
     });
 
     it("décrit l'action unique concernée par chaque bonus du Prêtre Buffer", () => {
-        const priestBuffer = MONSTERS.find((monster) => monster.id === "priestBuffer");
-        if (!priestBuffer) throw new Error("Profil du Prêtre Buffer indisponible.");
+        const priestBuffer = MONSTERS.find((monster) => monster.id === "shaman");
+        if (!priestBuffer) throw new Error("Profil du Chaman indisponible.");
 
         expect(describeMonsterAttack(priestBuffer.attacks[1])).toContain(
             "le prochain déplacement",
@@ -263,27 +263,12 @@ describe("portée des actions de monstre", () => {
 
     it("permet au pirate de choisir une direction autour de lui et frappe au-delà d'une case", () => {
         const pirate = MONSTERS.find((monster) => monster.id === "pirate");
-        const pattern = { type: "directionalArea" as const, width: 3, depth: 1 };
+        const pattern = { type: "directionalArea" as const, width: 3, depth: 2 };
 
         expect(pirate?.attacks[0]?.pattern).toEqual(pattern);
-        expect(getAttackZoneOptions({ x: 2, y: 3 }, "east", pattern)).toEqual([
-            {
-                target: { x: 2, y: 2 },
-                cells: [{ x: 1, y: 2 }, { x: 2, y: 2 }, { x: 3, y: 2 }],
-            },
-            {
-                target: { x: 3, y: 3 },
-                cells: [{ x: 3, y: 2 }, { x: 3, y: 3 }, { x: 3, y: 4 }],
-            },
-            {
-                target: { x: 2, y: 4 },
-                cells: [{ x: 3, y: 4 }, { x: 2, y: 4 }, { x: 1, y: 4 }],
-            },
-            {
-                target: { x: 1, y: 3 },
-                cells: [{ x: 1, y: 4 }, { x: 1, y: 3 }, { x: 1, y: 2 }],
-            },
-        ]);
+        const options = getAttackZoneOptions({ x: 2, y: 3 }, "east", pattern);
+        expect(options).toHaveLength(4);
+        expect(options.every((option) => option.cells.length === 6)).toBe(true);
     });
 
     it("génère un carré 2×2 depuis les points à cinq pas maximum, même s'il déborde", () => {

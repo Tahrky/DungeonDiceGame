@@ -12,16 +12,16 @@ describe("profils de monstres", () => {
 
         expect(frostMage?.attacks[0]).toMatchObject({
             cost: 1,
-            damage: 3,
+            damage: 5,
             hitsAllies: true,
-            pattern: { type: "line", range: 4, length: 3, allDirections: true },
+            pattern: { type: "line", range: 6, length: 3, allDirections: true },
         });
         expect(frostMage?.attacks[1]).toMatchObject({
             name: "Explosion de Givre",
             cost: 3,
-            damage: 5,
+            damage: 8,
             hitsAllies: true,
-            pattern: { type: "selfRadius", range: 2 },
+            pattern: { type: "selfRadius", range: 3 },
         });
     });
 
@@ -30,18 +30,18 @@ describe("profils de monstres", () => {
 
         expect(archer).toMatchObject({
             cost: 3,
-            hp: 2,
+            hp: 4,
             movementRange: 2,
         });
         expect(archer?.attacks[0]).toMatchObject({
-            damage: 1,
+            damage: 2,
             pattern: { type: "radius", range: 4 },
         });
         expect(archer?.attacks[1]).toMatchObject({
-            damage: 3,
+            damage: 5,
             cooldownTurns: 1,
             initialCooldownTurns: 1,
-            pattern: { type: "radius", range: 4 },
+            pattern: { type: "radius", range: 5 },
             animation: "alternativeAttack1",
         });
     });
@@ -56,13 +56,14 @@ describe("profils de monstres", () => {
     it("configure le Fantôme et son déplacement gratuit", () => {
         const ghost = MONSTERS.find((monster) => monster.id === "ghost");
 
-        expect(ghost?.movementCost).toBe(1);
+        expect(ghost?.movementCost).toBeUndefined();
         expect(ghost?.attacks).toEqual([
             {
                 name: "Coup au corps à corps",
-                damage: 1,
-                cost: 1,
+                damage: 2,
+                cost: 2,
                 pattern: { type: "adjacent" },
+                cooldownTurns: 1,
             },
         ]);
     });
@@ -72,11 +73,11 @@ describe("profils de monstres", () => {
 
         expect(thief).toMatchObject({
             cost: 3,
-            hp: 4,
-            bonusDamageFromBehind: 2,
+            hp: 5,
+            bonusDamageFromBehind: 3,
             movementRange: 3,
         });
-        expect(thief?.attacks[0]).toMatchObject({ damage: 3, cost: 1 });
+        expect(thief?.attacks[0]).toMatchObject({ damage: 4, cost: 1 });
     });
 
     it("configure le Prêtre pour soigner et réduire les recharges des alliés", () => {
@@ -86,18 +87,18 @@ describe("profils de monstres", () => {
         expect(priest?.attacks).toMatchObject([
             {
                 name: "Coup de baton",
-                damage: 2,
-                cost: 1,
+                damage: 1,
+                cost: 2,
                 pattern: { type: "adjacent" },
             },
             {
                 name: "Soin",
                 damage: 0,
-                healAmount: 3,
+                healAmount: 5,
                 targetsAlliesOnly: true,
                 clearsStatusEffects: true,
                 usesPerTurn: 1,
-                pattern: { type: "radius", range: 4 },
+                pattern: { type: "radius", range: 5 },
             },
             {
                 name: "Récupération de sorts",
@@ -105,13 +106,13 @@ describe("profils de monstres", () => {
                 cooldownReduction: 1,
                 targetsAlliesOnly: true,
                 usesPerTurn: 1,
-                pattern: { type: "radius", range: 4 },
+                pattern: { type: "radius", range: 5 },
             },
         ]);
     });
 
     it("configure le Prêtre Buffer avec ses deux bonus temporaires", () => {
-        const priestBuffer = MONSTERS.find((monster) => monster.id === "priestBuffer");
+        const priestBuffer = MONSTERS.find((monster) => monster.id === "shaman");
 
         expect(priestBuffer?.attacks).toMatchObject([
             {

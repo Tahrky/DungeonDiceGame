@@ -155,6 +155,7 @@ export interface Monster {
 
     cost: number;
     hp: number;
+    armor?: number;
     attacks: MonsterAttack[];
     movementRange: number;
     attackActionsPerTurn?: number;
@@ -180,6 +181,7 @@ export interface PlacedMonster {
     movementsUsedThisTurn: number;
     attackCooldowns: number[];
     statusEffects: MonsterStatusEffect[];
+    isCamouflaged?: boolean;
     turnBuffs?: MonsterTurnBuffs;
 }
 

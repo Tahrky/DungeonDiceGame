@@ -35,6 +35,37 @@ export interface AttackZoneOption {
     readonly cells: Position[];
 }
 
+export function isAreaAttack(attack: Pick<MonsterAttack, "hitsAllies" | "movesToZone" | "pattern">): boolean {
+    return (
+        attack.hitsAllies === true ||
+        attack.movesToZone === true ||
+        attack.pattern.type === "directionalArea" ||
+        attack.pattern.type === "selfRadius" ||
+        attack.pattern.type === "line" ||
+        attack.pattern.type === "radius" ||
+        attack.pattern.type === "area" ||
+        attack.pattern.type === "jumpArea"
+    );
+}
+
+export function isDirectlyTargetable(monster: Pick<PlacedMonster, "isCamouflaged">): boolean {
+    return monster.isCamouflaged !== true;
+}
+
+export function clearCamouflageOnFirstAction(monster: PlacedMonster): void {
+    if (monster.monster.id === "thief" && monster.isCamouflaged) {
+        monster.isCamouflaged = false;
+    }
+}
+
+export function canDirectlyTargetMonster(
+    attack: Pick<MonsterAttack, "hitsAllies" | "movesToZone" | "pattern" | "targetsAlliesOnly">,
+    target: Pick<PlacedMonster, "isCamouflaged">,
+): boolean {
+    if (isDirectlyTargetable(target)) return true;
+    return isAreaAttack(attack) && attack.targetsAlliesOnly !== true;
+}
+
 type MovementTraversalOptions = Pick<
     MovementOptions,
     | "deployedCells"

@@ -72,7 +72,7 @@ describe("configuration des règles de partie", () => {
         expect(
             configuration.monsters.find((monster) => monster.id === "spectre")?.canPassHostiles,
         ).toBe(true);
-        expect(MONSTERS.find((monster) => monster.id === "frost-mage")?.hp).toBe(5);
+        expect(MONSTERS.find((monster) => monster.id === "frost-mage")?.hp).toBe(7);
     });
 
     it("autorise par défaut une attaque immédiate et migre les anciennes configurations", () => {
@@ -136,10 +136,10 @@ describe("configuration des règles de partie", () => {
 
     it("valide les effets temporaires du Prêtre Buffer", () => {
         const priestBuffer = getDefaultGameConfiguration().monsters.find(
-            (monster) => monster.id === "priestBuffer",
+            (monster) => monster.id === "shaman",
         );
 
-        expect(parseMonsterConfiguration(priestBuffer, "priestBuffer")?.attacks).toMatchObject([
+        expect(parseMonsterConfiguration(priestBuffer, "shaman")?.attacks).toMatchObject([
             { name: "Coup de baton", pattern: { type: "adjacent" } },
             {
                 name: "Foulée bénie",
@@ -162,7 +162,7 @@ describe("configuration des règles de partie", () => {
                             : attack,
                     ),
                 },
-                "priestBuffer",
+                "shaman",
             ),
         ).toBeNull();
     });
@@ -230,13 +230,13 @@ describe("configuration des règles de partie", () => {
         expect(migrated?.monstersKilledForVictory).toBe(6);
         expect(
             migrated?.monsters.find((monster) => monster.id === "priest")?.attacks[0].pattern,
-        ).toEqual({ type: "radius", range: 4 });
+        ).toEqual({ type: "radius", range: 5 });
     });
 
     it("migre les capacités par défaut enregistrées du Prêtre Buffer", () => {
         const configuration = getDefaultGameConfiguration();
         const priestBuffer = configuration.monsters.find(
-            (monster) => monster.id === "priestBuffer",
+            (monster) => monster.id === "shaman",
         );
         expect(priestBuffer).toBeDefined();
         priestBuffer!.attacks = [
@@ -272,11 +272,10 @@ describe("configuration des règles de partie", () => {
 
         expect(migrated?.version).toBe(8);
         expect(
-            migrated?.monsters.find((monster) => monster.id === "priestBuffer")?.attacks,
+            migrated?.monsters.find((monster) => monster.id === "shaman")?.attacks,
         ).toMatchObject([
-            { name: "Coup de baton", pattern: { type: "adjacent" } },
-            { name: "Foulée bénie", movementRangeBonus: 1, movementCostReduction: 1 },
-            { name: "Force sacrée", attackDamageBonus: 1, attackCostReduction: 1 },
+            { name: "Soin", pattern: { type: "radius", range: 4 } },
+            { name: "Récupération de sorts", pattern: { type: "radius", range: 3 } },
         ]);
     });
 
@@ -339,7 +338,7 @@ describe("configuration des règles de partie", () => {
         };
 
         expect(parseMonsterConfiguration(changedProfile, "archer")?.attacks[0]).toMatchObject({
-            damage: 2,
+            damage: 3,
             pattern: { type: "line", range: 6, minRange: 1 },
         });
         expect(parseMonsterConfiguration(changedProfile, "ghost")).toBeNull();
@@ -448,7 +447,7 @@ describe("configuration des règles de partie", () => {
             ?.attacks[0];
 
         expect(poisonAttack).toMatchObject({
-            damage: 0,
+            damage: 1,
             statusEffect: {
                 type: "damageOverTime",
                 damagePerTurn: 2,

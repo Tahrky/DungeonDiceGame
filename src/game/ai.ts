@@ -2,6 +2,7 @@ import type { BoardDefinition } from "./boards";
 import { getStartingPositions } from "./boards";
 import {
     canAttackMonster,
+    isAreaAttack,
     getAttackDamage,
     getAttackZoneOptions,
     getGridDistance,
@@ -111,19 +112,21 @@ export function createThreatScores(
                 continue;
             }
 
-            const isAreaAttack =
-                attack.hitsAllies === true ||
-                attack.movesToZone === true ||
-                attack.pattern.type === "directionalArea" ||
-                attack.pattern.type === "selfRadius";
+            const areaAttack = isAreaAttack(attack);
             for (const option of getAttackZoneOptions(
                 attacker.position,
                 attacker.facing,
                 attack.pattern,
                 attack.targetsSelf,
             )) {
-                const affectedCells = isAreaAttack ? option.cells : [option.target];
+                const affectedCells = areaAttack ? option.cells : [option.target];
                 for (const cell of affectedCells) {
+                    if (
+                        threatenedMonster.isCamouflaged &&
+                        (!areaAttack || attack.targetsAlliesOnly)
+                    ) {
+                        continue;
+                    }
                     if (
                         cell.x < 0 ||
                         cell.y < 0 ||
