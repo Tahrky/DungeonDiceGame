@@ -21,15 +21,13 @@ export function createMonsterSprite(
     const hasIdleTexture = scene.textures.exists(idleTexture);
     const texture = hasIdleTexture ? idleTexture : getFallbackTexture(scene, monster.monster);
 
-    const sprite = scene.add
+    return scene.add
         .sprite(position.x, position.y, texture)
         .setOrigin(
             hasIdleTexture ? definition.originX : 0.5,
             hasIdleTexture ? definition.originY : 0.5,
         )
         .setScale(hasIdleTexture ? definition.scale : 1);
-    sprite.postFX.addGlow(monster.owner === 1 ? 0xff6470 : 0x70bdff, 3, 0, false, 0.1, 2);
-    return sprite;
 }
 
 function getFallbackTexture(scene: Phaser.Scene, monster: PlacedMonster["monster"]): string {

@@ -13,6 +13,11 @@ import {
 } from "./MonsterSpriteAnimations";
 import { createMonsterPreview } from "./MonsterSpritePreview";
 import { createMonsterSprite } from "./MonsterSpriteFactory";
+import { MONSTER_SPRITE_STYLE } from "./MonsterSpriteStyle";
+import {
+    compareMonsterSpriteDepth,
+    getMonsterSpriteDepth,
+} from "./monsterSpriteDepth";
 import { getFacingFromMovement } from "../../game/monsterActions";
 import { STATUS_EFFECT_COLORS } from "../../game/statusEffects";
 
@@ -28,9 +33,12 @@ import type {
 
 interface MonsterSpriteState {
     readonly sprite: Phaser.GameObjects.Sprite;
+    readonly ownerGlow: Phaser.FX.Glow;
     readonly monster: Monster;
     readonly owner: PlayerId;
     grayscaleEffect: Phaser.FX.ColorMatrix | null;
+    deadEffect: Phaser.FX.ColorMatrix | null;
+    deadOutline: Phaser.FX.Glow | null;
     statusTintEffect: Phaser.FX.ColorMatrix | null;
     statusColor: StatusEffectColor | null;
     position: Position;
@@ -39,12 +47,14 @@ interface MonsterSpriteState {
     isMoving: boolean;
     isGrayscale: boolean;
     shouldBeGrayscale: boolean;
+    shouldBeCamouflaged: boolean;
     isDead: boolean;
 }
 
 export class MonsterSpriteView {
     private readonly scene: Phaser.Scene;
-    private readonly container: Phaser.GameObjects.Container;
+    private readonly liveContainer: Phaser.GameObjects.Container;
+    private readonly deadContainer: Phaser.GameObjects.Container;
     private readonly toScreen: (position: Position) => Position;
     private readonly sprites = new Map<string, MonsterSpriteState>();
     private ready = false;
@@ -60,7 +70,8 @@ export class MonsterSpriteView {
     constructor(scene: Phaser.Scene, toScreen: (position: Position) => Position) {
         this.scene = scene;
         this.toScreen = toScreen;
-        this.container = scene.add.container(0, 0).setDepth(1);
+        this.deadContainer = scene.add.container(0, 0).setDepth(0.5);
+        this.liveContainer = scene.add.container(0, 0).setDepth(1);
     }
 
     setReady(): void {
@@ -77,7 +88,11 @@ export class MonsterSpriteView {
         }
     }
 
-    render(monsters: readonly PlacedMonster[], grayscaleMonsterIds: ReadonlySet<string>): void {
+    render(
+        monsters: readonly PlacedMonster[],
+        grayscaleMonsterIds: ReadonlySet<string>,
+        camouflagedMonsterIds: ReadonlySet<string> = new Set(),
+    ): void {
         if (!this.ready) return;
 
         const spriteMonsters = monsters.filter(
@@ -97,8 +112,9 @@ export class MonsterSpriteView {
         for (const monster of spriteMonsters) {
             const state = this.sprites.get(monster.id) ?? this.createSprite(monster);
             state.shouldBeGrayscale = grayscaleMonsterIds.has(monster.id);
+            state.shouldBeCamouflaged = camouflagedMonsterIds.has(monster.id);
             if (state.isDead) {
-                this.updateGrayscale(state);
+                this.updateDeadAppearance(state);
                 continue;
             }
             this.updateStatusTint(
@@ -116,7 +132,7 @@ export class MonsterSpriteView {
                 );
                 state.sprite.setPosition(spritePosition.x, spritePosition.y);
                 state.position = { ...monster.position };
-                state.sprite.setDepth(monster.position.x + monster.position.y + 1);
+                this.updateSpriteDepth(state);
             }
 
             if (!state.isMoving && angleChanged && state.action === "idle") {
@@ -150,6 +166,15 @@ export class MonsterSpriteView {
         return this.sprites.get(id)?.isMoving ?? false;
     }
 
+    clearCamouflage(id: string): void {
+        const state = this.sprites.get(id);
+        if (!state || state.isDead) return;
+        state.shouldBeCamouflaged = false;
+        state.isGrayscale = false;
+        if (state.grayscaleEffect) state.grayscaleEffect.active = false;
+        state.sprite.setAlpha(1);
+    }
+
     moveMonster(
         id: string,
         path: readonly Position[],
@@ -164,17 +189,23 @@ export class MonsterSpriteView {
         const moveToStep = (index: number): void => {
             const destination = path[index];
             if (!destination) {
+                const previousOffsetY = this.getFacingOffsetY(state);
                 state.facing = finalFacing;
+                state.sprite.y += this.getFacingOffsetY(state) - previousOffsetY;
                 state.isMoving = false;
                 state.action = "idle";
                 this.play(state, "idle");
+                this.updateSpriteDepth(state);
                 this.updateGrayscale(state);
                 onComplete();
                 return;
             }
 
+            const previousOffsetY = this.getFacingOffsetY(state);
             state.facing = getFacingFromMovement(state.position, destination, state.facing);
+            state.sprite.y += this.getFacingOffsetY(state) - previousOffsetY;
             this.play(state, "move");
+            this.updateSpriteDepth(state);
             const spritePosition = this.getSpritePosition(
                 destination,
                 state.monster.id,
@@ -186,9 +217,10 @@ export class MonsterSpriteView {
                 y: spritePosition.y,
                 duration: 350,
                 ease: "Linear",
+                onUpdate: () => this.updateSpriteDepth(state),
                 onComplete: () => {
                     state.position = { ...destination };
-                    state.sprite.setDepth(destination.x + destination.y + 1);
+                    this.updateSpriteDepth(state);
                     moveToStep(index + 1);
                 },
             });
@@ -239,7 +271,6 @@ export class MonsterSpriteView {
         const animation = currentHp <= 0 ? "death" : "hit";
         if (currentHp <= 0) {
             this.updateStatusTint(state, null);
-            state.sprite.setAlpha(0.2);
         }
         if (!MONSTER_SPRITES[state.monster.id]?.animations[animation]) return;
 
@@ -247,10 +278,16 @@ export class MonsterSpriteView {
         state.position = { ...position };
         const spritePosition = this.getSpritePosition(position, state.monster.id, state.facing);
         state.sprite.setPosition(spritePosition.x, spritePosition.y);
-        state.sprite.setDepth(position.x + position.y + 1);
         state.isMoving = false;
         state.action = animation;
         state.isDead = currentHp <= 0;
+        if (state.isDead) {
+            this.deadContainer.add(state.sprite);
+            this.updateSpriteDepth(state);
+            this.updateDeadAppearance(state);
+        } else {
+            this.updateSpriteDepth(state);
+        }
         this.play(state, animation, true);
         state.sprite.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
             if (state.action !== animation || state.isDead) return;
@@ -267,11 +304,23 @@ export class MonsterSpriteView {
             monster.facing,
         );
         const sprite = createMonsterSprite(this.scene, monster, position);
+        sprite.name = monster.id;
+        const ownerGlow = sprite.postFX.addGlow(
+            MONSTER_SPRITE_STYLE.playerColors[monster.owner],
+            3,
+            0,
+            false,
+            0.1,
+            2,
+        );
         const state: MonsterSpriteState = {
             sprite,
+            ownerGlow,
             monster: monster.monster,
             owner: monster.owner,
             grayscaleEffect: null,
+            deadEffect: null,
+            deadOutline: null,
             statusTintEffect: null,
             statusColor: null,
             position: { ...monster.position },
@@ -280,9 +329,10 @@ export class MonsterSpriteView {
             isMoving: false,
             isGrayscale: false,
             shouldBeGrayscale: false,
+            shouldBeCamouflaged: false,
             isDead: false,
         };
-        this.container.add(sprite);
+        this.liveContainer.add(sprite);
         this.sprites.set(monster.id, state);
         this.play(state, "idle");
         return state;
@@ -294,22 +344,92 @@ export class MonsterSpriteView {
         return { x: center.x, y: center.y - 3 + offsetY };
     }
 
+    private getFacingOffsetY(state: MonsterSpriteState): number {
+        return MONSTER_SPRITES[state.monster.id]?.facingOffsetY?.[state.facing] ?? 0;
+    }
+
+    private updateSpriteDepth(state: MonsterSpriteState): void {
+        state.sprite.setDepth(
+            getMonsterSpriteDepth(state.sprite.y, this.getFacingOffsetY(state)),
+        );
+        const container = state.isDead ? this.deadContainer : this.liveContainer;
+        let index = container.getIndex(state.sprite);
+        while (
+            index > 0 &&
+            this.compareSprites(state.sprite, container.list[index - 1]!) < 0
+        ) {
+            container.moveTo(state.sprite, index - 1);
+            index--;
+        }
+        while (
+            index < container.list.length - 1 &&
+            this.compareSprites(state.sprite, container.list[index + 1]!) > 0
+        ) {
+            container.moveTo(state.sprite, index + 1);
+            index++;
+        }
+    }
+
+    private compareSprites(
+        first: Phaser.GameObjects.GameObject,
+        second: Phaser.GameObjects.GameObject,
+    ): number {
+        const firstSprite = this.sprites.get(first.name)?.sprite;
+        const secondSprite = this.sprites.get(second.name)?.sprite;
+        if (!firstSprite || !secondSprite) return first.name.localeCompare(second.name);
+        return compareMonsterSpriteDepth(
+            { depth: firstSprite.depth, x: firstSprite.x, id: firstSprite.name },
+            { depth: secondSprite.depth, x: secondSprite.x, id: secondSprite.name },
+        );
+    }
+
     private updateGrayscale(state: MonsterSpriteState): void {
+        if (state.isDead) {
+            this.updateDeadAppearance(state);
+            return;
+        }
         if (state.isMoving || (!state.isDead && state.action !== "idle")) return;
-        if (state.shouldBeGrayscale && !state.isGrayscale) {
+        if (state.shouldBeGrayscale) {
             if (!state.grayscaleEffect) {
                 const preFX = state.sprite.preFX;
                 if (!preFX) return;
                 state.grayscaleEffect = preFX.addColorMatrix();
-                state.grayscaleEffect.grayscale();
             }
+            state.grayscaleEffect.grayscale(state.shouldBeCamouflaged ? 1 : 0.8);
             state.grayscaleEffect.active = true;
             state.isGrayscale = true;
         } else if (!state.shouldBeGrayscale && state.isGrayscale) {
             if (state.grayscaleEffect) state.grayscaleEffect.active = false;
             state.isGrayscale = false;
         }
-        state.sprite.setAlpha(state.shouldBeGrayscale ? 0.8 : 1);
+        state.sprite.setAlpha(
+            state.shouldBeCamouflaged ? 0.7 : state.shouldBeGrayscale ? 0.8 : 1,
+        );
+    }
+
+    private updateDeadAppearance(state: MonsterSpriteState): void {
+        state.sprite.setAlpha(MONSTER_SPRITE_STYLE.deadSpriteOpacity);
+        state.ownerGlow.active = false;
+        if (!state.deadOutline) {
+            state.deadOutline = state.sprite.postFX.addGlow(
+                MONSTER_SPRITE_STYLE.playerColors[state.owner],
+                1,
+                0,
+                false,
+                0.1,
+                MONSTER_SPRITE_STYLE.deadOutlineThickness,
+            );
+        }
+        state.deadOutline.glcolor[3] = MONSTER_SPRITE_STYLE.deadOutlineOpacity;
+        if (!state.deadEffect) {
+            const preFX = state.sprite.preFX;
+            if (!preFX) return;
+            state.deadEffect = preFX.addColorMatrix();
+        }
+        if (state.grayscaleEffect) state.grayscaleEffect.active = false;
+        if (state.statusTintEffect) state.statusTintEffect.active = false;
+        state.deadEffect.grayscale(MONSTER_SPRITE_STYLE.deadSpriteDesaturation);
+        state.deadEffect.active = true;
     }
 
     private updateStatusTint(state: MonsterSpriteState, color: StatusEffectColor | null): void {

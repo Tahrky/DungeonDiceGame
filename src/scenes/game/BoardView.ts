@@ -466,7 +466,7 @@ export class BoardView {
                         ? toGrayscale(placed.monster.color)
                         : placed.monster.color
                     : toGrayscale(placed.monster.color),
-                placed.isCamouflaged ? 0.8 : 1,
+                placed.isCamouflaged ? 0.7 : 1,
             );
             this.graphics.fillCircle(center.x, center.y - 3, 8);
             const ownerOutlineColor = placed.owner === 1 ? 0x000000 : 0xffffff;

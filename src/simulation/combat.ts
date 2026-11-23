@@ -796,6 +796,20 @@ function executeAttack(state: MatchState, board: BoardDefinition, choice: Attack
     const stats = state.statistics[player];
     stats.attacks++;
     let actualDamage = 0;
+    let damageToMonsters = 0;
+    let damageToEnemies = 0;
+    let damageToAllies = 0;
+    let damageToBase = 0;
+    let targetsHit = 0;
+    let overkillDamage = 0;
+    let criticalDamageBonus = 0;
+    let healingDone = 0;
+    let healingWaste = 0;
+    let effectsCleared = 0;
+    let buffsApplied = 0;
+    let cooldownReductionUsed = 0;
+    let camouflageTriggered = false;
+    let camouflageSuppressed = false;
     let actionTarget = "case vide";
     let supportEffect = "";
 
@@ -807,15 +821,22 @@ function executeAttack(state: MatchState, board: BoardDefinition, choice: Attack
                 attack.healAmount,
                 attack.clearsStatusEffects,
             );
+            healingDone = healed;
+            healingWaste = attack.healAmount - healed;
+            effectsCleared = clearedEffects;
             supportEffect = `soigne ${healed} PV${clearedEffects ? " et dissipe les effets" : ""}`;
         } else if (attack.cooldownReduction !== undefined) {
+            const effectsBeforeCleanup = targetMonster.statusEffects.length;
             if (attack.clearsStatusEffects) clearStatusEffects(targetMonster);
+            effectsCleared = effectsBeforeCleanup;
             targetMonster.attackCooldowns = targetMonster.attackCooldowns.map((cooldown) =>
                 Math.max(0, cooldown - attack.cooldownReduction!),
             );
+            cooldownReductionUsed = attack.cooldownReduction;
             supportEffect = "réduit les recharges";
         } else {
             applyMonsterTurnBuff(targetMonster, attack);
+            buffsApplied = 1;
             supportEffect = "applique un bonus temporaire";
         }
     } else if (isAreaAttack(attack)) {
@@ -845,9 +866,21 @@ function executeAttack(state: MatchState, board: BoardDefinition, choice: Attack
                 continue;
             }
             const damage = getAttackDamage(attack, attackDamageBonus);
-            if (victim.isCamouflaged) victim.isCamouflaged = false;
+            if (victim.isCamouflaged) {
+                victim.isCamouflaged = false;
+                camouflageSuppressed = true;
+            }
+            const damageBeforeHit = victim.currentHp;
             victim.currentHp -= damage;
             actualDamage += damage;
+            damageToMonsters += Math.min(damage, damageBeforeHit);
+            if (victim.owner === player) {
+                damageToAllies += Math.min(damage, damageBeforeHit);
+            } else {
+                damageToEnemies += Math.min(damage, damageBeforeHit);
+            }
+            overkillDamage += Math.max(0, damage - damageBeforeHit);
+            targetsHit++;
             stats.damageDealt += damage;
             state.statistics[victim.owner].damageReceived += damage;
             applyStatusEffect(victim, attack.statusEffect, attacker);
@@ -856,7 +889,10 @@ function executeAttack(state: MatchState, board: BoardDefinition, choice: Attack
                 stats.monstersKilled++;
                 state.statistics[victim.owner].monstersLost++;
                 actionTarget += " éliminé";
-                if (attacker.monster.id === "thief") attacker.isCamouflaged = true;
+                if (attacker.monster.id === "thief") {
+                    attacker.isCamouflaged = true;
+                    camouflageTriggered = true;
+                }
             }
         }
         if (
@@ -870,16 +906,27 @@ function executeAttack(state: MatchState, board: BoardDefinition, choice: Attack
             damageBase(state, player);
             actionTarget = `base J${opposingPlayer(player)}`;
             actualDamage++;
+            damageToBase = 1;
         }
     } else if (targetMonster && targetMonster.owner !== player) {
         const backstab =
             (attacker.monster.bonusDamageFromBehind ?? 0) > 0 &&
             isBehind(targetMonster.position, attacker.position, targetMonster.facing);
+        criticalDamageBonus = backstab ? (attacker.monster.bonusDamageFromBehind ?? 0) : 0;
         const damage =
             getAttackDamage(attack, attackDamageBonus) +
-            (backstab ? (attacker.monster.bonusDamageFromBehind ?? 0) : 0);
+            criticalDamageBonus;
+        const damageBeforeHit = targetMonster.currentHp;
+        if (targetMonster.isCamouflaged) {
+            targetMonster.isCamouflaged = false;
+            camouflageSuppressed = true;
+        }
         targetMonster.currentHp -= damage;
         actualDamage = damage;
+        damageToMonsters = Math.min(damage, damageBeforeHit);
+        damageToEnemies = Math.min(damage, damageBeforeHit);
+        overkillDamage = Math.max(0, damage - damageBeforeHit);
+        targetsHit = 1;
         stats.damageDealt += damage;
         state.statistics[targetMonster.owner].damageReceived += damage;
         actionTarget = `${targetMonster.monster.name} (J${targetMonster.owner})`;
@@ -888,7 +935,10 @@ function executeAttack(state: MatchState, board: BoardDefinition, choice: Attack
             stats.monstersKilled++;
             state.statistics[targetMonster.owner].monstersLost++;
             actionTarget += " éliminé";
-            if (attacker.monster.id === "thief") attacker.isCamouflaged = true;
+            if (attacker.monster.id === "thief") {
+                attacker.isCamouflaged = true;
+                camouflageTriggered = true;
+            }
         }
     } else {
         const enemyStart = getStartingPositions(board)[opposingPlayer(player)];
@@ -904,6 +954,7 @@ function executeAttack(state: MatchState, board: BoardDefinition, choice: Attack
             damageBase(state, player);
             actionTarget = `base J${opposingPlayer(player)}`;
             actualDamage = 1;
+            damageToBase = 1;
         }
     }
 
@@ -947,6 +998,20 @@ function executeAttack(state: MatchState, board: BoardDefinition, choice: Attack
         target: actionTarget,
         cost,
         damage: actualDamage,
+        targetsHit,
+        damageToMonsters,
+        damageToEnemies,
+        damageToAllies,
+        damageToBase,
+        overkillDamage,
+        criticalDamageBonus,
+        healingDone,
+        healingWaste,
+        effectsCleared,
+        buffsApplied,
+        cooldownReductionUsed,
+        ...(camouflageTriggered ? { camouflageTriggered: true } : {}),
+        ...(camouflageSuppressed ? { camouflageSuppressed: true } : {}),
         to: target,
     });
     state.winner ??= getMonsterEliminationWinner(state.monsters, state.monstersKilledForVictory);

@@ -519,6 +519,7 @@ export abstract class GameSceneComputer extends GameSceneComputerConversion {
                         },
                         this.placedMonsters,
                         monster.id,
+                        true,
                     ),
                 );
                 if (!movement) break;

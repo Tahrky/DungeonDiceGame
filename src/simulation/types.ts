@@ -49,6 +49,20 @@ export interface SimulationEvent {
     target?: string;
     cost?: number;
     damage?: number;
+    targetsHit?: number;
+    damageToMonsters?: number;
+    damageToEnemies?: number;
+    damageToAllies?: number;
+    damageToBase?: number;
+    overkillDamage?: number;
+    criticalDamageBonus?: number;
+    healingDone?: number;
+    healingWaste?: number;
+    effectsCleared?: number;
+    buffsApplied?: number;
+    cooldownReductionUsed?: number;
+    camouflageTriggered?: boolean;
+    camouflageSuppressed?: boolean;
     from?: Position;
     to?: Position;
     debug?: {

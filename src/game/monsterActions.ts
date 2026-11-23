@@ -58,6 +58,16 @@ export function clearCamouflageOnFirstAction(monster: PlacedMonster): void {
     }
 }
 
+export function clearCamouflageForMovement(
+    monster: PlacedMonster,
+    path: readonly Position[],
+): boolean {
+    if (path.length < 2) return false;
+    const wasCamouflaged = monster.isCamouflaged === true;
+    clearCamouflageOnFirstAction(monster);
+    return wasCamouflaged && !monster.isCamouflaged;
+}
+
 export function canDirectlyTargetMonster(
     attack: Pick<MonsterAttack, "hitsAllies" | "movesToZone" | "pattern" | "targetsAlliesOnly">,
     target: Pick<PlacedMonster, "isCamouflaged">,

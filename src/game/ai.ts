@@ -86,6 +86,7 @@ export function createThreatScores(
     board: BoardDefinition,
     monsters: readonly PlacedMonster[],
     threatenedMonsterId: string,
+    willMove = false,
 ): ReadonlyMap<string, number> {
     const threatenedMonster = monsters.find((monster) => monster.id === threatenedMonsterId);
     if (!threatenedMonster) return new Map();
@@ -123,6 +124,7 @@ export function createThreatScores(
                 for (const cell of affectedCells) {
                     if (
                         threatenedMonster.isCamouflaged &&
+                        !willMove &&
                         (!areaAttack || attack.targetsAlliesOnly)
                     ) {
                         continue;

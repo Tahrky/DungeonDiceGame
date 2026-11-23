@@ -266,7 +266,11 @@ export abstract class GameSceneState extends Phaser.Scene {
 
     protected render(): void {
         this.drawBoard();
-        this.monsterSpriteView.render(this.placedMonsters, this.getGrayscaleMonsterIds());
+        this.monsterSpriteView.render(
+            this.placedMonsters,
+            this.getGrayscaleMonsterIds(),
+            this.getCamouflagedMonsterIds(),
+        );
         this.gameHud.render(this.viewState, this.hudActions);
         if (this.assetsReady && !this.computerTurnInProgress) {
             this.game.events.emit("persist-game-snapshot", this.createSnapshot());
@@ -301,6 +305,14 @@ export abstract class GameSceneState extends Phaser.Scene {
             }
         }
         return grayscaled;
+    }
+
+    protected getCamouflagedMonsterIds(): ReadonlySet<string> {
+        return new Set(
+            this.placedMonsters
+                .filter((monster) => monster.isCamouflaged)
+                .map((monster) => monster.id),
+        );
     }
 
     protected runLocalCommand(command: RemoteGameCommand, action: () => void): void {

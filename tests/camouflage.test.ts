@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
     canDirectlyTargetMonster,
+    clearCamouflageForMovement,
     clearCamouflageOnFirstAction,
     isAreaAttack,
 } from "../src/game/monsterActions";
@@ -47,6 +48,17 @@ describe("camouflage du Voleur", () => {
         const thief = createThief(true);
         clearCamouflageOnFirstAction(thief);
         expect(thief.isCamouflaged).toBe(false);
+    });
+
+    it("retire le camouflage uniquement au début d'un déplacement réel", () => {
+        const thief = createThief(true);
+        expect(clearCamouflageForMovement(thief, [{ x: 2, y: 2 }])).toBe(false);
+        expect(thief.isCamouflaged).toBe(true);
+
+        const path = [{ x: 2, y: 2 }, { x: 3, y: 2 }, { x: 4, y: 2 }];
+        expect(clearCamouflageForMovement(thief, path)).toBe(true);
+        expect(thief.isCamouflaged).toBe(false);
+        expect(clearCamouflageForMovement(thief, path)).toBe(false);
     });
 
     it("conserve les états de zone et de camouflage lors du clonage", () => {

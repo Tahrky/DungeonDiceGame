@@ -2,7 +2,7 @@ import {
     canPassHostileMonsters,
     canUseActionThisTurn,
     consumeMovementTurnBuff,
-    clearCamouflageOnFirstAction,
+    clearCamouflageForMovement,
     getFacingFromMovement,
     getMovementActionsPerTurn,
     getMovementCost,
@@ -112,7 +112,7 @@ export function performMovements(state: MatchState, board: BoardDefinition): voi
                         : role?.role === "patrol"
                           ? "son secteur de patrouille"
                           : "le départ ennemi";
-            const threatScores = createThreatScores(board, state.monsters, monster.id);
+            const threatScores = createThreatScores(board, state.monsters, monster.id, true);
             let best = findObjectiveMovement(
                 movement,
                 ownedCells,
@@ -152,7 +152,7 @@ export function performMovements(state: MatchState, board: BoardDefinition): voi
             if (!spend(state, player, "movement", cost)) break;
 
             consumeMovementTurnBuff(monster);
-            clearCamouflageOnFirstAction(monster);
+            clearCamouflageForMovement(monster, best.path);
             const from = monster.position;
             monster.facing = getFacingFromMovement(from, best.position, monster.facing);
             monster.position = best.position;

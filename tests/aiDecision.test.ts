@@ -69,6 +69,46 @@ describe("noyau de décision tactique", () => {
         expect(threats.has("4,4")).toBe(false);
     });
 
+    it("évalue le Voleur camouflé comme ciblable après son déplacement", () => {
+        const configuration = getDefaultGameConfiguration();
+        const thief = configuration.monsters.find((monster) => monster.id === "thief");
+        const ghost = configuration.monsters.find((monster) => monster.id === "ghost");
+        if (!thief || !ghost) throw new Error("Monstres de test introuvables.");
+        const defender = {
+            id: "thief",
+            monster: thief,
+            owner: 1 as const,
+            position: { x: 4, y: 3 },
+            facing: "east" as const,
+            currentHp: thief.hp,
+            cells: [{ x: 4, y: 3 }],
+            summonedOnTurn: 1,
+            attacksUsedThisTurn: 0,
+            attackUsesThisTurn: getInitialAttackUses(thief),
+            movementsUsedThisTurn: 0,
+            attackCooldowns: getInitialAttackCooldowns(thief),
+            statusEffects: [],
+            isCamouflaged: true,
+        };
+        const attacker = {
+            ...defender,
+            id: "ghost",
+            monster: ghost,
+            owner: 2 as const,
+            position: { x: 3, y: 3 },
+            isCamouflaged: false,
+            cells: [{ x: 3, y: 3 }],
+        };
+        const board = createCustomBoard(7, 7);
+
+        expect(createThreatScores(board, [defender, attacker], defender.id).has("4,3")).toBe(
+            false,
+        );
+        expect(
+            createThreatScores(board, [defender, attacker], defender.id, true).get("4,3"),
+        ).toBeGreaterThan(0);
+    });
+
     it("pénalise une base proche de la destruction", () => {
         const endangered = evaluateStrategicState(createSnapshot(1, 3));
         const stable = evaluateStrategicState(createSnapshot(3, 3));

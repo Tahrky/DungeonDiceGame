@@ -67,6 +67,21 @@ function isStatistics(value: unknown): value is AnalyzablePlayerStats {
 }
 
 function isSimulationEvent(value: unknown): value is SimulationEvent {
+    const optionalNumbers = [
+        "targetsHit",
+        "damageToMonsters",
+        "damageToEnemies",
+        "damageToAllies",
+        "damageToBase",
+        "overkillDamage",
+        "criticalDamageBonus",
+        "healingDone",
+        "healingWaste",
+        "effectsCleared",
+        "buffsApplied",
+        "cooldownReductionUsed",
+    ];
+    const optionalBooleans = ["camouflageTriggered", "camouflageSuppressed"];
     return (
         isRecord(value) &&
         Number.isInteger(value.turn) &&
@@ -78,7 +93,11 @@ function isSimulationEvent(value: unknown): value is SimulationEvent {
         (value.monsterName === undefined || typeof value.monsterName === "string") &&
         (value.attackName === undefined || typeof value.attackName === "string") &&
         (value.damage === undefined || isNumber(value.damage)) &&
-        (value.cost === undefined || isNumber(value.cost))
+        (value.cost === undefined || isNumber(value.cost)) &&
+        optionalNumbers.every((key) => value[key] === undefined || isNumber(value[key])) &&
+        optionalBooleans.every(
+            (key) => value[key] === undefined || typeof value[key] === "boolean",
+        )
     );
 }
 
