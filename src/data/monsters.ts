@@ -99,7 +99,7 @@ export const MONSTERS: Monster[] = [
         attacks: [
             {
                 name: "Sabre tranchant",
-                damage: 5,
+                damage: 4,
                 cost: 1,
                 pattern: { type: "directionalArea", width: 3, depth: 1 },
                 hitsAllies: true,

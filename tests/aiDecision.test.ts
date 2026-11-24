@@ -11,6 +11,7 @@ import {
 import { runCrossProfileTournament, runSimulations } from "../src/simulation/simulator";
 import { createStats, type MatchState } from "../src/simulation/matchState";
 import type { StrategicSnapshot } from "../src/game/ai";
+import { formatMonsterArmor, formatHitPoints } from "../src/game/monsterDescriptions";
 
 function createSnapshot(health1: number, health2: number): StrategicSnapshot {
     const board = createCustomBoard(7, 7);
@@ -31,6 +32,32 @@ function createSnapshot(health1: number, health2: number): StrategicSnapshot {
 }
 
 describe("noyau de décision tactique", () => {
+    it("affiche l’armure réelle ou zéro pour les monstres sans armure", () => {
+        const configuration = getDefaultGameConfiguration();
+        const ghost = configuration.monsters.find((monster) => monster.id === "ghost");
+        const armored = ghost ? { ...ghost, armor: 3 } : null;
+        if (!ghost || !armored) throw new Error("Monstre de test introuvable.");
+
+        expect(formatMonsterArmor(armored)).toBe("Armure : 3");
+        expect(formatMonsterArmor({ ...ghost, armor: undefined })).toBe("Armure : 0");
+        expect(formatHitPoints(ghost.hp)).toContain("PV");
+    });
+
+    it("produit des résultats reproductibles pour les profils random", () => {
+        const options = {
+            games: 2,
+            seed: 256151706,
+            maxTurns: 5,
+            profile1: "random" as const,
+            profile2: "random-strategy" as const,
+        };
+        const first = runSimulations(options);
+        const second = runSimulations(options);
+
+        expect(second.matches.map((match) => match.seed)).toEqual(
+            first.matches.map((match) => match.seed),
+        );
+    });
     it("repère les cases menacées par une attaque ennemie accessible", () => {
         const configuration = getDefaultGameConfiguration();
         const ghost = configuration.monsters.find((monster) => monster.id === "ghost");
@@ -327,13 +354,13 @@ describe("noyau de décision tactique", () => {
         expect(debug.matches[0]?.history.some((event) => event.debug)).toBe(true);
     });
 
-    it("produit un tournoi croisé reproductible des sept profils", () => {
+    it("produit un tournoi croisé reproductible de tous les profils", () => {
         const tournament = runCrossProfileTournament({
             games: 1,
             seed: 101,
             maxTurns: 1,
         });
-        expect(tournament).toHaveLength(49);
+        expect(tournament).toHaveLength(121);
         expect(
             new Set(
                 tournament.map(
@@ -341,7 +368,7 @@ describe("noyau de décision tactique", () => {
                         `${match.profile1}-${match.profile2}-${match.result.matches[0]?.seed}`,
                 ),
             ).size,
-        ).toBe(49);
+        ).toBe(121);
     }, 600_000);
 
     it("initialise les statistiques de ressources sans confondre réserves et dépenses", () => {

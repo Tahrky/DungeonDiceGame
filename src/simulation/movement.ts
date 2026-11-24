@@ -97,6 +97,22 @@ export function performMovements(state: MatchState, board: BoardDefinition): voi
                         objective.x !== roleObjective.x || objective.y !== roleObjective.y,
                 ),
             ];
+            if (
+                state.profiles[player] === "random" ||
+                state.profiles[player] === "random-strategy"
+            ) {
+                const random = state.actionRandom?.[player];
+                for (let index = objectives.length - 1; index > 0; index--) {
+                    const swapIndex = Math.floor(
+                        Math.max(0, Math.min(1 - Number.EPSILON, random?.() ?? 0.5)) *
+                            (index + 1),
+                    );
+                    [objectives[index], objectives[swapIndex]] = [
+                        objectives[swapIndex]!,
+                        objectives[index]!,
+                    ];
+                }
+            }
             const movementGoal =
                 role?.role === "defend"
                     ? "le périmètre de sa base"

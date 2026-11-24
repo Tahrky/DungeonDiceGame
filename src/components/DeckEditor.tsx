@@ -18,6 +18,7 @@ import {
     describeMonsterTraits,
     formatCost,
     formatHitPoints,
+    formatMonsterArmor,
 } from "../game/monsterDescriptions";
 
 import type { Monster } from "../types/GameTypes";
@@ -239,6 +240,7 @@ export function DeckEditor({ onBack, deckSize }: DeckEditorProps) {
                                             monster.cost,
                                             DICE_SYMBOL_PRESENTATION.invocation.emoji,
                                         )} {formatHitPoints(monster.hp)}
+                                        {" · "}{formatMonsterArmor(monster)}
                                     </small>
                                 </span>
                             </button>
@@ -264,7 +266,7 @@ export function DeckEditor({ onBack, deckSize }: DeckEditorProps) {
                             {formatCost(
                                 hoveredMonster.monster.cost,
                                 DICE_SYMBOL_PRESENTATION.invocation.emoji,
-                            )} {formatHitPoints(hoveredMonster.monster.hp)}
+                            )} {formatHitPoints(hoveredMonster.monster.hp)} · {formatMonsterArmor(hoveredMonster.monster)}
                         </p>
                         <div className="monster-info-attacks">
                             {hoveredMonster.monster.attacks.map((attack) => (

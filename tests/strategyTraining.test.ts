@@ -80,6 +80,10 @@ describe("apprentissage hors ligne des stratégies", () => {
             "support",
             "defensive",
             "tracker",
+            "random",
+            "random-deck",
+            "random-strategy",
+            "greedy",
         ]);
         expect(report.profiles.support?.opponents).toEqual([
             "balanced",
@@ -88,6 +92,10 @@ describe("apprentissage hors ligne des stratégies", () => {
             "offensive",
             "defensive",
             "tracker",
+            "random",
+            "random-deck",
+            "random-strategy",
+            "greedy",
         ]);
     });
 
@@ -118,16 +126,20 @@ describe("apprentissage hors ligne des stratégies", () => {
             "support",
             "defensive",
             "tracker",
+            "random",
+            "random-deck",
+            "random-strategy",
+            "greedy",
         ]);
         expect(firstProfile.candidateTraining).toMatchObject({
-            matches: 12,
+            matches: 20,
             wins: secondProfile.candidateTraining.wins,
             draws: secondProfile.candidateTraining.draws,
             losses: secondProfile.candidateTraining.losses,
             score: secondProfile.candidateTraining.score,
         });
         expect(firstProfile.candidateValidation).toMatchObject({
-            matches: 12,
+            matches: 20,
             wins: secondProfile.candidateValidation.wins,
             draws: secondProfile.candidateValidation.draws,
             losses: secondProfile.candidateValidation.losses,

@@ -11,6 +11,7 @@ import {
     describeMonsterTraits,
     formatCost,
     formatHitPoints,
+    formatMonsterArmor,
 } from "../../game/monsterDescriptions";
 
 import type {
@@ -253,9 +254,19 @@ export class MonsterTooltip {
                     ...statusLabels.map((label) => label.height),
                 ) +
                 2;
-            const details = this.scene.add.text(
+            const armorLabel = this.scene.add.text(
                 contentX,
                 detailsY,
+                formatMonsterArmor(monster),
+                {
+                    fontFamily: "Arial",
+                    fontSize: "14px",
+                    color: "#c7d3df",
+                },
+            );
+            const details = this.scene.add.text(
+                contentX,
+                armorLabel.y + armorLabel.height + 2,
                 `${attacks}\n${describeMonsterMovement(monster)}${backstab}`,
                 {
                     fontFamily: "Arial",

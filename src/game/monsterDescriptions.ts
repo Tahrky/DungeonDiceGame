@@ -25,6 +25,14 @@ export function formatHitPoints(hitPoints: number): string {
     return `${hitPoints} PV`;
 }
 
+export function getMonsterArmor(monster: Monster): number {
+    return Number.isFinite(monster.armor) ? Math.max(0, monster.armor ?? 0) : 0;
+}
+
+export function formatMonsterArmor(monster: Monster): string {
+    return `Armure : ${getMonsterArmor(monster)}`;
+}
+
 export function describeMonsterTraits(monster: Monster): string[] {
     const traits: string[] = [];
     if (monster.canPassHostiles) traits.push("Fantomatique");

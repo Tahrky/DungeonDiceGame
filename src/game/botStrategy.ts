@@ -19,6 +19,10 @@ export const BOT_PROFILES = [
     "support",
     "defensive",
     "tracker",
+    "random",
+    "random-deck",
+    "random-strategy",
+    "greedy",
 ] as const;
 
 export type BotProfile = (typeof BOT_PROFILES)[number];
@@ -161,6 +165,10 @@ export const BOT_PROFILE_LABELS: Record<BotProfile, string> = {
     support: "Soutien — adaptatif",
     defensive: "Défensif — périmètre",
     tracker: "Traqueur — élimination des monstres",
+    random: "Aléatoire — actions et deck",
+    "random-deck": "Deck aléatoire — stratégie équilibrée",
+    "random-strategy": "Stratégie aléatoire — deck de référence",
+    greedy: "Glouton — valeur immédiate",
 };
 
 export interface TacticalAttackValue {
@@ -195,6 +203,15 @@ export function chooseBotTactic(
     profile: BotProfile,
     opponentProfile: BotProfile,
 ): BotTacticDecision {
+    if (profile === "random" || profile === "random-strategy") {
+        return { tactic: "balanced", description: "choisit aléatoirement des actions légales" };
+    }
+    if (profile === "random-deck") {
+        return { tactic: "balanced", description: "utilise la stratégie équilibrée avec un deck aléatoire" };
+    }
+    if (profile === "greedy") {
+        return { tactic: "offense", description: "maximise la valeur immédiate sans recherche future" };
+    }
     if (profile === "offensive") {
         return {
             tactic: "offense",
@@ -359,6 +376,22 @@ export function scoreMonsterForProfile(
                 Math.abs(monster.cost - 4) * weights.monsterCost +
                 monster.hp * 0.1 * weights.monsterDurability
             );
+        case "random":
+            return 0;
+        case "random-deck":
+            return (
+                5 -
+                Math.abs(monster.cost - 4) * weights.monsterCost +
+                monster.hp * 0.1 * weights.monsterDurability
+            );
+        case "random-strategy":
+            return (
+                5 -
+                Math.abs(monster.cost - 4) * weights.monsterCost +
+                monster.hp * 0.1 * weights.monsterDurability
+            );
+        case "greedy":
+            return offenseValue(monster) * 2 * weights.monsterOffense - monster.cost * 0.1;
     }
 }
 
@@ -369,6 +402,23 @@ export function chooseDeck(
     random: () => number = Math.random,
     weights: Readonly<BotStrategyWeights> = DEFAULT_BOT_STRATEGY_WEIGHTS,
 ): string[] {
+    if (
+        profile === "random" ||
+        profile === "random-deck" ||
+        profile === "random-strategy"
+    ) {
+        const deck: string[] = [];
+        const remaining = [...monsters];
+        while (deck.length < deckSize && remaining.length > 0) {
+            const index = Math.min(
+                remaining.length - 1,
+                Math.floor(Math.max(0, Math.min(1 - Number.EPSILON, random())) * remaining.length),
+            );
+            deck.push(remaining[index]!.id);
+            remaining.splice(index, 1);
+        }
+        return deck;
+    }
     const remaining = [...monsters].sort(
         (first, second) =>
             scoreMonsterForProfile(second, profile, weights) -
@@ -427,6 +477,14 @@ export function describeDeploymentChoice(monster: Monster, profile: BotProfile):
             return `profil traqueur : privilégie les attaques contre les monstres, coût ${monster.cost}`;
         case "balanced":
             return `profil balanced : choix polyvalent, coût ${monster.cost}, ${monster.hp} PV`;
+        case "random":
+            return `profil random : choix aléatoire, coût ${monster.cost}`;
+        case "random-deck":
+            return `profil random-deck : deck aléatoire, stratégie équilibrée`;
+        case "random-strategy":
+            return `profil random-strategy : stratégie aléatoire, deck de référence`;
+        case "greedy":
+            return `profil greedy : valeur immédiate, coût ${monster.cost}`;
     }
 }
 

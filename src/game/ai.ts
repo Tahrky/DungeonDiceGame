@@ -637,6 +637,10 @@ export function evaluateStrategicState(snapshot: StrategicSnapshot): number {
         support: { offense: 0.8, hunt: 0.9, balanced: 1.3, defense: 1.2 },
         defensive: { offense: 0.6, hunt: 0.7, balanced: 1.1, defense: 1.5 },
         tracker: { offense: 0.8, hunt: 1.5, balanced: 1.1, defense: 1 },
+        random: { offense: 1, hunt: 1, balanced: 1, defense: 1 },
+        "random-deck": { offense: 1, hunt: 1, balanced: 1.25, defense: 1 },
+        "random-strategy": { offense: 1, hunt: 1, balanced: 1, defense: 1 },
+        greedy: { offense: 1.4, hunt: 1, balanced: 1, defense: 0.8 },
     };
     const weight = profileWeights[snapshot.profile][tactic] ?? 1;
 

@@ -1,0 +1,3995 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-11-24T21:44:12.818Z",
+  "fingerprint": {
+    "rulesHash": "f74e17dac8b1d91cce6f6076489354e0",
+    "diceHash": "5e21692ef306167cc37744caaf38cb00",
+    "conversionHash": "5bc7c7cdb20eb3c36d89f161df12044f",
+    "monstersHash": "e714f47be153c5017dfe24afbfa0fead",
+    "placementPatternsHash": "423506948f08037676e2589061c1383a",
+    "boardHash": "7fc3826954b740a77f78675d019cf163",
+    "rulesEngineVersion": "1",
+    "evaluationVersion": "3",
+    "simulatorVersion": "3",
+    "weightsSchemaVersion": "2"
+  },
+  "options": {
+    "games": 1,
+    "seed": 256151794,
+    "maxTurns": 30,
+    "profile1": "cheap",
+    "profile2": "defensive",
+    "debug": true,
+    "recordDecisionTraces": true
+  },
+  "configuration": {
+    "version": 8,
+    "diceCount": 5,
+    "deckSize": 5,
+    "randomBoard": false,
+    "testBoard": false,
+    "initialPlayerHealth": 6,
+    "allowBaseAttackOnSummonTurn": false,
+    "removeInvocationDiceWhenNoMonsters": false,
+    "protectFirstDeployment": true,
+    "maxMonstersPerPlayer": 8,
+    "monstersKilledForVictory": 6,
+    "monsters": [
+      {
+        "id": "ghost",
+        "name": "Fantôme",
+        "symbol": "G",
+        "color": 16777215,
+        "cost": 1,
+        "hp": 2,
+        "attacks": [
+          {
+            "name": "Coup au corps à corps",
+            "damage": 2,
+            "cost": 2,
+            "pattern": {
+              "type": "adjacent"
+            }
+          }
+        ],
+        "movementRange": 1,
+        "canPassHostiles": true
+      },
+      {
+        "id": "spectre",
+        "name": "Spectre",
+        "symbol": "S",
+        "color": 9310430,
+        "cost": 2,
+        "hp": 4,
+        "attacks": [
+          {
+            "name": "Matière nébuleuse",
+            "damage": 3,
+            "cost": 2,
+            "pattern": {
+              "type": "selfRadius",
+              "range": 2
+            },
+            "hitsAllies": true,
+            "animation": "alternativeAttack1"
+          },
+          {
+            "name": "Coup au corps à corps",
+            "damage": 2,
+            "cost": 1,
+            "cooldownTurns": 1,
+            "pattern": {
+              "type": "radius",
+              "range": 2
+            }
+          }
+        ],
+        "movementRange": 2,
+        "movementCost": 1,
+        "flying": true,
+        "canPassHostiles": true
+      },
+      {
+        "id": "archer",
+        "name": "Archer Squelette",
+        "symbol": "A",
+        "color": 8947848,
+        "cost": 3,
+        "hp": 4,
+        "attacks": [
+          {
+            "name": "Flèche simple",
+            "damage": 2,
+            "cost": 1,
+            "pattern": {
+              "type": "radius",
+              "range": 4
+            }
+          },
+          {
+            "name": "Tir puissant",
+            "damage": 5,
+            "cost": 2,
+            "pattern": {
+              "type": "radius",
+              "range": 5
+            },
+            "animation": "alternativeAttack1",
+            "cooldownTurns": 1,
+            "initialCooldownTurns": 1
+          }
+        ],
+        "movementRange": 2
+      },
+      {
+        "id": "pirate",
+        "name": "Pirate",
+        "symbol": "P",
+        "color": 10043136,
+        "cost": 3,
+        "hp": 5,
+        "armor": 1,
+        "attacks": [
+          {
+            "name": "Sabre tranchant",
+            "damage": 5,
+            "cost": 1,
+            "pattern": {
+              "type": "directionalArea",
+              "width": 3,
+              "depth": 1
+            },
+            "hitsAllies": true
+          }
+        ],
+        "movementRange": 2
+      },
+      {
+        "id": "thief",
+        "name": "Vil Voleur",
+        "symbol": "V",
+        "color": 13939546,
+        "cost": 3,
+        "hp": 3,
+        "attacks": [
+          {
+            "name": "Corps à corps",
+            "damage": 4,
+            "cost": 1,
+            "pattern": {
+              "type": "adjacent"
+            },
+            "animation": "backstab"
+          }
+        ],
+        "movementRange": 3,
+        "movementActionsPerTurn": 2,
+        "bonusDamageFromBehind": 3
+      },
+      {
+        "id": "swamp-thing",
+        "name": "Créature des Marais",
+        "symbol": "C",
+        "color": 4283664,
+        "cost": 4,
+        "hp": 6,
+        "armor": 1,
+        "attacks": [
+          {
+            "name": "Magie de Poison",
+            "damage": 1,
+            "cost": 1,
+            "pattern": {
+              "type": "radius",
+              "range": 4
+            },
+            "statusEffect": {
+              "type": "damageOverTime",
+              "damagePerTurn": 2,
+              "duration": "untilDeath",
+              "color": "green"
+            }
+          },
+          {
+            "name": "Explosion de Poison",
+            "damage": 3,
+            "cost": 2,
+            "pattern": {
+              "type": "selfRadius",
+              "range": 2
+            },
+            "hitsAllies": true,
+            "cooldownTurns": 1,
+            "animation": "alternativeAttack1",
+            "statusEffect": {
+              "type": "damageOverTime",
+              "damagePerTurn": 2,
+              "duration": "untilDeath",
+              "color": "green"
+            }
+          }
+        ],
+        "movementRange": 2
+      },
+      {
+        "id": "black-knight",
+        "name": "Chevalier Noir",
+        "symbol": "K",
+        "color": 1118481,
+        "cost": 4,
+        "hp": 9,
+        "armor": 2,
+        "attacks": [
+          {
+            "name": "Corps à corps",
+            "damage": 3,
+            "cost": 1,
+            "pattern": {
+              "type": "adjacent"
+            }
+          },
+          {
+            "name": "Attaque tranchante",
+            "damage": 7,
+            "cost": 2,
+            "pattern": {
+              "type": "radius",
+              "range": 2
+            },
+            "cooldownTurns": 1,
+            "animation": "alternativeAttack1"
+          }
+        ],
+        "movementRange": 1,
+        "attackActionsPerTurn": 2,
+        "movementCost": 1,
+        "movementActionsPerTurn": 2
+      },
+      {
+        "id": "shaman",
+        "name": "Chaman",
+        "symbol": "B",
+        "color": 5552360,
+        "cost": 4,
+        "hp": 5,
+        "armor": 1,
+        "attacks": [
+          {
+            "name": "Coup de baton",
+            "damage": 2,
+            "cost": 1,
+            "pattern": {
+              "type": "adjacent"
+            }
+          },
+          {
+            "name": "Foulée bénie",
+            "damage": 0,
+            "cost": 1,
+            "pattern": {
+              "type": "radius",
+              "range": 5
+            },
+            "targetsAlliesOnly": true,
+            "targetsSelf": true,
+            "movementRangeBonus": 1,
+            "movementCostReduction": 1,
+            "usesPerTurn": 1,
+            "animation": "alternativeAttack1"
+          },
+          {
+            "name": "Force sacrée",
+            "damage": 0,
+            "cost": 1,
+            "pattern": {
+              "type": "radius",
+              "range": 5
+            },
+            "targetsAlliesOnly": true,
+            "attackDamageBonus": 1,
+            "attackCostReduction": 1,
+            "usesPerTurn": 1,
+            "animation": "alternativeAttack2"
+          }
+        ],
+        "movementRange": 2,
+        "attackActionsPerTurn": 2
+      },
+      {
+        "id": "priest",
+        "name": "Prêtre",
+        "symbol": "R",
+        "color": 5552360,
+        "cost": 4,
+        "hp": 7,
+        "attacks": [
+          {
+            "name": "Coup de baton",
+            "damage": 1,
+            "cost": 2,
+            "pattern": {
+              "type": "adjacent"
+            }
+          },
+          {
+            "name": "Soin",
+            "damage": 0,
+            "cost": 1,
+            "pattern": {
+              "type": "radius",
+              "range": 5
+            },
+            "targetsAlliesOnly": true,
+            "targetsSelf": true,
+            "clearsStatusEffects": true,
+            "healAmount": 5,
+            "usesPerTurn": 1
+          },
+          {
+            "name": "Récupération de sorts",
+            "damage": 0,
+            "cost": 1,
+            "pattern": {
+              "type": "radius",
+              "range": 5
+            },
+            "animation": "alternativeAttack1",
+            "targetsAlliesOnly": true,
+            "cooldownReduction": 1,
+            "usesPerTurn": 1
+          }
+        ],
+        "movementRange": 2,
+        "attackActionsPerTurn": 2
+      },
+      {
+        "id": "frost-mage",
+        "name": "Mage de Givre",
+        "symbol": "M",
+        "color": 5552360,
+        "cost": 5,
+        "hp": 7,
+        "attacks": [
+          {
+            "name": "Boule de Givre",
+            "damage": 5,
+            "cost": 1,
+            "pattern": {
+              "type": "line",
+              "range": 6,
+              "length": 3,
+              "allDirections": true
+            },
+            "hitsAllies": true
+          },
+          {
+            "name": "Explosion de Givre",
+            "damage": 8,
+            "cost": 3,
+            "pattern": {
+              "type": "selfRadius",
+              "range": 3
+            },
+            "hitsAllies": true,
+            "animation": "alternativeAttack1"
+          }
+        ],
+        "movementRange": 2
+      }
+    ]
+  },
+  "board": {
+    "id": "wide-arena",
+    "width": 19,
+    "height": 15,
+    "blockedCells": []
+  },
+  "summary": {
+    "matches": 1,
+    "wins": {
+      "1": 0,
+      "2": 1
+    },
+    "winsByStartingPlayer": {
+      "1": 0,
+      "2": 0
+    },
+    "draws": 0,
+    "averageTurns": 12,
+    "winsByProfile": {
+      "defensive": 1
+    }
+  },
+  "matches": [
+    {
+      "id": 1,
+      "seed": 256151794,
+      "startingPlayer": 1,
+      "profiles": {
+        "1": "cheap",
+        "2": "defensive"
+      },
+      "decks": {
+        "1": [
+          "spectre",
+          "archer",
+          "black-knight",
+          "ghost",
+          "thief"
+        ],
+        "2": [
+          "black-knight",
+          "frost-mage",
+          "pirate",
+          "swamp-thing",
+          "thief"
+        ]
+      },
+      "winner": 2,
+      "finishReason": "baseDestroyed",
+      "turns": 12,
+      "playerHealth": {
+        "1": 0,
+        "2": 6
+      },
+      "statistics": {
+        "1": {
+          "summoned": 8,
+          "summonedByMonster": {
+            "ghost": 8
+          },
+          "attacks": 0,
+          "damageDealt": 0,
+          "monstersKilled": 0,
+          "monstersLost": 4,
+          "damageReceived": 20,
+          "baseDamage": 0,
+          "movements": 11,
+          "symbolsSpent": {
+            "invocation": 8,
+            "attack": 0,
+            "movement": 11
+          },
+          "conversionLosses": 10,
+          "turnsWithoutSummon": 9,
+          "turnsWithoutAttack": 12,
+          "turnsWithoutMovement": 1,
+          "turnsWithoutUsefulAction": 0,
+          "noLegalPlacementTurns": 0,
+          "stagnantMonsterTurns": 5,
+          "blockedInvocationAttempts": 0,
+          "unreachableObjectives": 5,
+          "actionsSkippedByReason": {
+            "unreachableObjective": 5
+          },
+          "lastMonsterSummonTurn": 3,
+          "ineffectiveActions": 0,
+          "decisionsWithoutImpact": 0,
+          "decisionTimeMs": 0,
+          "positionsExplored": 0,
+          "branchesExplored": 0,
+          "maxSearchDepthReached": 0,
+          "searchDecisions": 0,
+          "decisionsChangedBySearch": 0,
+          "searchNodes": 0,
+          "nodesBeyondFirstThree": 0
+        },
+        "2": {
+          "summoned": 8,
+          "summonedByMonster": {
+            "black-knight": 4,
+            "pirate": 4
+          },
+          "attacks": 10,
+          "damageDealt": 20,
+          "monstersKilled": 4,
+          "monstersLost": 0,
+          "damageReceived": 0,
+          "baseDamage": 6,
+          "movements": 8,
+          "symbolsSpent": {
+            "invocation": 28,
+            "attack": 12,
+            "movement": 8
+          },
+          "conversionLosses": 7,
+          "turnsWithoutSummon": 4,
+          "turnsWithoutAttack": 3,
+          "turnsWithoutMovement": 5,
+          "turnsWithoutUsefulAction": 0,
+          "noLegalPlacementTurns": 0,
+          "stagnantMonsterTurns": 0,
+          "blockedInvocationAttempts": 0,
+          "unreachableObjectives": 0,
+          "actionsSkippedByReason": {},
+          "lastMonsterSummonTurn": 9,
+          "ineffectiveActions": 0,
+          "decisionsWithoutImpact": 0,
+          "decisionTimeMs": 0,
+          "positionsExplored": 32,
+          "branchesExplored": 32,
+          "maxSearchDepthReached": 2,
+          "searchDecisions": 4,
+          "decisionsChangedBySearch": 1,
+          "searchNodes": 22,
+          "nodesBeyondFirstThree": 2
+        }
+      },
+      "finalBoard": {
+        "width": 19,
+        "height": 15,
+        "rows": [
+          "...................",
+          "...................",
+          "...................",
+          "...................",
+          "...................",
+          "...................",
+          "...................",
+          "1GaG....Kaaaaa.aaa2",
+          "KbbGGaaaaKPP.aaabbb",
+          "..bbbKbbbP.bbbPbb..",
+          "....b...b..........",
+          "...................",
+          "...................",
+          "...................",
+          "..................."
+        ],
+        "legend": [
+          {
+            "symbol": ".",
+            "meaning": "Case libre"
+          },
+          {
+            "symbol": "#",
+            "meaning": "Case bloquée"
+          },
+          {
+            "symbol": "1",
+            "meaning": "Départ joueur 1"
+          },
+          {
+            "symbol": "2",
+            "meaning": "Départ joueur 2"
+          },
+          {
+            "symbol": "a",
+            "meaning": "Territoire déployé joueur 1"
+          },
+          {
+            "symbol": "b",
+            "meaning": "Territoire déployé joueur 2"
+          },
+          {
+            "symbol": "G",
+            "meaning": "Fantôme"
+          },
+          {
+            "symbol": "S",
+            "meaning": "Spectre"
+          },
+          {
+            "symbol": "A",
+            "meaning": "Archer Squelette"
+          },
+          {
+            "symbol": "P",
+            "meaning": "Pirate"
+          },
+          {
+            "symbol": "V",
+            "meaning": "Vil Voleur"
+          },
+          {
+            "symbol": "C",
+            "meaning": "Créature des Marais"
+          },
+          {
+            "symbol": "K",
+            "meaning": "Chevalier Noir"
+          },
+          {
+            "symbol": "B",
+            "meaning": "Chaman"
+          },
+          {
+            "symbol": "R",
+            "meaning": "Prêtre"
+          },
+          {
+            "symbol": "M",
+            "meaning": "Mage de Givre"
+          }
+        ]
+      },
+      "finalMonsters": [
+        {
+          "id": "m1",
+          "monsterId": "ghost",
+          "name": "Fantôme",
+          "symbol": "G",
+          "owner": 1,
+          "hp": 2,
+          "maxHp": 2,
+          "position": {
+            "x": 1,
+            "y": 7
+          },
+          "cells": [
+            {
+              "x": 1,
+              "y": 7
+            },
+            {
+              "x": 2,
+              "y": 7
+            },
+            {
+              "x": 3,
+              "y": 7
+            },
+            {
+              "x": 3,
+              "y": 8
+            },
+            {
+              "x": 4,
+              "y": 8
+            },
+            {
+              "x": 5,
+              "y": 8
+            }
+          ],
+          "statusEffects": [],
+          "isCamouflaged": false
+        },
+        {
+          "id": "m2",
+          "monsterId": "ghost",
+          "name": "Fantôme",
+          "symbol": "G",
+          "owner": 1,
+          "hp": -1,
+          "maxHp": 2,
+          "position": {
+            "x": 5,
+            "y": 8
+          },
+          "cells": [
+            {
+              "x": 6,
+              "y": 8
+            },
+            {
+              "x": 7,
+              "y": 8
+            },
+            {
+              "x": 8,
+              "y": 8
+            },
+            {
+              "x": 8,
+              "y": 7
+            },
+            {
+              "x": 9,
+              "y": 7
+            },
+            {
+              "x": 10,
+              "y": 7
+            }
+          ],
+          "statusEffects": [],
+          "isCamouflaged": false
+        },
+        {
+          "id": "m3",
+          "monsterId": "ghost",
+          "name": "Fantôme",
+          "symbol": "G",
+          "owner": 1,
+          "hp": -5,
+          "maxHp": 2,
+          "position": {
+            "x": 12,
+            "y": 7
+          },
+          "cells": [
+            {
+              "x": 11,
+              "y": 7
+            },
+            {
+              "x": 12,
+              "y": 7
+            },
+            {
+              "x": 13,
+              "y": 7
+            },
+            {
+              "x": 13,
+              "y": 8
+            },
+            {
+              "x": 14,
+              "y": 8
+            },
+            {
+              "x": 15,
+              "y": 8
+            }
+          ],
+          "statusEffects": [],
+          "isCamouflaged": false
+        },
+        {
+          "id": "m4",
+          "monsterId": "ghost",
+          "name": "Fantôme",
+          "symbol": "G",
+          "owner": 1,
+          "hp": -1,
+          "maxHp": 2,
+          "position": {
+            "x": 13,
+            "y": 8
+          },
+          "cells": [
+            {
+              "x": 13,
+              "y": 8
+            },
+            {
+              "x": 14,
+              "y": 8
+            },
+            {
+              "x": 15,
+              "y": 8
+            },
+            {
+              "x": 15,
+              "y": 7
+            },
+            {
+              "x": 16,
+              "y": 7
+            },
+            {
+              "x": 17,
+              "y": 7
+            }
+          ],
+          "statusEffects": [],
+          "isCamouflaged": false
+        },
+        {
+          "id": "m5",
+          "monsterId": "black-knight",
+          "name": "Chevalier Noir",
+          "symbol": "K",
+          "owner": 2,
+          "hp": 9,
+          "maxHp": 9,
+          "position": {
+            "x": 8,
+            "y": 7
+          },
+          "cells": [
+            {
+              "x": 14,
+              "y": 9
+            },
+            {
+              "x": 15,
+              "y": 9
+            },
+            {
+              "x": 16,
+              "y": 9
+            },
+            {
+              "x": 16,
+              "y": 8
+            },
+            {
+              "x": 17,
+              "y": 8
+            },
+            {
+              "x": 18,
+              "y": 8
+            }
+          ],
+          "statusEffects": [],
+          "isCamouflaged": false
+        },
+        {
+          "id": "m6",
+          "monsterId": "ghost",
+          "name": "Fantôme",
+          "symbol": "G",
+          "owner": 1,
+          "hp": -5,
+          "maxHp": 2,
+          "position": {
+            "x": 2,
+            "y": 8
+          },
+          "cells": [
+            {
+              "x": 1,
+              "y": 7
+            },
+            {
+              "x": 2,
+              "y": 7
+            },
+            {
+              "x": 3,
+              "y": 7
+            },
+            {
+              "x": 3,
+              "y": 8
+            },
+            {
+              "x": 4,
+              "y": 8
+            },
+            {
+              "x": 5,
+              "y": 8
+            }
+          ],
+          "statusEffects": [],
+          "isCamouflaged": false
+        },
+        {
+          "id": "m7",
+          "monsterId": "ghost",
+          "name": "Fantôme",
+          "symbol": "G",
+          "owner": 1,
+          "hp": 2,
+          "maxHp": 2,
+          "position": {
+            "x": 3,
+            "y": 7
+          },
+          "cells": [
+            {
+              "x": 1,
+              "y": 7
+            },
+            {
+              "x": 2,
+              "y": 7
+            },
+            {
+              "x": 3,
+              "y": 7
+            },
+            {
+              "x": 3,
+              "y": 8
+            },
+            {
+              "x": 4,
+              "y": 8
+            },
+            {
+              "x": 5,
+              "y": 8
+            }
+          ],
+          "statusEffects": [],
+          "isCamouflaged": false
+        },
+        {
+          "id": "m8",
+          "monsterId": "black-knight",
+          "name": "Chevalier Noir",
+          "symbol": "K",
+          "owner": 2,
+          "hp": 9,
+          "maxHp": 9,
+          "position": {
+            "x": 9,
+            "y": 8
+          },
+          "cells": [
+            {
+              "x": 9,
+              "y": 8
+            },
+            {
+              "x": 10,
+              "y": 8
+            },
+            {
+              "x": 11,
+              "y": 8
+            },
+            {
+              "x": 11,
+              "y": 9
+            },
+            {
+              "x": 12,
+              "y": 9
+            },
+            {
+              "x": 13,
+              "y": 9
+            }
+          ],
+          "statusEffects": [],
+          "isCamouflaged": false
+        },
+        {
+          "id": "m9",
+          "monsterId": "ghost",
+          "name": "Fantôme",
+          "symbol": "G",
+          "owner": 1,
+          "hp": 2,
+          "maxHp": 2,
+          "position": {
+            "x": 3,
+            "y": 8
+          },
+          "cells": [
+            {
+              "x": 1,
+              "y": 7
+            },
+            {
+              "x": 2,
+              "y": 7
+            },
+            {
+              "x": 3,
+              "y": 7
+            },
+            {
+              "x": 3,
+              "y": 8
+            },
+            {
+              "x": 4,
+              "y": 8
+            },
+            {
+              "x": 5,
+              "y": 8
+            }
+          ],
+          "statusEffects": [],
+          "isCamouflaged": false
+        },
+        {
+          "id": "m10",
+          "monsterId": "ghost",
+          "name": "Fantôme",
+          "symbol": "G",
+          "owner": 1,
+          "hp": 2,
+          "maxHp": 2,
+          "position": {
+            "x": 4,
+            "y": 8
+          },
+          "cells": [
+            {
+              "x": 1,
+              "y": 7
+            },
+            {
+              "x": 2,
+              "y": 7
+            },
+            {
+              "x": 3,
+              "y": 7
+            },
+            {
+              "x": 3,
+              "y": 8
+            },
+            {
+              "x": 4,
+              "y": 8
+            },
+            {
+              "x": 5,
+              "y": 8
+            }
+          ],
+          "statusEffects": [],
+          "isCamouflaged": false
+        },
+        {
+          "id": "m11",
+          "monsterId": "pirate",
+          "name": "Pirate",
+          "symbol": "P",
+          "owner": 2,
+          "hp": 5,
+          "maxHp": 5,
+          "position": {
+            "x": 9,
+            "y": 9
+          },
+          "cells": [
+            {
+              "x": 9,
+              "y": 9
+            },
+            {
+              "x": 8,
+              "y": 9
+            },
+            {
+              "x": 7,
+              "y": 9
+            },
+            {
+              "x": 6,
+              "y": 9
+            },
+            {
+              "x": 8,
+              "y": 10
+            },
+            {
+              "x": 9,
+              "y": 8
+            }
+          ],
+          "statusEffects": [],
+          "isCamouflaged": false
+        },
+        {
+          "id": "m12",
+          "monsterId": "black-knight",
+          "name": "Chevalier Noir",
+          "symbol": "K",
+          "owner": 2,
+          "hp": 9,
+          "maxHp": 9,
+          "position": {
+            "x": 5,
+            "y": 9
+          },
+          "cells": [
+            {
+              "x": 5,
+              "y": 9
+            },
+            {
+              "x": 4,
+              "y": 9
+            },
+            {
+              "x": 3,
+              "y": 9
+            },
+            {
+              "x": 2,
+              "y": 9
+            },
+            {
+              "x": 2,
+              "y": 8
+            },
+            {
+              "x": 4,
+              "y": 10
+            }
+          ],
+          "statusEffects": [],
+          "isCamouflaged": false
+        },
+        {
+          "id": "m13",
+          "monsterId": "black-knight",
+          "name": "Chevalier Noir",
+          "symbol": "K",
+          "owner": 2,
+          "hp": 9,
+          "maxHp": 9,
+          "position": {
+            "x": 0,
+            "y": 8
+          },
+          "cells": [
+            {
+              "x": 0,
+              "y": 8
+            },
+            {
+              "x": 1,
+              "y": 8
+            },
+            {
+              "x": 2,
+              "y": 8
+            },
+            {
+              "x": 2,
+              "y": 9
+            },
+            {
+              "x": 3,
+              "y": 9
+            },
+            {
+              "x": 4,
+              "y": 9
+            }
+          ],
+          "statusEffects": [],
+          "isCamouflaged": false
+        },
+        {
+          "id": "m14",
+          "monsterId": "pirate",
+          "name": "Pirate",
+          "symbol": "P",
+          "owner": 2,
+          "hp": 5,
+          "maxHp": 5,
+          "position": {
+            "x": 10,
+            "y": 8
+          },
+          "cells": [
+            {
+              "x": 9,
+              "y": 8
+            },
+            {
+              "x": 10,
+              "y": 8
+            },
+            {
+              "x": 11,
+              "y": 8
+            },
+            {
+              "x": 11,
+              "y": 9
+            },
+            {
+              "x": 12,
+              "y": 9
+            },
+            {
+              "x": 13,
+              "y": 9
+            }
+          ],
+          "statusEffects": [],
+          "isCamouflaged": false
+        },
+        {
+          "id": "m15",
+          "monsterId": "pirate",
+          "name": "Pirate",
+          "symbol": "P",
+          "owner": 2,
+          "hp": 5,
+          "maxHp": 5,
+          "position": {
+            "x": 11,
+            "y": 8
+          },
+          "cells": [
+            {
+              "x": 9,
+              "y": 8
+            },
+            {
+              "x": 10,
+              "y": 8
+            },
+            {
+              "x": 11,
+              "y": 8
+            },
+            {
+              "x": 11,
+              "y": 9
+            },
+            {
+              "x": 12,
+              "y": 9
+            },
+            {
+              "x": 13,
+              "y": 9
+            }
+          ],
+          "statusEffects": [],
+          "isCamouflaged": false
+        },
+        {
+          "id": "m16",
+          "monsterId": "pirate",
+          "name": "Pirate",
+          "symbol": "P",
+          "owner": 2,
+          "hp": 5,
+          "maxHp": 5,
+          "position": {
+            "x": 14,
+            "y": 9
+          },
+          "cells": [
+            {
+              "x": 14,
+              "y": 9
+            },
+            {
+              "x": 15,
+              "y": 9
+            },
+            {
+              "x": 16,
+              "y": 9
+            },
+            {
+              "x": 16,
+              "y": 8
+            },
+            {
+              "x": 17,
+              "y": 8
+            },
+            {
+              "x": 18,
+              "y": 8
+            }
+          ],
+          "statusEffects": [],
+          "isCamouflaged": false
+        }
+      ],
+      "remainingResources": {
+        "1": {
+          "invocation": 18,
+          "attack": 13,
+          "movement": 0
+        },
+        "2": {
+          "invocation": 2,
+          "attack": 1,
+          "movement": 2
+        }
+      },
+      "history": [
+        {
+          "turn": 1,
+          "player": 1,
+          "type": "dice",
+          "description": "Dés : invocation, attack, attack, invocation, invocation. Ressources conservées en réserve."
+        },
+        {
+          "turn": 1,
+          "player": 1,
+          "type": "strategy",
+          "description": "Profil « cheap » ; deck : spectre, archer, black-knight, ghost, thief."
+        },
+        {
+          "turn": 1,
+          "player": 1,
+          "type": "strategy",
+          "description": "Décision stratégique : s’adapte au profil « defensive » : maintient une pression égale sur la base et les monstres."
+        },
+        {
+          "turn": 1,
+          "player": 1,
+          "type": "strategy",
+          "description": "Conversion tactique : attack + attack vers invocation."
+        },
+        {
+          "turn": 1,
+          "player": 1,
+          "type": "strategy",
+          "description": "profil cheap : privilégie le coût bas (1)",
+          "monsterId": "m1",
+          "monsterName": "Fantôme",
+          "debug": {
+            "situation": "invoquer J1, réservation=3",
+            "candidates": 5,
+            "depth": 1,
+            "positionsExplored": 1,
+            "selectedAction": "Fantôme"
+          }
+        },
+        {
+          "turn": 1,
+          "player": 1,
+          "type": "invocation",
+          "description": "Fantôme invoqué pour 1 symbole(s).",
+          "monsterId": "m1",
+          "monsterTypeId": "ghost",
+          "monsterName": "Fantôme",
+          "cost": 1,
+          "to": {
+            "x": 1,
+            "y": 7
+          }
+        },
+        {
+          "turn": 1,
+          "player": 1,
+          "type": "strategy",
+          "description": "profil cheap : privilégie le coût bas (1)",
+          "monsterId": "m2",
+          "monsterName": "Fantôme",
+          "debug": {
+            "situation": "invoquer J1, réservation=2",
+            "candidates": 4,
+            "depth": 1,
+            "positionsExplored": 2,
+            "selectedAction": "Fantôme"
+          }
+        },
+        {
+          "turn": 1,
+          "player": 1,
+          "type": "invocation",
+          "description": "Fantôme invoqué pour 1 symbole(s).",
+          "monsterId": "m2",
+          "monsterTypeId": "ghost",
+          "monsterName": "Fantôme",
+          "cost": 1,
+          "to": {
+            "x": 6,
+            "y": 8
+          }
+        },
+        {
+          "turn": 1,
+          "player": 1,
+          "type": "strategy",
+          "description": "profil cheap : privilégie le coût bas (1)",
+          "monsterId": "m3",
+          "monsterName": "Fantôme",
+          "debug": {
+            "situation": "invoquer J1, réservation=1",
+            "candidates": 2,
+            "depth": 1,
+            "positionsExplored": 3,
+            "selectedAction": "Fantôme"
+          }
+        },
+        {
+          "turn": 1,
+          "player": 1,
+          "type": "invocation",
+          "description": "Fantôme invoqué pour 1 symbole(s).",
+          "monsterId": "m3",
+          "monsterTypeId": "ghost",
+          "monsterName": "Fantôme",
+          "cost": 1,
+          "to": {
+            "x": 11,
+            "y": 7
+          }
+        },
+        {
+          "turn": 1,
+          "player": 1,
+          "type": "strategy",
+          "description": "profil cheap : privilégie le coût bas (1)",
+          "monsterId": "m4",
+          "monsterName": "Fantôme",
+          "debug": {
+            "situation": "invoquer J1, réservation=0",
+            "candidates": 1,
+            "depth": 1,
+            "positionsExplored": 4,
+            "selectedAction": "Fantôme"
+          }
+        },
+        {
+          "turn": 1,
+          "player": 1,
+          "type": "invocation",
+          "description": "Fantôme invoqué pour 1 symbole(s).",
+          "monsterId": "m4",
+          "monsterTypeId": "ghost",
+          "monsterName": "Fantôme",
+          "cost": 1,
+          "to": {
+            "x": 13,
+            "y": 8
+          }
+        },
+        {
+          "turn": 1,
+          "player": 1,
+          "type": "turnEnd",
+          "description": "Fin du tour 1."
+        },
+        {
+          "turn": 1,
+          "player": 2,
+          "type": "turn",
+          "description": "Début du tour 1."
+        },
+        {
+          "turn": 1,
+          "player": 2,
+          "type": "dice",
+          "description": "Dés : invocation, invocation, invocation, invocation, movement. Ressources conservées en réserve."
+        },
+        {
+          "turn": 1,
+          "player": 2,
+          "type": "strategy",
+          "description": "Profil « defensive » ; deck : black-knight, frost-mage, pirate, swamp-thing, thief."
+        },
+        {
+          "turn": 1,
+          "player": 2,
+          "type": "strategy",
+          "description": "Décision stratégique : protège son périmètre et avance quand il est sûr."
+        },
+        {
+          "turn": 1,
+          "player": 2,
+          "type": "strategy",
+          "description": "profil défensif : privilégie les PV et les attaques, coût 4",
+          "monsterId": "m5",
+          "monsterName": "Chevalier Noir",
+          "debug": {
+            "situation": "invoquer J2, réservation=0",
+            "candidates": 4,
+            "depth": 1,
+            "positionsExplored": 5,
+            "selectedAction": "Chevalier Noir"
+          }
+        },
+        {
+          "turn": 1,
+          "player": 2,
+          "type": "invocation",
+          "description": "Chevalier Noir invoqué pour 4 symbole(s).",
+          "monsterId": "m5",
+          "monsterTypeId": "black-knight",
+          "monsterName": "Chevalier Noir",
+          "cost": 4,
+          "to": {
+            "x": 14,
+            "y": 9
+          }
+        },
+        {
+          "turn": 1,
+          "player": 2,
+          "type": "strategy",
+          "description": "suit le chemin vers une route d’interception : -1 case(s) plus près.",
+          "monsterId": "m5",
+          "monsterTypeId": "black-knight",
+          "monsterName": "Chevalier Noir"
+        },
+        {
+          "turn": 1,
+          "player": 2,
+          "type": "movement",
+          "description": "Chevalier Noir se déplace de 1 case(s).",
+          "monsterId": "m5",
+          "monsterTypeId": "black-knight",
+          "monsterName": "Chevalier Noir",
+          "from": {
+            "x": 14,
+            "y": 9
+          },
+          "to": {
+            "x": 14,
+            "y": 8
+          },
+          "cost": 1
+        },
+        {
+          "turn": 1,
+          "player": 2,
+          "type": "turnEnd",
+          "description": "Fin du tour 1."
+        },
+        {
+          "turn": 2,
+          "player": 1,
+          "type": "turn",
+          "description": "Début du tour 2."
+        },
+        {
+          "turn": 2,
+          "player": 1,
+          "type": "dice",
+          "description": "Dés : invocation, invocation, invocation, invocation, invocation. Ressources conservées en réserve."
+        },
+        {
+          "turn": 2,
+          "player": 1,
+          "type": "strategy",
+          "description": "Profil « cheap » ; deck : spectre, archer, black-knight, ghost, thief."
+        },
+        {
+          "turn": 2,
+          "player": 1,
+          "type": "strategy",
+          "description": "Décision stratégique : s’adapte au profil « defensive » : maintient une pression égale sur la base et les monstres."
+        },
+        {
+          "turn": 2,
+          "player": 1,
+          "type": "strategy",
+          "description": "Conversion tactique : invocation + invocation vers attack."
+        },
+        {
+          "turn": 2,
+          "player": 1,
+          "type": "strategy",
+          "description": "Conversion tactique : invocation + attack vers movement."
+        },
+        {
+          "turn": 2,
+          "player": 1,
+          "type": "strategy",
+          "description": "profil cheap : privilégie le coût bas (1)",
+          "monsterId": "m6",
+          "monsterName": "Fantôme",
+          "debug": {
+            "situation": "invoquer J1, réservation=1",
+            "candidates": 2,
+            "depth": 1,
+            "positionsExplored": 6,
+            "selectedAction": "Fantôme"
+          }
+        },
+        {
+          "turn": 2,
+          "player": 1,
+          "type": "invocation",
+          "description": "Fantôme invoqué pour 1 symbole(s).",
+          "monsterId": "m6",
+          "monsterTypeId": "ghost",
+          "monsterName": "Fantôme",
+          "cost": 1,
+          "to": {
+            "x": 2,
+            "y": 7
+          }
+        },
+        {
+          "turn": 2,
+          "player": 1,
+          "type": "strategy",
+          "description": "profil cheap : privilégie le coût bas (1)",
+          "monsterId": "m7",
+          "monsterName": "Fantôme",
+          "debug": {
+            "situation": "invoquer J1, réservation=0",
+            "candidates": 1,
+            "depth": 1,
+            "positionsExplored": 7,
+            "selectedAction": "Fantôme"
+          }
+        },
+        {
+          "turn": 2,
+          "player": 1,
+          "type": "invocation",
+          "description": "Fantôme invoqué pour 1 symbole(s).",
+          "monsterId": "m7",
+          "monsterTypeId": "ghost",
+          "monsterName": "Fantôme",
+          "cost": 1,
+          "to": {
+            "x": 3,
+            "y": 7
+          }
+        },
+        {
+          "turn": 2,
+          "player": 1,
+          "type": "strategy",
+          "description": "suit le chemin vers le départ ennemi : 1 case(s) plus près.",
+          "monsterId": "m2",
+          "monsterTypeId": "ghost",
+          "monsterName": "Fantôme"
+        },
+        {
+          "turn": 2,
+          "player": 1,
+          "type": "movement",
+          "description": "Fantôme se déplace de 1 case(s).",
+          "monsterId": "m2",
+          "monsterTypeId": "ghost",
+          "monsterName": "Fantôme",
+          "from": {
+            "x": 6,
+            "y": 8
+          },
+          "to": {
+            "x": 7,
+            "y": 8
+          },
+          "cost": 1
+        },
+        {
+          "turn": 2,
+          "player": 1,
+          "type": "turnEnd",
+          "description": "Fin du tour 2."
+        },
+        {
+          "turn": 2,
+          "player": 2,
+          "type": "turn",
+          "description": "Début du tour 2."
+        },
+        {
+          "turn": 2,
+          "player": 2,
+          "type": "dice",
+          "description": "Dés : invocation, invocation, invocation, invocation, attack. Ressources conservées en réserve."
+        },
+        {
+          "turn": 2,
+          "player": 2,
+          "type": "strategy",
+          "description": "Profil « defensive » ; deck : black-knight, frost-mage, pirate, swamp-thing, thief."
+        },
+        {
+          "turn": 2,
+          "player": 2,
+          "type": "strategy",
+          "description": "Décision stratégique : protège son périmètre et avance quand il est sûr."
+        },
+        {
+          "turn": 2,
+          "player": 2,
+          "type": "strategy",
+          "description": "profil défensif : privilégie les PV et les attaques, coût 4",
+          "monsterId": "m8",
+          "monsterName": "Chevalier Noir",
+          "debug": {
+            "situation": "invoquer J2, réservation=0",
+            "candidates": 4,
+            "depth": 1,
+            "positionsExplored": 8,
+            "selectedAction": "Chevalier Noir"
+          }
+        },
+        {
+          "turn": 2,
+          "player": 2,
+          "type": "invocation",
+          "description": "Chevalier Noir invoqué pour 4 symbole(s).",
+          "monsterId": "m8",
+          "monsterTypeId": "black-knight",
+          "monsterName": "Chevalier Noir",
+          "cost": 4,
+          "to": {
+            "x": 9,
+            "y": 8
+          }
+        },
+        {
+          "turn": 2,
+          "player": 2,
+          "type": "strategy",
+          "description": "Priorité d'action : score tactique 8.",
+          "monsterId": "m5",
+          "monsterTypeId": "black-knight",
+          "monsterName": "Chevalier Noir",
+          "target": "Fantôme (J1) éliminé",
+          "debug": {
+            "situation": "base J2=6, base adverse=6",
+            "candidates": 1,
+            "depth": 1,
+            "positionsExplored": 8,
+            "selectedAction": "Chevalier Noir utilise « Corps à corps » sur Fantôme (J1) éliminé (3 dégât(s))."
+          }
+        },
+        {
+          "turn": 2,
+          "player": 2,
+          "type": "attack",
+          "description": "Chevalier Noir utilise « Corps à corps » sur Fantôme (J1) éliminé (3 dégât(s)).",
+          "monsterId": "m5",
+          "monsterTypeId": "black-knight",
+          "monsterName": "Chevalier Noir",
+          "attackName": "Corps à corps",
+          "target": "Fantôme (J1) éliminé",
+          "cost": 1,
+          "damage": 3,
+          "targetsHit": 1,
+          "damageToMonsters": 2,
+          "damageToEnemies": 2,
+          "damageToAllies": 0,
+          "damageToBase": 0,
+          "overkillDamage": 1,
+          "criticalDamageBonus": 0,
+          "healingDone": 0,
+          "healingWaste": 0,
+          "effectsCleared": 0,
+          "buffsApplied": 0,
+          "cooldownReductionUsed": 0,
+          "to": {
+            "x": 13,
+            "y": 8
+          }
+        },
+        {
+          "turn": 2,
+          "player": 2,
+          "type": "turnEnd",
+          "description": "Fin du tour 2."
+        },
+        {
+          "turn": 3,
+          "player": 1,
+          "type": "turn",
+          "description": "Début du tour 3."
+        },
+        {
+          "turn": 3,
+          "player": 1,
+          "type": "dice",
+          "description": "Dés : invocation, invocation, invocation, invocation, attack. Ressources conservées en réserve."
+        },
+        {
+          "turn": 3,
+          "player": 1,
+          "type": "strategy",
+          "description": "Profil « cheap » ; deck : spectre, archer, black-knight, ghost, thief."
+        },
+        {
+          "turn": 3,
+          "player": 1,
+          "type": "strategy",
+          "description": "Décision stratégique : s’adapte au profil « defensive » : maintient une pression égale sur la base et les monstres."
+        },
+        {
+          "turn": 3,
+          "player": 1,
+          "type": "strategy",
+          "description": "Conversion tactique : invocation + invocation vers movement."
+        },
+        {
+          "turn": 3,
+          "player": 1,
+          "type": "strategy",
+          "description": "profil cheap : privilégie le coût bas (1)",
+          "monsterId": "m9",
+          "monsterName": "Fantôme",
+          "debug": {
+            "situation": "invoquer J1, réservation=1",
+            "candidates": 2,
+            "depth": 1,
+            "positionsExplored": 9,
+            "selectedAction": "Fantôme"
+          }
+        },
+        {
+          "turn": 3,
+          "player": 1,
+          "type": "invocation",
+          "description": "Fantôme invoqué pour 1 symbole(s).",
+          "monsterId": "m9",
+          "monsterTypeId": "ghost",
+          "monsterName": "Fantôme",
+          "cost": 1,
+          "to": {
+            "x": 3,
+            "y": 8
+          }
+        },
+        {
+          "turn": 3,
+          "player": 1,
+          "type": "strategy",
+          "description": "profil cheap : privilégie le coût bas (1)",
+          "monsterId": "m10",
+          "monsterName": "Fantôme",
+          "debug": {
+            "situation": "invoquer J1, réservation=0",
+            "candidates": 1,
+            "depth": 1,
+            "positionsExplored": 10,
+            "selectedAction": "Fantôme"
+          }
+        },
+        {
+          "turn": 3,
+          "player": 1,
+          "type": "invocation",
+          "description": "Fantôme invoqué pour 1 symbole(s).",
+          "monsterId": "m10",
+          "monsterTypeId": "ghost",
+          "monsterName": "Fantôme",
+          "cost": 1,
+          "to": {
+            "x": 4,
+            "y": 8
+          }
+        },
+        {
+          "turn": 3,
+          "player": 1,
+          "type": "strategy",
+          "description": "suit le chemin vers le départ ennemi : 1 case(s) plus près.",
+          "monsterId": "m2",
+          "monsterTypeId": "ghost",
+          "monsterName": "Fantôme"
+        },
+        {
+          "turn": 3,
+          "player": 1,
+          "type": "movement",
+          "description": "Fantôme se déplace de 1 case(s).",
+          "monsterId": "m2",
+          "monsterTypeId": "ghost",
+          "monsterName": "Fantôme",
+          "from": {
+            "x": 7,
+            "y": 8
+          },
+          "to": {
+            "x": 6,
+            "y": 8
+          },
+          "cost": 1
+        },
+        {
+          "turn": 3,
+          "player": 1,
+          "type": "turnEnd",
+          "description": "Fin du tour 3."
+        },
+        {
+          "turn": 3,
+          "player": 2,
+          "type": "turn",
+          "description": "Début du tour 3."
+        },
+        {
+          "turn": 3,
+          "player": 2,
+          "type": "dice",
+          "description": "Dés : invocation, attack, invocation, invocation, invocation. Ressources conservées en réserve."
+        },
+        {
+          "turn": 3,
+          "player": 2,
+          "type": "strategy",
+          "description": "Profil « defensive » ; deck : black-knight, frost-mage, pirate, swamp-thing, thief."
+        },
+        {
+          "turn": 3,
+          "player": 2,
+          "type": "strategy",
+          "description": "Décision stratégique : protège son périmètre et avance quand il est sûr."
+        },
+        {
+          "turn": 3,
+          "player": 2,
+          "type": "strategy",
+          "description": "Conversion tactique : invocation + attack vers movement."
+        },
+        {
+          "turn": 3,
+          "player": 2,
+          "type": "strategy",
+          "description": "profil défensif : privilégie les PV et les attaques, coût 3",
+          "monsterId": "m11",
+          "monsterName": "Pirate",
+          "debug": {
+            "situation": "invoquer J2, réservation=0",
+            "candidates": 2,
+            "depth": 1,
+            "positionsExplored": 11,
+            "selectedAction": "Pirate"
+          }
+        },
+        {
+          "turn": 3,
+          "player": 2,
+          "type": "invocation",
+          "description": "Pirate invoqué pour 3 symbole(s).",
+          "monsterId": "m11",
+          "monsterTypeId": "pirate",
+          "monsterName": "Pirate",
+          "cost": 3,
+          "to": {
+            "x": 9,
+            "y": 9
+          }
+        },
+        {
+          "turn": 3,
+          "player": 2,
+          "type": "strategy",
+          "description": "suit le chemin vers une route d’interception : 0 case(s) plus près.",
+          "monsterId": "m5",
+          "monsterTypeId": "black-knight",
+          "monsterName": "Chevalier Noir"
+        },
+        {
+          "turn": 3,
+          "player": 2,
+          "type": "movement",
+          "description": "Chevalier Noir se déplace de 1 case(s).",
+          "monsterId": "m5",
+          "monsterTypeId": "black-knight",
+          "monsterName": "Chevalier Noir",
+          "from": {
+            "x": 14,
+            "y": 8
+          },
+          "to": {
+            "x": 13,
+            "y": 8
+          },
+          "cost": 1
+        },
+        {
+          "turn": 3,
+          "player": 2,
+          "type": "turnEnd",
+          "description": "Fin du tour 3."
+        },
+        {
+          "turn": 4,
+          "player": 1,
+          "type": "turn",
+          "description": "Début du tour 4."
+        },
+        {
+          "turn": 4,
+          "player": 1,
+          "type": "dice",
+          "description": "Dés : attack, attack, invocation, invocation, invocation. Ressources conservées en réserve."
+        },
+        {
+          "turn": 4,
+          "player": 1,
+          "type": "strategy",
+          "description": "Profil « cheap » ; deck : spectre, archer, black-knight, ghost, thief."
+        },
+        {
+          "turn": 4,
+          "player": 1,
+          "type": "strategy",
+          "description": "Décision stratégique : s’adapte au profil « defensive » : maintient une pression égale sur la base et les monstres."
+        },
+        {
+          "turn": 4,
+          "player": 1,
+          "type": "strategy",
+          "description": "Conversion tactique : invocation + attack vers movement."
+        },
+        {
+          "turn": 4,
+          "player": 1,
+          "type": "strategy",
+          "description": "suit le chemin vers le départ ennemi : 1 case(s) plus près.",
+          "monsterId": "m2",
+          "monsterTypeId": "ghost",
+          "monsterName": "Fantôme"
+        },
+        {
+          "turn": 4,
+          "player": 1,
+          "type": "movement",
+          "description": "Fantôme se déplace de 1 case(s).",
+          "monsterId": "m2",
+          "monsterTypeId": "ghost",
+          "monsterName": "Fantôme",
+          "from": {
+            "x": 6,
+            "y": 8
+          },
+          "to": {
+            "x": 5,
+            "y": 8
+          },
+          "cost": 1
+        },
+        {
+          "turn": 4,
+          "player": 1,
+          "type": "turnEnd",
+          "description": "Fin du tour 4."
+        },
+        {
+          "turn": 4,
+          "player": 2,
+          "type": "turn",
+          "description": "Début du tour 4."
+        },
+        {
+          "turn": 4,
+          "player": 2,
+          "type": "dice",
+          "description": "Dés : invocation, invocation, attack, invocation, invocation. Ressources conservées en réserve."
+        },
+        {
+          "turn": 4,
+          "player": 2,
+          "type": "strategy",
+          "description": "Profil « defensive » ; deck : black-knight, frost-mage, pirate, swamp-thing, thief."
+        },
+        {
+          "turn": 4,
+          "player": 2,
+          "type": "strategy",
+          "description": "Décision stratégique : protège son périmètre et avance quand il est sûr."
+        },
+        {
+          "turn": 4,
+          "player": 2,
+          "type": "strategy",
+          "description": "profil défensif : privilégie les PV et les attaques, coût 4",
+          "monsterId": "m12",
+          "monsterName": "Chevalier Noir",
+          "debug": {
+            "situation": "invoquer J2, réservation=0",
+            "candidates": 4,
+            "depth": 1,
+            "positionsExplored": 12,
+            "selectedAction": "Chevalier Noir"
+          }
+        },
+        {
+          "turn": 4,
+          "player": 2,
+          "type": "invocation",
+          "description": "Chevalier Noir invoqué pour 4 symbole(s).",
+          "monsterId": "m12",
+          "monsterTypeId": "black-knight",
+          "monsterName": "Chevalier Noir",
+          "cost": 4,
+          "to": {
+            "x": 5,
+            "y": 9
+          }
+        },
+        {
+          "turn": 4,
+          "player": 2,
+          "type": "strategy",
+          "description": "Priorité d'action : score tactique 8.",
+          "monsterId": "m12",
+          "monsterTypeId": "black-knight",
+          "monsterName": "Chevalier Noir",
+          "target": "Fantôme (J1) éliminé",
+          "debug": {
+            "situation": "base J2=6, base adverse=6",
+            "candidates": 1,
+            "depth": 1,
+            "positionsExplored": 12,
+            "selectedAction": "Chevalier Noir utilise « Corps à corps » sur Fantôme (J1) éliminé (3 dégât(s))."
+          }
+        },
+        {
+          "turn": 4,
+          "player": 2,
+          "type": "attack",
+          "description": "Chevalier Noir utilise « Corps à corps » sur Fantôme (J1) éliminé (3 dégât(s)).",
+          "monsterId": "m12",
+          "monsterTypeId": "black-knight",
+          "monsterName": "Chevalier Noir",
+          "attackName": "Corps à corps",
+          "target": "Fantôme (J1) éliminé",
+          "cost": 1,
+          "damage": 3,
+          "targetsHit": 1,
+          "damageToMonsters": 2,
+          "damageToEnemies": 2,
+          "damageToAllies": 0,
+          "damageToBase": 0,
+          "overkillDamage": 1,
+          "criticalDamageBonus": 0,
+          "healingDone": 0,
+          "healingWaste": 0,
+          "effectsCleared": 0,
+          "buffsApplied": 0,
+          "cooldownReductionUsed": 0,
+          "to": {
+            "x": 5,
+            "y": 8
+          }
+        },
+        {
+          "turn": 4,
+          "player": 2,
+          "type": "turnEnd",
+          "description": "Fin du tour 4."
+        },
+        {
+          "turn": 5,
+          "player": 1,
+          "type": "turn",
+          "description": "Début du tour 5."
+        },
+        {
+          "turn": 5,
+          "player": 1,
+          "type": "dice",
+          "description": "Dés : attack, invocation, invocation, movement, attack. Ressources conservées en réserve."
+        },
+        {
+          "turn": 5,
+          "player": 1,
+          "type": "strategy",
+          "description": "Profil « cheap » ; deck : spectre, archer, black-knight, ghost, thief."
+        },
+        {
+          "turn": 5,
+          "player": 1,
+          "type": "strategy",
+          "description": "Décision stratégique : s’adapte au profil « defensive » : maintient une pression égale sur la base et les monstres."
+        },
+        {
+          "turn": 5,
+          "player": 1,
+          "type": "strategy",
+          "description": "suit le chemin vers le départ ennemi : 1 case(s) plus près.",
+          "monsterId": "m3",
+          "monsterTypeId": "ghost",
+          "monsterName": "Fantôme"
+        },
+        {
+          "turn": 5,
+          "player": 1,
+          "type": "movement",
+          "description": "Fantôme se déplace de 1 case(s).",
+          "monsterId": "m3",
+          "monsterTypeId": "ghost",
+          "monsterName": "Fantôme",
+          "from": {
+            "x": 11,
+            "y": 7
+          },
+          "to": {
+            "x": 12,
+            "y": 7
+          },
+          "cost": 1
+        },
+        {
+          "turn": 5,
+          "player": 1,
+          "type": "turnEnd",
+          "description": "Fin du tour 5."
+        },
+        {
+          "turn": 5,
+          "player": 2,
+          "type": "turn",
+          "description": "Début du tour 5."
+        },
+        {
+          "turn": 5,
+          "player": 2,
+          "type": "dice",
+          "description": "Dés : movement, attack, invocation, movement, movement. Ressources conservées en réserve."
+        },
+        {
+          "turn": 5,
+          "player": 2,
+          "type": "strategy",
+          "description": "Profil « defensive » ; deck : black-knight, frost-mage, pirate, swamp-thing, thief."
+        },
+        {
+          "turn": 5,
+          "player": 2,
+          "type": "strategy",
+          "description": "Décision stratégique : protège son périmètre et avance quand il est sûr."
+        },
+        {
+          "turn": 5,
+          "player": 2,
+          "type": "strategy",
+          "description": "Conversion tactique : movement + movement vers invocation."
+        },
+        {
+          "turn": 5,
+          "player": 2,
+          "type": "strategy",
+          "description": "Conversion tactique : invocation + invocation vers attack."
+        },
+        {
+          "turn": 5,
+          "player": 2,
+          "type": "strategy",
+          "description": "Priorité d'action : score tactique 4.8.",
+          "monsterId": "m5",
+          "monsterTypeId": "black-knight",
+          "monsterName": "Chevalier Noir",
+          "target": "Fantôme (J1) éliminé",
+          "debug": {
+            "situation": "base J2=6, base adverse=6",
+            "candidates": 1,
+            "depth": 1,
+            "positionsExplored": 12,
+            "selectedAction": "Chevalier Noir utilise « Attaque tranchante » sur Fantôme (J1) éliminé (7 dégât(s))."
+          }
+        },
+        {
+          "turn": 5,
+          "player": 2,
+          "type": "attack",
+          "description": "Chevalier Noir utilise « Attaque tranchante » sur Fantôme (J1) éliminé (7 dégât(s)).",
+          "monsterId": "m5",
+          "monsterTypeId": "black-knight",
+          "monsterName": "Chevalier Noir",
+          "attackName": "Attaque tranchante",
+          "target": "Fantôme (J1) éliminé",
+          "cost": 2,
+          "damage": 7,
+          "targetsHit": 1,
+          "damageToMonsters": 2,
+          "damageToEnemies": 2,
+          "damageToAllies": 0,
+          "damageToBase": 0,
+          "overkillDamage": 5,
+          "criticalDamageBonus": 0,
+          "healingDone": 0,
+          "healingWaste": 0,
+          "effectsCleared": 0,
+          "buffsApplied": 0,
+          "cooldownReductionUsed": 0,
+          "to": {
+            "x": 12,
+            "y": 7
+          }
+        },
+        {
+          "turn": 5,
+          "player": 2,
+          "type": "strategy",
+          "description": "suit le chemin vers une route d’interception : -1 case(s) plus près.",
+          "monsterId": "m5",
+          "monsterTypeId": "black-knight",
+          "monsterName": "Chevalier Noir"
+        },
+        {
+          "turn": 5,
+          "player": 2,
+          "type": "movement",
+          "description": "Chevalier Noir se déplace de 1 case(s).",
+          "monsterId": "m5",
+          "monsterTypeId": "black-knight",
+          "monsterName": "Chevalier Noir",
+          "from": {
+            "x": 13,
+            "y": 8
+          },
+          "to": {
+            "x": 13,
+            "y": 7
+          },
+          "cost": 1
+        },
+        {
+          "turn": 5,
+          "player": 2,
+          "type": "turnEnd",
+          "description": "Fin du tour 5."
+        },
+        {
+          "turn": 6,
+          "player": 1,
+          "type": "turn",
+          "description": "Début du tour 6."
+        },
+        {
+          "turn": 6,
+          "player": 1,
+          "type": "dice",
+          "description": "Dés : invocation, attack, attack, invocation, invocation. Ressources conservées en réserve."
+        },
+        {
+          "turn": 6,
+          "player": 1,
+          "type": "strategy",
+          "description": "Profil « cheap » ; deck : spectre, archer, black-knight, ghost, thief."
+        },
+        {
+          "turn": 6,
+          "player": 1,
+          "type": "strategy",
+          "description": "Décision stratégique : s’adapte au profil « defensive » : maintient une pression égale sur la base et les monstres."
+        },
+        {
+          "turn": 6,
+          "player": 1,
+          "type": "strategy",
+          "description": "Conversion tactique : invocation + attack vers movement."
+        },
+        {
+          "turn": 6,
+          "player": 1,
+          "type": "strategy",
+          "description": "suit le chemin vers le départ ennemi : 1 case(s) plus près.",
+          "monsterId": "m6",
+          "monsterTypeId": "ghost",
+          "monsterName": "Fantôme"
+        },
+        {
+          "turn": 6,
+          "player": 1,
+          "type": "movement",
+          "description": "Fantôme se déplace de 1 case(s).",
+          "monsterId": "m6",
+          "monsterTypeId": "ghost",
+          "monsterName": "Fantôme",
+          "from": {
+            "x": 2,
+            "y": 7
+          },
+          "to": {
+            "x": 2,
+            "y": 8
+          },
+          "cost": 1
+        },
+        {
+          "turn": 6,
+          "player": 1,
+          "type": "turnEnd",
+          "description": "Fin du tour 6."
+        },
+        {
+          "turn": 6,
+          "player": 2,
+          "type": "turn",
+          "description": "Début du tour 6."
+        },
+        {
+          "turn": 6,
+          "player": 2,
+          "type": "dice",
+          "description": "Dés : invocation, attack, invocation, invocation, invocation. Ressources conservées en réserve."
+        },
+        {
+          "turn": 6,
+          "player": 2,
+          "type": "strategy",
+          "description": "Profil « defensive » ; deck : black-knight, frost-mage, pirate, swamp-thing, thief."
+        },
+        {
+          "turn": 6,
+          "player": 2,
+          "type": "strategy",
+          "description": "Décision stratégique : protège son périmètre et avance quand il est sûr."
+        },
+        {
+          "turn": 6,
+          "player": 2,
+          "type": "strategy",
+          "description": "profil défensif : privilégie les PV et les attaques, coût 4",
+          "monsterId": "m13",
+          "monsterName": "Chevalier Noir",
+          "debug": {
+            "situation": "invoquer J2, réservation=0",
+            "candidates": 4,
+            "depth": 1,
+            "positionsExplored": 13,
+            "selectedAction": "Chevalier Noir"
+          }
+        },
+        {
+          "turn": 6,
+          "player": 2,
+          "type": "invocation",
+          "description": "Chevalier Noir invoqué pour 4 symbole(s).",
+          "monsterId": "m13",
+          "monsterTypeId": "black-knight",
+          "monsterName": "Chevalier Noir",
+          "cost": 4,
+          "to": {
+            "x": 0,
+            "y": 8
+          }
+        },
+        {
+          "turn": 6,
+          "player": 2,
+          "type": "turnEnd",
+          "description": "Fin du tour 6."
+        },
+        {
+          "turn": 7,
+          "player": 1,
+          "type": "turn",
+          "description": "Début du tour 7."
+        },
+        {
+          "turn": 7,
+          "player": 1,
+          "type": "dice",
+          "description": "Dés : invocation, attack, invocation, movement, invocation. Ressources conservées en réserve."
+        },
+        {
+          "turn": 7,
+          "player": 1,
+          "type": "strategy",
+          "description": "Profil « cheap » ; deck : spectre, archer, black-knight, ghost, thief."
+        },
+        {
+          "turn": 7,
+          "player": 1,
+          "type": "strategy",
+          "description": "Décision stratégique : s’adapte au profil « defensive » : maintient une pression égale sur la base et les monstres."
+        },
+        {
+          "turn": 7,
+          "player": 1,
+          "type": "strategy",
+          "description": "suit le chemin vers le départ ennemi : 1 case(s) plus près.",
+          "monsterId": "m1",
+          "monsterTypeId": "ghost",
+          "monsterName": "Fantôme"
+        },
+        {
+          "turn": 7,
+          "player": 1,
+          "type": "movement",
+          "description": "Fantôme se déplace de 1 case(s).",
+          "monsterId": "m1",
+          "monsterTypeId": "ghost",
+          "monsterName": "Fantôme",
+          "from": {
+            "x": 1,
+            "y": 7
+          },
+          "to": {
+            "x": 2,
+            "y": 7
+          },
+          "cost": 1
+        },
+        {
+          "turn": 7,
+          "player": 1,
+          "type": "turnEnd",
+          "description": "Fin du tour 7."
+        },
+        {
+          "turn": 7,
+          "player": 2,
+          "type": "turn",
+          "description": "Début du tour 7."
+        },
+        {
+          "turn": 7,
+          "player": 2,
+          "type": "dice",
+          "description": "Dés : movement, invocation, invocation, movement, invocation. Ressources conservées en réserve."
+        },
+        {
+          "turn": 7,
+          "player": 2,
+          "type": "strategy",
+          "description": "Profil « defensive » ; deck : black-knight, frost-mage, pirate, swamp-thing, thief."
+        },
+        {
+          "turn": 7,
+          "player": 2,
+          "type": "strategy",
+          "description": "Décision stratégique : protège son périmètre et avance quand il est sûr."
+        },
+        {
+          "turn": 7,
+          "player": 2,
+          "type": "strategy",
+          "description": "profil défensif : privilégie les PV et les attaques, coût 3",
+          "monsterId": "m14",
+          "monsterName": "Pirate",
+          "debug": {
+            "situation": "invoquer J2, réservation=0",
+            "candidates": 2,
+            "depth": 1,
+            "positionsExplored": 14,
+            "selectedAction": "Pirate"
+          }
+        },
+        {
+          "turn": 7,
+          "player": 2,
+          "type": "invocation",
+          "description": "Pirate invoqué pour 3 symbole(s).",
+          "monsterId": "m14",
+          "monsterTypeId": "pirate",
+          "monsterName": "Pirate",
+          "cost": 3,
+          "to": {
+            "x": 10,
+            "y": 8
+          }
+        },
+        {
+          "turn": 7,
+          "player": 2,
+          "type": "strategy",
+          "description": "Priorité d'action : score tactique 5.333333333333333.",
+          "monsterId": "m13",
+          "monsterTypeId": "black-knight",
+          "monsterName": "Chevalier Noir",
+          "target": "base J1",
+          "debug": {
+            "situation": "base J2=6, base adverse=5",
+            "candidates": 1,
+            "depth": 1,
+            "positionsExplored": 14,
+            "selectedAction": "Chevalier Noir utilise « Corps à corps » sur base J1 (1 dégât(s))."
+          }
+        },
+        {
+          "turn": 7,
+          "player": 2,
+          "type": "attack",
+          "description": "Chevalier Noir utilise « Corps à corps » sur base J1 (1 dégât(s)).",
+          "monsterId": "m13",
+          "monsterTypeId": "black-knight",
+          "monsterName": "Chevalier Noir",
+          "attackName": "Corps à corps",
+          "target": "base J1",
+          "cost": 1,
+          "damage": 1,
+          "targetsHit": 0,
+          "damageToMonsters": 0,
+          "damageToEnemies": 0,
+          "damageToAllies": 0,
+          "damageToBase": 1,
+          "overkillDamage": 0,
+          "criticalDamageBonus": 0,
+          "healingDone": 0,
+          "healingWaste": 0,
+          "effectsCleared": 0,
+          "buffsApplied": 0,
+          "cooldownReductionUsed": 0,
+          "to": {
+            "x": 0,
+            "y": 7
+          }
+        },
+        {
+          "turn": 7,
+          "player": 2,
+          "type": "strategy",
+          "description": "suit le chemin vers une route d’interception : 0 case(s) plus près.",
+          "monsterId": "m5",
+          "monsterTypeId": "black-knight",
+          "monsterName": "Chevalier Noir"
+        },
+        {
+          "turn": 7,
+          "player": 2,
+          "type": "movement",
+          "description": "Chevalier Noir se déplace de 1 case(s).",
+          "monsterId": "m5",
+          "monsterTypeId": "black-knight",
+          "monsterName": "Chevalier Noir",
+          "from": {
+            "x": 13,
+            "y": 7
+          },
+          "to": {
+            "x": 12,
+            "y": 7
+          },
+          "cost": 1
+        },
+        {
+          "turn": 7,
+          "player": 2,
+          "type": "strategy",
+          "description": "suit le chemin vers une route d’interception : 1 case(s) plus près.",
+          "monsterId": "m5",
+          "monsterTypeId": "black-knight",
+          "monsterName": "Chevalier Noir"
+        },
+        {
+          "turn": 7,
+          "player": 2,
+          "type": "movement",
+          "description": "Chevalier Noir se déplace de 1 case(s).",
+          "monsterId": "m5",
+          "monsterTypeId": "black-knight",
+          "monsterName": "Chevalier Noir",
+          "from": {
+            "x": 12,
+            "y": 7
+          },
+          "to": {
+            "x": 11,
+            "y": 7
+          },
+          "cost": 1
+        },
+        {
+          "turn": 7,
+          "player": 2,
+          "type": "turnEnd",
+          "description": "Fin du tour 7."
+        },
+        {
+          "turn": 8,
+          "player": 1,
+          "type": "turn",
+          "description": "Début du tour 8."
+        },
+        {
+          "turn": 8,
+          "player": 1,
+          "type": "dice",
+          "description": "Dés : attack, attack, invocation, invocation, attack. Ressources conservées en réserve."
+        },
+        {
+          "turn": 8,
+          "player": 1,
+          "type": "strategy",
+          "description": "Profil « cheap » ; deck : spectre, archer, black-knight, ghost, thief."
+        },
+        {
+          "turn": 8,
+          "player": 1,
+          "type": "strategy",
+          "description": "Décision stratégique : s’adapte au profil « defensive » : maintient une pression égale sur la base et les monstres."
+        },
+        {
+          "turn": 8,
+          "player": 1,
+          "type": "strategy",
+          "description": "Conversion tactique : invocation + invocation vers movement."
+        },
+        {
+          "turn": 8,
+          "player": 1,
+          "type": "strategy",
+          "description": "suit le chemin vers le départ ennemi : 1 case(s) plus près.",
+          "monsterId": "m1",
+          "monsterTypeId": "ghost",
+          "monsterName": "Fantôme"
+        },
+        {
+          "turn": 8,
+          "player": 1,
+          "type": "movement",
+          "description": "Fantôme se déplace de 1 case(s).",
+          "monsterId": "m1",
+          "monsterTypeId": "ghost",
+          "monsterName": "Fantôme",
+          "from": {
+            "x": 2,
+            "y": 7
+          },
+          "to": {
+            "x": 1,
+            "y": 7
+          },
+          "cost": 1
+        },
+        {
+          "turn": 8,
+          "player": 1,
+          "type": "turnEnd",
+          "description": "Fin du tour 8."
+        },
+        {
+          "turn": 8,
+          "player": 2,
+          "type": "turn",
+          "description": "Début du tour 8."
+        },
+        {
+          "turn": 8,
+          "player": 2,
+          "type": "dice",
+          "description": "Dés : attack, invocation, invocation, movement, invocation. Ressources conservées en réserve."
+        },
+        {
+          "turn": 8,
+          "player": 2,
+          "type": "strategy",
+          "description": "Profil « defensive » ; deck : black-knight, frost-mage, pirate, swamp-thing, thief."
+        },
+        {
+          "turn": 8,
+          "player": 2,
+          "type": "strategy",
+          "description": "Décision stratégique : protège son périmètre et avance quand il est sûr."
+        },
+        {
+          "turn": 8,
+          "player": 2,
+          "type": "strategy",
+          "description": "profil défensif : privilégie les PV et les attaques, coût 3",
+          "monsterId": "m15",
+          "monsterName": "Pirate",
+          "debug": {
+            "situation": "invoquer J2, réservation=0",
+            "candidates": 2,
+            "depth": 1,
+            "positionsExplored": 15,
+            "selectedAction": "Pirate"
+          }
+        },
+        {
+          "turn": 8,
+          "player": 2,
+          "type": "invocation",
+          "description": "Pirate invoqué pour 3 symbole(s).",
+          "monsterId": "m15",
+          "monsterTypeId": "pirate",
+          "monsterName": "Pirate",
+          "cost": 3,
+          "to": {
+            "x": 11,
+            "y": 8
+          }
+        },
+        {
+          "turn": 8,
+          "player": 2,
+          "type": "strategy",
+          "description": "Priorité d'action : score tactique 5.333333333333333.",
+          "monsterId": "m13",
+          "monsterTypeId": "black-knight",
+          "monsterName": "Chevalier Noir",
+          "target": "base J1",
+          "debug": {
+            "situation": "base J2=6, base adverse=4",
+            "candidates": 1,
+            "depth": 1,
+            "positionsExplored": 15,
+            "selectedAction": "Chevalier Noir utilise « Corps à corps » sur base J1 (1 dégât(s))."
+          }
+        },
+        {
+          "turn": 8,
+          "player": 2,
+          "type": "attack",
+          "description": "Chevalier Noir utilise « Corps à corps » sur base J1 (1 dégât(s)).",
+          "monsterId": "m13",
+          "monsterTypeId": "black-knight",
+          "monsterName": "Chevalier Noir",
+          "attackName": "Corps à corps",
+          "target": "base J1",
+          "cost": 1,
+          "damage": 1,
+          "targetsHit": 0,
+          "damageToMonsters": 0,
+          "damageToEnemies": 0,
+          "damageToAllies": 0,
+          "damageToBase": 1,
+          "overkillDamage": 0,
+          "criticalDamageBonus": 0,
+          "healingDone": 0,
+          "healingWaste": 0,
+          "effectsCleared": 0,
+          "buffsApplied": 0,
+          "cooldownReductionUsed": 0,
+          "to": {
+            "x": 0,
+            "y": 7
+          }
+        },
+        {
+          "turn": 8,
+          "player": 2,
+          "type": "strategy",
+          "description": "suit le chemin vers une route d’interception : -1 case(s) plus près.",
+          "monsterId": "m5",
+          "monsterTypeId": "black-knight",
+          "monsterName": "Chevalier Noir"
+        },
+        {
+          "turn": 8,
+          "player": 2,
+          "type": "movement",
+          "description": "Chevalier Noir se déplace de 1 case(s).",
+          "monsterId": "m5",
+          "monsterTypeId": "black-knight",
+          "monsterName": "Chevalier Noir",
+          "from": {
+            "x": 11,
+            "y": 7
+          },
+          "to": {
+            "x": 10,
+            "y": 7
+          },
+          "cost": 1
+        },
+        {
+          "turn": 8,
+          "player": 2,
+          "type": "turnEnd",
+          "description": "Fin du tour 8."
+        },
+        {
+          "turn": 9,
+          "player": 1,
+          "type": "turn",
+          "description": "Début du tour 9."
+        },
+        {
+          "turn": 9,
+          "player": 1,
+          "type": "dice",
+          "description": "Dés : invocation, invocation, attack, attack, invocation. Ressources conservées en réserve."
+        },
+        {
+          "turn": 9,
+          "player": 1,
+          "type": "strategy",
+          "description": "Profil « cheap » ; deck : spectre, archer, black-knight, ghost, thief."
+        },
+        {
+          "turn": 9,
+          "player": 1,
+          "type": "strategy",
+          "description": "Décision stratégique : s’adapte au profil « defensive » : maintient une pression égale sur la base et les monstres."
+        },
+        {
+          "turn": 9,
+          "player": 1,
+          "type": "strategy",
+          "description": "Conversion tactique : invocation + attack vers movement."
+        },
+        {
+          "turn": 9,
+          "player": 1,
+          "type": "strategy",
+          "description": "suit le chemin vers le départ ennemi : 1 case(s) plus près.",
+          "monsterId": "m1",
+          "monsterTypeId": "ghost",
+          "monsterName": "Fantôme"
+        },
+        {
+          "turn": 9,
+          "player": 1,
+          "type": "movement",
+          "description": "Fantôme se déplace de 1 case(s).",
+          "monsterId": "m1",
+          "monsterTypeId": "ghost",
+          "monsterName": "Fantôme",
+          "from": {
+            "x": 1,
+            "y": 7
+          },
+          "to": {
+            "x": 2,
+            "y": 7
+          },
+          "cost": 1
+        },
+        {
+          "turn": 9,
+          "player": 1,
+          "type": "turnEnd",
+          "description": "Fin du tour 9."
+        },
+        {
+          "turn": 9,
+          "player": 2,
+          "type": "turn",
+          "description": "Début du tour 9."
+        },
+        {
+          "turn": 9,
+          "player": 2,
+          "type": "dice",
+          "description": "Dés : invocation, attack, invocation, invocation, attack. Ressources conservées en réserve."
+        },
+        {
+          "turn": 9,
+          "player": 2,
+          "type": "strategy",
+          "description": "Profil « defensive » ; deck : black-knight, frost-mage, pirate, swamp-thing, thief."
+        },
+        {
+          "turn": 9,
+          "player": 2,
+          "type": "strategy",
+          "description": "Décision stratégique : protège son périmètre et avance quand il est sûr."
+        },
+        {
+          "turn": 9,
+          "player": 2,
+          "type": "strategy",
+          "description": "profil défensif : privilégie les PV et les attaques, coût 3",
+          "monsterId": "m16",
+          "monsterName": "Pirate",
+          "debug": {
+            "situation": "invoquer J2, réservation=0",
+            "candidates": 2,
+            "depth": 1,
+            "positionsExplored": 16,
+            "selectedAction": "Pirate"
+          }
+        },
+        {
+          "turn": 9,
+          "player": 2,
+          "type": "invocation",
+          "description": "Pirate invoqué pour 3 symbole(s).",
+          "monsterId": "m16",
+          "monsterTypeId": "pirate",
+          "monsterName": "Pirate",
+          "cost": 3,
+          "to": {
+            "x": 14,
+            "y": 9
+          }
+        },
+        {
+          "turn": 9,
+          "player": 2,
+          "type": "strategy",
+          "description": "Priorité d'action : score tactique 4.8.",
+          "monsterId": "m13",
+          "monsterTypeId": "black-knight",
+          "monsterName": "Chevalier Noir",
+          "target": "Fantôme (J1) éliminé",
+          "debug": {
+            "situation": "base J2=6, base adverse=4",
+            "candidates": 1,
+            "depth": 1,
+            "positionsExplored": 16,
+            "selectedAction": "Chevalier Noir utilise « Attaque tranchante » sur Fantôme (J1) éliminé (7 dégât(s))."
+          }
+        },
+        {
+          "turn": 9,
+          "player": 2,
+          "type": "attack",
+          "description": "Chevalier Noir utilise « Attaque tranchante » sur Fantôme (J1) éliminé (7 dégât(s)).",
+          "monsterId": "m13",
+          "monsterTypeId": "black-knight",
+          "monsterName": "Chevalier Noir",
+          "attackName": "Attaque tranchante",
+          "target": "Fantôme (J1) éliminé",
+          "cost": 2,
+          "damage": 7,
+          "targetsHit": 1,
+          "damageToMonsters": 2,
+          "damageToEnemies": 2,
+          "damageToAllies": 0,
+          "damageToBase": 0,
+          "overkillDamage": 5,
+          "criticalDamageBonus": 0,
+          "healingDone": 0,
+          "healingWaste": 0,
+          "effectsCleared": 0,
+          "buffsApplied": 0,
+          "cooldownReductionUsed": 0,
+          "to": {
+            "x": 2,
+            "y": 8
+          }
+        },
+        {
+          "turn": 9,
+          "player": 2,
+          "type": "turnEnd",
+          "description": "Fin du tour 9."
+        },
+        {
+          "turn": 10,
+          "player": 1,
+          "type": "turn",
+          "description": "Début du tour 10."
+        },
+        {
+          "turn": 10,
+          "player": 1,
+          "type": "dice",
+          "description": "Dés : invocation, invocation, attack, movement, invocation. Ressources conservées en réserve."
+        },
+        {
+          "turn": 10,
+          "player": 1,
+          "type": "strategy",
+          "description": "Profil « cheap » ; deck : spectre, archer, black-knight, ghost, thief."
+        },
+        {
+          "turn": 10,
+          "player": 1,
+          "type": "strategy",
+          "description": "Décision stratégique : s’adapte au profil « defensive » : maintient une pression égale sur la base et les monstres."
+        },
+        {
+          "turn": 10,
+          "player": 1,
+          "type": "strategy",
+          "description": "suit le chemin vers le départ ennemi : 1 case(s) plus près.",
+          "monsterId": "m1",
+          "monsterTypeId": "ghost",
+          "monsterName": "Fantôme"
+        },
+        {
+          "turn": 10,
+          "player": 1,
+          "type": "movement",
+          "description": "Fantôme se déplace de 1 case(s).",
+          "monsterId": "m1",
+          "monsterTypeId": "ghost",
+          "monsterName": "Fantôme",
+          "from": {
+            "x": 2,
+            "y": 7
+          },
+          "to": {
+            "x": 1,
+            "y": 7
+          },
+          "cost": 1
+        },
+        {
+          "turn": 10,
+          "player": 1,
+          "type": "turnEnd",
+          "description": "Fin du tour 10."
+        },
+        {
+          "turn": 10,
+          "player": 2,
+          "type": "turn",
+          "description": "Début du tour 10."
+        },
+        {
+          "turn": 10,
+          "player": 2,
+          "type": "dice",
+          "description": "Dés : invocation, invocation, invocation, attack, invocation. Ressources conservées en réserve."
+        },
+        {
+          "turn": 10,
+          "player": 2,
+          "type": "strategy",
+          "description": "Profil « defensive » ; deck : black-knight, frost-mage, pirate, swamp-thing, thief."
+        },
+        {
+          "turn": 10,
+          "player": 2,
+          "type": "strategy",
+          "description": "Décision stratégique : protège son périmètre et avance quand il est sûr."
+        },
+        {
+          "turn": 10,
+          "player": 2,
+          "type": "strategy",
+          "description": "Conversion tactique : invocation + invocation vers attack."
+        },
+        {
+          "turn": 10,
+          "player": 2,
+          "type": "strategy",
+          "description": "Conversion tactique : invocation + attack vers movement."
+        },
+        {
+          "turn": 10,
+          "player": 2,
+          "type": "strategy",
+          "description": "Priorité d'action : score tactique 5.333333333333333.",
+          "monsterId": "m13",
+          "monsterTypeId": "black-knight",
+          "monsterName": "Chevalier Noir",
+          "target": "base J1",
+          "debug": {
+            "situation": "base J2=6, base adverse=3",
+            "candidates": 1,
+            "depth": 1,
+            "positionsExplored": 16,
+            "selectedAction": "Chevalier Noir utilise « Corps à corps » sur base J1 (1 dégât(s))."
+          }
+        },
+        {
+          "turn": 10,
+          "player": 2,
+          "type": "attack",
+          "description": "Chevalier Noir utilise « Corps à corps » sur base J1 (1 dégât(s)).",
+          "monsterId": "m13",
+          "monsterTypeId": "black-knight",
+          "monsterName": "Chevalier Noir",
+          "attackName": "Corps à corps",
+          "target": "base J1",
+          "cost": 1,
+          "damage": 1,
+          "targetsHit": 0,
+          "damageToMonsters": 0,
+          "damageToEnemies": 0,
+          "damageToAllies": 0,
+          "damageToBase": 1,
+          "overkillDamage": 0,
+          "criticalDamageBonus": 0,
+          "healingDone": 0,
+          "healingWaste": 0,
+          "effectsCleared": 0,
+          "buffsApplied": 0,
+          "cooldownReductionUsed": 0,
+          "to": {
+            "x": 0,
+            "y": 7
+          }
+        },
+        {
+          "turn": 10,
+          "player": 2,
+          "type": "strategy",
+          "description": "suit le chemin vers une route d’interception : 0 case(s) plus près.",
+          "monsterId": "m5",
+          "monsterTypeId": "black-knight",
+          "monsterName": "Chevalier Noir"
+        },
+        {
+          "turn": 10,
+          "player": 2,
+          "type": "movement",
+          "description": "Chevalier Noir se déplace de 1 case(s).",
+          "monsterId": "m5",
+          "monsterTypeId": "black-knight",
+          "monsterName": "Chevalier Noir",
+          "from": {
+            "x": 10,
+            "y": 7
+          },
+          "to": {
+            "x": 9,
+            "y": 7
+          },
+          "cost": 1
+        },
+        {
+          "turn": 10,
+          "player": 2,
+          "type": "turnEnd",
+          "description": "Fin du tour 10."
+        },
+        {
+          "turn": 11,
+          "player": 1,
+          "type": "turn",
+          "description": "Début du tour 11."
+        },
+        {
+          "turn": 11,
+          "player": 1,
+          "type": "dice",
+          "description": "Dés : invocation, attack, invocation, invocation, attack. Ressources conservées en réserve."
+        },
+        {
+          "turn": 11,
+          "player": 1,
+          "type": "strategy",
+          "description": "Profil « cheap » ; deck : spectre, archer, black-knight, ghost, thief."
+        },
+        {
+          "turn": 11,
+          "player": 1,
+          "type": "strategy",
+          "description": "Décision stratégique : s’adapte au profil « defensive » : maintient une pression égale sur la base et les monstres."
+        },
+        {
+          "turn": 11,
+          "player": 1,
+          "type": "strategy",
+          "description": "Conversion tactique : invocation + invocation vers movement."
+        },
+        {
+          "turn": 11,
+          "player": 1,
+          "type": "strategy",
+          "description": "suit le chemin vers le départ ennemi : 1 case(s) plus près.",
+          "monsterId": "m1",
+          "monsterTypeId": "ghost",
+          "monsterName": "Fantôme"
+        },
+        {
+          "turn": 11,
+          "player": 1,
+          "type": "movement",
+          "description": "Fantôme se déplace de 1 case(s).",
+          "monsterId": "m1",
+          "monsterTypeId": "ghost",
+          "monsterName": "Fantôme",
+          "from": {
+            "x": 1,
+            "y": 7
+          },
+          "to": {
+            "x": 2,
+            "y": 7
+          },
+          "cost": 1
+        },
+        {
+          "turn": 11,
+          "player": 1,
+          "type": "turnEnd",
+          "description": "Fin du tour 11."
+        },
+        {
+          "turn": 11,
+          "player": 2,
+          "type": "turn",
+          "description": "Début du tour 11."
+        },
+        {
+          "turn": 11,
+          "player": 2,
+          "type": "dice",
+          "description": "Dés : attack, attack, invocation, invocation, invocation. Ressources conservées en réserve."
+        },
+        {
+          "turn": 11,
+          "player": 2,
+          "type": "strategy",
+          "description": "Profil « defensive » ; deck : black-knight, frost-mage, pirate, swamp-thing, thief."
+        },
+        {
+          "turn": 11,
+          "player": 2,
+          "type": "strategy",
+          "description": "Décision stratégique : protège son périmètre et avance quand il est sûr."
+        },
+        {
+          "turn": 11,
+          "player": 2,
+          "type": "strategy",
+          "description": "Conversion tactique : invocation + invocation vers movement."
+        },
+        {
+          "turn": 11,
+          "player": 2,
+          "type": "strategy",
+          "description": "Priorité d'action : score tactique 5.333333333333333.",
+          "monsterId": "m13",
+          "monsterTypeId": "black-knight",
+          "monsterName": "Chevalier Noir",
+          "target": "base J1",
+          "debug": {
+            "situation": "base J2=6, base adverse=2",
+            "candidates": 1,
+            "depth": 1,
+            "positionsExplored": 16,
+            "selectedAction": "Chevalier Noir utilise « Corps à corps » sur base J1 (1 dégât(s))."
+          }
+        },
+        {
+          "turn": 11,
+          "player": 2,
+          "type": "attack",
+          "description": "Chevalier Noir utilise « Corps à corps » sur base J1 (1 dégât(s)).",
+          "monsterId": "m13",
+          "monsterTypeId": "black-knight",
+          "monsterName": "Chevalier Noir",
+          "attackName": "Corps à corps",
+          "target": "base J1",
+          "cost": 1,
+          "damage": 1,
+          "targetsHit": 0,
+          "damageToMonsters": 0,
+          "damageToEnemies": 0,
+          "damageToAllies": 0,
+          "damageToBase": 1,
+          "overkillDamage": 0,
+          "criticalDamageBonus": 0,
+          "healingDone": 0,
+          "healingWaste": 0,
+          "effectsCleared": 0,
+          "buffsApplied": 0,
+          "cooldownReductionUsed": 0,
+          "to": {
+            "x": 0,
+            "y": 7
+          }
+        },
+        {
+          "turn": 11,
+          "player": 2,
+          "type": "strategy",
+          "description": "Priorité d'action : score tactique 6.666666666666667.",
+          "monsterId": "m13",
+          "monsterTypeId": "black-knight",
+          "monsterName": "Chevalier Noir",
+          "target": "base J1",
+          "debug": {
+            "situation": "base J2=6, base adverse=1",
+            "candidates": 1,
+            "depth": 1,
+            "positionsExplored": 16,
+            "selectedAction": "Chevalier Noir utilise « Corps à corps » sur base J1 (1 dégât(s))."
+          }
+        },
+        {
+          "turn": 11,
+          "player": 2,
+          "type": "attack",
+          "description": "Chevalier Noir utilise « Corps à corps » sur base J1 (1 dégât(s)).",
+          "monsterId": "m13",
+          "monsterTypeId": "black-knight",
+          "monsterName": "Chevalier Noir",
+          "attackName": "Corps à corps",
+          "target": "base J1",
+          "cost": 1,
+          "damage": 1,
+          "targetsHit": 0,
+          "damageToMonsters": 0,
+          "damageToEnemies": 0,
+          "damageToAllies": 0,
+          "damageToBase": 1,
+          "overkillDamage": 0,
+          "criticalDamageBonus": 0,
+          "healingDone": 0,
+          "healingWaste": 0,
+          "effectsCleared": 0,
+          "buffsApplied": 0,
+          "cooldownReductionUsed": 0,
+          "to": {
+            "x": 0,
+            "y": 7
+          }
+        },
+        {
+          "turn": 11,
+          "player": 2,
+          "type": "strategy",
+          "description": "suit le chemin vers une route d’interception : 1 case(s) plus près.",
+          "monsterId": "m5",
+          "monsterTypeId": "black-knight",
+          "monsterName": "Chevalier Noir"
+        },
+        {
+          "turn": 11,
+          "player": 2,
+          "type": "movement",
+          "description": "Chevalier Noir se déplace de 1 case(s).",
+          "monsterId": "m5",
+          "monsterTypeId": "black-knight",
+          "monsterName": "Chevalier Noir",
+          "from": {
+            "x": 9,
+            "y": 7
+          },
+          "to": {
+            "x": 8,
+            "y": 7
+          },
+          "cost": 1
+        },
+        {
+          "turn": 11,
+          "player": 2,
+          "type": "turnEnd",
+          "description": "Fin du tour 11."
+        },
+        {
+          "turn": 12,
+          "player": 1,
+          "type": "turn",
+          "description": "Début du tour 12."
+        },
+        {
+          "turn": 12,
+          "player": 1,
+          "type": "dice",
+          "description": "Dés : invocation, invocation, invocation, invocation, invocation. Ressources conservées en réserve."
+        },
+        {
+          "turn": 12,
+          "player": 1,
+          "type": "strategy",
+          "description": "Profil « cheap » ; deck : spectre, archer, black-knight, ghost, thief."
+        },
+        {
+          "turn": 12,
+          "player": 1,
+          "type": "strategy",
+          "description": "Décision stratégique : s’adapte au profil « defensive » : maintient une pression égale sur la base et les monstres."
+        },
+        {
+          "turn": 12,
+          "player": 1,
+          "type": "strategy",
+          "description": "Conversion tactique : invocation + invocation vers movement."
+        },
+        {
+          "turn": 12,
+          "player": 1,
+          "type": "strategy",
+          "description": "suit le chemin vers le départ ennemi : 1 case(s) plus près.",
+          "monsterId": "m1",
+          "monsterTypeId": "ghost",
+          "monsterName": "Fantôme"
+        },
+        {
+          "turn": 12,
+          "player": 1,
+          "type": "movement",
+          "description": "Fantôme se déplace de 1 case(s).",
+          "monsterId": "m1",
+          "monsterTypeId": "ghost",
+          "monsterName": "Fantôme",
+          "from": {
+            "x": 2,
+            "y": 7
+          },
+          "to": {
+            "x": 1,
+            "y": 7
+          },
+          "cost": 1
+        },
+        {
+          "turn": 12,
+          "player": 1,
+          "type": "turnEnd",
+          "description": "Fin du tour 12."
+        },
+        {
+          "turn": 12,
+          "player": 2,
+          "type": "turn",
+          "description": "Début du tour 12."
+        },
+        {
+          "turn": 12,
+          "player": 2,
+          "type": "dice",
+          "description": "Dés : invocation, movement, attack, invocation, movement. Ressources conservées en réserve."
+        },
+        {
+          "turn": 12,
+          "player": 2,
+          "type": "strategy",
+          "description": "Profil « defensive » ; deck : black-knight, frost-mage, pirate, swamp-thing, thief."
+        },
+        {
+          "turn": 12,
+          "player": 2,
+          "type": "strategy",
+          "description": "Décision stratégique : protège son périmètre et avance quand il est sûr."
+        },
+        {
+          "turn": 12,
+          "player": 2,
+          "type": "strategy",
+          "description": "Conversion tactique : invocation + invocation vers attack."
+        },
+        {
+          "turn": 12,
+          "player": 2,
+          "type": "strategy",
+          "description": "Priorité d'action : score tactique 9007199254740991.",
+          "monsterId": "m13",
+          "monsterTypeId": "black-knight",
+          "monsterName": "Chevalier Noir",
+          "target": "base J1",
+          "debug": {
+            "situation": "base J2=6, base adverse=0",
+            "candidates": 1,
+            "depth": 1,
+            "positionsExplored": 16,
+            "selectedAction": "Chevalier Noir utilise « Corps à corps » sur base J1 (1 dégât(s))."
+          }
+        },
+        {
+          "turn": 12,
+          "player": 2,
+          "type": "attack",
+          "description": "Chevalier Noir utilise « Corps à corps » sur base J1 (1 dégât(s)).",
+          "monsterId": "m13",
+          "monsterTypeId": "black-knight",
+          "monsterName": "Chevalier Noir",
+          "attackName": "Corps à corps",
+          "target": "base J1",
+          "cost": 1,
+          "damage": 1,
+          "targetsHit": 0,
+          "damageToMonsters": 0,
+          "damageToEnemies": 0,
+          "damageToAllies": 0,
+          "damageToBase": 1,
+          "overkillDamage": 0,
+          "criticalDamageBonus": 0,
+          "healingDone": 0,
+          "healingWaste": 0,
+          "effectsCleared": 0,
+          "buffsApplied": 0,
+          "cooldownReductionUsed": 0,
+          "to": {
+            "x": 0,
+            "y": 7
+          }
+        },
+        {
+          "turn": 12,
+          "player": 2,
+          "type": "turnEnd",
+          "description": "Fin du tour 12."
+        }
+      ],
+      "decisionTraces": [
+        {
+          "turn": 2,
+          "player": 2,
+          "action": "attack",
+          "candidates": [
+            {
+              "attackerMonsterId": "black-knight",
+              "attackIndex": 0,
+              "target": {
+                "x": 13,
+                "y": 8
+              },
+              "features": {
+                "damage": 2,
+                "kills": 1,
+                "statusDamage": 0,
+                "baseDamage": 0,
+                "healing": 0,
+                "clearedEffects": 0,
+                "buffs": 0,
+                "cooldownsReduced": 0,
+                "friendlyDamage": 0
+              },
+              "score": 8
+            }
+          ],
+          "selectedIndex": 0
+        },
+        {
+          "turn": 4,
+          "player": 2,
+          "action": "attack",
+          "candidates": [
+            {
+              "attackerMonsterId": "black-knight",
+              "attackIndex": 0,
+              "target": {
+                "x": 5,
+                "y": 8
+              },
+              "features": {
+                "damage": 2,
+                "kills": 1,
+                "statusDamage": 0,
+                "baseDamage": 0,
+                "healing": 0,
+                "clearedEffects": 0,
+                "buffs": 0,
+                "cooldownsReduced": 0,
+                "friendlyDamage": 0
+              },
+              "score": 8
+            }
+          ],
+          "selectedIndex": 0
+        },
+        {
+          "turn": 5,
+          "player": 2,
+          "action": "attack",
+          "candidates": [
+            {
+              "attackerMonsterId": "black-knight",
+              "attackIndex": 1,
+              "target": {
+                "x": 12,
+                "y": 7
+              },
+              "features": {
+                "damage": 2,
+                "kills": 1,
+                "statusDamage": 0,
+                "baseDamage": 0,
+                "healing": 0,
+                "clearedEffects": 0,
+                "buffs": 0,
+                "cooldownsReduced": 0,
+                "friendlyDamage": 0
+              },
+              "score": 4.8
+            },
+            {
+              "attackerMonsterId": "black-knight",
+              "attackIndex": 1,
+              "target": {
+                "x": 4,
+                "y": 8
+              },
+              "features": {
+                "damage": 2,
+                "kills": 1,
+                "statusDamage": 0,
+                "baseDamage": 0,
+                "healing": 0,
+                "clearedEffects": 0,
+                "buffs": 0,
+                "cooldownsReduced": 0,
+                "friendlyDamage": 0
+              },
+              "score": 4.8
+            }
+          ],
+          "selectedIndex": 0
+        },
+        {
+          "turn": 7,
+          "player": 2,
+          "action": "attack",
+          "candidates": [
+            {
+              "attackerMonsterId": "black-knight",
+              "attackIndex": 0,
+              "target": {
+                "x": 0,
+                "y": 7
+              },
+              "features": {
+                "damage": 0,
+                "kills": 0,
+                "statusDamage": 0,
+                "baseDamage": 1,
+                "healing": 0,
+                "clearedEffects": 0,
+                "buffs": 0,
+                "cooldownsReduced": 0,
+                "friendlyDamage": 0
+              },
+              "score": 5.333333333333333
+            }
+          ],
+          "selectedIndex": 0
+        },
+        {
+          "turn": 8,
+          "player": 2,
+          "action": "attack",
+          "candidates": [
+            {
+              "attackerMonsterId": "black-knight",
+              "attackIndex": 0,
+              "target": {
+                "x": 0,
+                "y": 7
+              },
+              "features": {
+                "damage": 0,
+                "kills": 0,
+                "statusDamage": 0,
+                "baseDamage": 1,
+                "healing": 0,
+                "clearedEffects": 0,
+                "buffs": 0,
+                "cooldownsReduced": 0,
+                "friendlyDamage": 0
+              },
+              "score": 5.333333333333333
+            }
+          ],
+          "selectedIndex": 0
+        },
+        {
+          "turn": 9,
+          "player": 2,
+          "action": "attack",
+          "candidates": [
+            {
+              "attackerMonsterId": "black-knight",
+              "attackIndex": 0,
+              "target": {
+                "x": 0,
+                "y": 7
+              },
+              "features": {
+                "damage": 0,
+                "kills": 0,
+                "statusDamage": 0,
+                "baseDamage": 1,
+                "healing": 0,
+                "clearedEffects": 0,
+                "buffs": 0,
+                "cooldownsReduced": 0,
+                "friendlyDamage": 0
+              },
+              "score": 5.333333333333333
+            },
+            {
+              "attackerMonsterId": "black-knight",
+              "attackIndex": 1,
+              "target": {
+                "x": 4,
+                "y": 8
+              },
+              "features": {
+                "damage": 2,
+                "kills": 1,
+                "statusDamage": 0,
+                "baseDamage": 0,
+                "healing": 0,
+                "clearedEffects": 0,
+                "buffs": 0,
+                "cooldownsReduced": 0,
+                "friendlyDamage": 0
+              },
+              "score": 4.8
+            },
+            {
+              "attackerMonsterId": "black-knight",
+              "attackIndex": 1,
+              "target": {
+                "x": 2,
+                "y": 8
+              },
+              "features": {
+                "damage": 2,
+                "kills": 1,
+                "statusDamage": 0,
+                "baseDamage": 0,
+                "healing": 0,
+                "clearedEffects": 0,
+                "buffs": 0,
+                "cooldownsReduced": 0,
+                "friendlyDamage": 0
+              },
+              "score": 4.8
+            },
+            {
+              "attackerMonsterId": "black-knight",
+              "attackIndex": 1,
+              "target": {
+                "x": 0,
+                "y": 7
+              },
+              "features": {
+                "damage": 0,
+                "kills": 0,
+                "statusDamage": 0,
+                "baseDamage": 1,
+                "healing": 0,
+                "clearedEffects": 0,
+                "buffs": 0,
+                "cooldownsReduced": 0,
+                "friendlyDamage": 0
+              },
+              "score": 3.2
+            }
+          ],
+          "selectedIndex": 2
+        },
+        {
+          "turn": 10,
+          "player": 2,
+          "action": "attack",
+          "candidates": [
+            {
+              "attackerMonsterId": "black-knight",
+              "attackIndex": 0,
+              "target": {
+                "x": 0,
+                "y": 7
+              },
+              "features": {
+                "damage": 0,
+                "kills": 0,
+                "statusDamage": 0,
+                "baseDamage": 1,
+                "healing": 0,
+                "clearedEffects": 0,
+                "buffs": 0,
+                "cooldownsReduced": 0,
+                "friendlyDamage": 0
+              },
+              "score": 5.333333333333333
+            }
+          ],
+          "selectedIndex": 0
+        },
+        {
+          "turn": 11,
+          "player": 2,
+          "action": "attack",
+          "candidates": [
+            {
+              "attackerMonsterId": "black-knight",
+              "attackIndex": 0,
+              "target": {
+                "x": 0,
+                "y": 7
+              },
+              "features": {
+                "damage": 0,
+                "kills": 0,
+                "statusDamage": 0,
+                "baseDamage": 1,
+                "healing": 0,
+                "clearedEffects": 0,
+                "buffs": 0,
+                "cooldownsReduced": 0,
+                "friendlyDamage": 0
+              },
+              "score": 5.333333333333333
+            },
+            {
+              "attackerMonsterId": "black-knight",
+              "attackIndex": 1,
+              "target": {
+                "x": 4,
+                "y": 8
+              },
+              "features": {
+                "damage": 2,
+                "kills": 1,
+                "statusDamage": 0,
+                "baseDamage": 0,
+                "healing": 0,
+                "clearedEffects": 0,
+                "buffs": 0,
+                "cooldownsReduced": 0,
+                "friendlyDamage": 0
+              },
+              "score": 4.8
+            },
+            {
+              "attackerMonsterId": "black-knight",
+              "attackIndex": 1,
+              "target": {
+                "x": 0,
+                "y": 7
+              },
+              "features": {
+                "damage": 0,
+                "kills": 0,
+                "statusDamage": 0,
+                "baseDamage": 1,
+                "healing": 0,
+                "clearedEffects": 0,
+                "buffs": 0,
+                "cooldownsReduced": 0,
+                "friendlyDamage": 0
+              },
+              "score": 3.2
+            }
+          ],
+          "selectedIndex": 0
+        },
+        {
+          "turn": 11,
+          "player": 2,
+          "action": "attack",
+          "candidates": [
+            {
+              "attackerMonsterId": "black-knight",
+              "attackIndex": 0,
+              "target": {
+                "x": 0,
+                "y": 7
+              },
+              "features": {
+                "damage": 0,
+                "kills": 0,
+                "statusDamage": 0,
+                "baseDamage": 1,
+                "healing": 0,
+                "clearedEffects": 0,
+                "buffs": 0,
+                "cooldownsReduced": 0,
+                "friendlyDamage": 0
+              },
+              "score": 6.666666666666667
+            }
+          ],
+          "selectedIndex": 0
+        },
+        {
+          "turn": 12,
+          "player": 2,
+          "action": "attack",
+          "candidates": [
+            {
+              "attackerMonsterId": "black-knight",
+              "attackIndex": 0,
+              "target": {
+                "x": 0,
+                "y": 7
+              },
+              "features": {
+                "damage": 0,
+                "kills": 0,
+                "statusDamage": 0,
+                "baseDamage": 1,
+                "healing": 0,
+                "clearedEffects": 0,
+                "buffs": 0,
+                "cooldownsReduced": 0,
+                "friendlyDamage": 0
+              },
+              "score": 9007199254740991
+            },
+            {
+              "attackerMonsterId": "black-knight",
+              "attackIndex": 1,
+              "target": {
+                "x": 0,
+                "y": 7
+              },
+              "features": {
+                "damage": 0,
+                "kills": 0,
+                "statusDamage": 0,
+                "baseDamage": 1,
+                "healing": 0,
+                "clearedEffects": 0,
+                "buffs": 0,
+                "cooldownsReduced": 0,
+                "friendlyDamage": 0
+              },
+              "score": 9007199254740991
+            },
+            {
+              "attackerMonsterId": "black-knight",
+              "attackIndex": 1,
+              "target": {
+                "x": 4,
+                "y": 8
+              },
+              "features": {
+                "damage": 2,
+                "kills": 1,
+                "statusDamage": 0,
+                "baseDamage": 0,
+                "healing": 0,
+                "clearedEffects": 0,
+                "buffs": 0,
+                "cooldownsReduced": 0,
+                "friendlyDamage": 0
+              },
+              "score": 4.8
+            },
+            {
+              "attackerMonsterId": "black-knight",
+              "attackIndex": 1,
+              "target": {
+                "x": 1,
+                "y": 7
+              },
+              "features": {
+                "damage": 2,
+                "kills": 1,
+                "statusDamage": 0,
+                "baseDamage": 0,
+                "healing": 0,
+                "clearedEffects": 0,
+                "buffs": 0,
+                "cooldownsReduced": 0,
+                "friendlyDamage": 0
+              },
+              "score": 4.8
+            }
+          ],
+          "selectedIndex": 0
+        }
+      ]
+    }
+  ]
+}

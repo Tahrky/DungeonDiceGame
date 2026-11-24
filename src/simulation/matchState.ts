@@ -57,6 +57,7 @@ export interface MatchState {
     statistics: Record<PlayerId, PlayerSimulationStats>;
     nextMonsterId: number;
     monstersKilledForVictory: number;
+    actionRandom?: Record<PlayerId, () => number>;
 }
 
 export function createStats(): PlayerSimulationStats {
@@ -399,7 +400,7 @@ export function deployMonsters(
         const preferredMonsters = affordableMonsters.filter((monster) =>
             canDeployMonsterForProfile(monster, profile, deployedCosts),
         );
-        const choices = (
+        const strategicChoices = (
             preferredMonsters.length > 0 ? preferredMonsters : affordableMonsters
         ).sort((first, second) => {
             const firstCount = summonedByMonster[first.id] ?? 0;
@@ -418,6 +419,24 @@ export function deployMonsters(
                 first.cost - second.cost
             );
         });
+        const choices =
+            profile === "random" || profile === "random-strategy"
+                ? (() => {
+                      const shuffled = [...strategicChoices];
+                      const random = state.actionRandom?.[state.currentPlayer];
+                      for (let index = shuffled.length - 1; index > 0; index--) {
+                          const swapIndex = Math.floor(
+                              Math.max(0, Math.min(1 - Number.EPSILON, random?.() ?? 0.5)) *
+                                  (index + 1),
+                          );
+                          [shuffled[index], shuffled[swapIndex]] = [
+                              shuffled[swapIndex]!,
+                              shuffled[index]!,
+                          ];
+                      }
+                      return shuffled;
+                  })()
+                : strategicChoices;
         const monster = choices[0];
         if (!monster || !spend(state, state.currentPlayer, "invocation", monster.cost)) return;
 

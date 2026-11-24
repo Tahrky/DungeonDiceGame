@@ -66,6 +66,10 @@ function createMatch(
         1: createRandom((seed ^ 0x9e3779b9) >>> 0),
         2: createRandom((seed ^ 0x85ebca6b) >>> 0),
     };
+    const actionRandom: Record<PlayerId, () => number> = {
+        1: createRandom((seed ^ 0xa5a5a5a5) >>> 0),
+        2: createRandom((seed ^ 0x5a5a5a5a) >>> 0),
+    };
     const decks: Record<PlayerId, string[]> = {
         1:
             options.deck1 ??
@@ -120,6 +124,7 @@ function createMatch(
         statistics: { 1: createStats(), 2: createStats() },
         nextMonsterId: 1,
         monstersKilledForVictory: configuration.monstersKilledForVictory,
+        actionRandom,
     };
     for (let turn = 1; turn <= options.maxTurns && state.winner === null; turn++) {
         state.turn = turn;

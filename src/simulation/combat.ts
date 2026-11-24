@@ -573,6 +573,20 @@ function chooseAttack(state: MatchState, board: BoardDefinition): AttackChoice |
     if (choices.length === 1) return recordAttackDecision(state, choices, bestChoice);
 
     const player = state.currentPlayer;
+    if (
+        state.profiles[player] === "random" ||
+        state.profiles[player] === "random-strategy"
+    ) {
+        const random = state.actionRandom?.[player]?.() ?? 0;
+        const index = Math.min(
+            choices.length - 1,
+            Math.floor(Math.max(0, Math.min(1 - Number.EPSILON, random)) * choices.length),
+        );
+        return recordAttackDecision(state, choices, choices[index]!);
+    }
+    if (state.profiles[player] === "greedy") {
+        return recordAttackDecision(state, choices, bestChoice);
+    }
     const opponent: PlayerId = player === 1 ? 2 : 1;
     const { depth: searchDepth, branchWidth, nodeBudget } = TACTICAL_SEARCH_CONFIGURATION;
     const searchState = { nodes: 0, maxDepth: 1, cache: new Map<string, number>() };

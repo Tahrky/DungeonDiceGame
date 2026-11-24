@@ -19,12 +19,12 @@ export const GAME_OPTIONS = {
     },
     randomBoard: { default: false },
     testBoard: { default: false },
-    initialPlayerHealth: { default: 6, min: 1, max: 20 },
+    initialPlayerHealth: { default: 4, min: 1, max: 20 },
     allowBaseAttackOnSummonTurn: { default: false },
     removeInvocationDiceWhenNoMonsters: { default: false },
     protectFirstDeployment: { default: true },
     maxMonstersPerPlayer: { default: 8, min: 1, max: 20 },
-    monstersKilledForVictory: { default: 6, min: 1, max: 20 },
+    monstersKilledForVictory: { default: 7, min: 1, max: 20 },
 } as const;
 
 export const GAME_CONFIGURATION_STORAGE_KEY = "dungeon-dice.configuration";
