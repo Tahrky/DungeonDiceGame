@@ -464,19 +464,25 @@ export function createTerritoryExpansionScorer(
         let nextDistance = Number.POSITIVE_INFINITY;
         let nextFrontier = player === 1 ? Number.NEGATIVE_INFINITY : Number.POSITIVE_INFINITY;
         let newCells = 0;
+        let reusedCells = 0;
         for (const cell of candidateCells) {
-            if (ownedKeys.has(`${cell.x},${cell.y}`)) continue;
-            newCells++;
-            nextDistance = Math.min(nextDistance, getGridDistance(cell, enemyStartingPosition));
-            nextFrontier =
-                player === 1 ? Math.max(nextFrontier, cell.x) : Math.min(nextFrontier, cell.x);
+            if (ownedKeys.has(`${cell.x},${cell.y}`)) {
+                reusedCells++;
+            } else {
+                newCells++;
+                nextDistance = Math.min(nextDistance, getGridDistance(cell, enemyStartingPosition));
+                nextFrontier =
+                    player === 1 ? Math.max(nextFrontier, cell.x) : Math.min(nextFrontier, cell.x);
+            }
         }
-        if (newCells === 0) return Number.NEGATIVE_INFINITY;
+        if (newCells === 0) {
+            return reusedCells * 25;
+        }
 
         const objectiveProgress = currentDistance - nextDistance;
         const forwardProgress =
             player === 1 ? nextFrontier - currentFrontier : currentFrontier - nextFrontier;
-        return objectiveProgress * 100 + forwardProgress * 5 + newCells;
+        return objectiveProgress * 100 + forwardProgress * 5 + newCells + reusedCells * 10;
     };
 }
 

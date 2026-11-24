@@ -449,11 +449,9 @@ export function assignMonsterRoles(
                     occupiedTargets,
                 );
                 if (target) occupiedTargets.add(`${target.x},${target.y}`);
-                const isHoldingPosition =
-                    target.x === monster.position.x && target.y === monster.position.y;
                 return {
                     monsterId: monster.id,
-                    role: isHoldingPosition ? "hold" : "defend",
+                    role: "defend",
                     target,
                 };
             }

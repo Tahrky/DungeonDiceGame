@@ -169,9 +169,6 @@ export abstract class GameSceneComputer extends GameSceneComputerConversion {
             .filter((placed) => placed.owner === 2)
             .flatMap((placed) => placed.cells);
         const computerTerritory = [this.startingPositions[2], ...computerPathCells];
-        const computerTerritoryKeys = new Set(
-            computerTerritory.map((cell) => `${cell.x},${cell.y}`),
-        );
         const opponentTerritoryKeys = new Set(
             [
                 this.startingPositions[1],
@@ -262,14 +259,12 @@ export abstract class GameSceneComputer extends GameSceneComputerConversion {
                 const positionKey = `${position.x},${position.y}`;
                 const isStartingCell = opponentTerritoryKeys.has(positionKey);
                 const isMonsterOccupied = livingMonsterKeys.has(positionKey);
-                const addsTerritory = !computerTerritoryKeys.has(positionKey);
                 const crossesEnemyTerritory = cells.some((cell) =>
                     opponentTerritoryKeys.has(`${cell.x},${cell.y}`),
                 );
                 return (
                     !isStartingCell &&
                     !isMonsterOccupied &&
-                    addsTerritory &&
                     !crossesEnemyTerritory &&
                     (!preservesFirstDeployment || preservesFirstDeployment(cells))
                 );

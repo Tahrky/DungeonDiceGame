@@ -181,7 +181,6 @@ function createPlacementSearchContext(
     const enemyPositions = state.monsters
         .filter((monster) => monster.owner !== player && monster.currentHp > 0)
         .map((monster) => monster.position);
-    const ownKeys = new Set([starts[player], ...ownCells].map(({ x, y }) => `${x},${y}`));
     const enemyKeys = new Set(
         [starts[opposingPlayer(player)], ...opponentCells].map(({ x, y }) => `${x},${y}`),
     );
@@ -204,7 +203,6 @@ function createPlacementSearchContext(
             return (
                 !enemyKeys.has(key) &&
                 !livingMonsterKeys.has(key) &&
-                cells.some((cell) => !ownKeys.has(`${cell.x},${cell.y}`)) &&
                 !cells.some((cell) => enemyKeys.has(`${cell.x},${cell.y}`))
             );
         },

@@ -216,7 +216,7 @@ describe("simulation de matchs", () => {
         if (!protectedMatch || !unprotectedMatch) throw new Error("Matchs de test attendus.");
 
         expect(protectedMatch.statistics[2].summoned).toBeGreaterThan(0);
-        expect(unprotectedMatch.statistics[2].summoned).toBe(0);
+        expect(unprotectedMatch.statistics[2].summoned).toBeGreaterThan(0);
         expect(protectedMatch.statistics[2].turnsWithoutUsefulAction).toBeGreaterThanOrEqual(0);
         expect(protectedMatch.statistics[2].unreachableObjectives).toBeGreaterThanOrEqual(0);
     });

@@ -449,6 +449,28 @@ describe("règles de pose", () => {
         expect(canPlaceCells(line, 10, [opponentPathCell], [owned], [ownPathCell])).toBe(false);
     });
 
+    it("autorise une superposition complète à un territoire allié sans modifier les cases", () => {
+        const ownedTerritory = line.map((cell) => ({ ...cell }));
+        const placement = findValidPlacement({
+            patterns: [line],
+            boardWidth: 10,
+            boardHeight: 10,
+            start: ownedTerritory[0],
+            occupiedCells: ownedTerritory,
+            connectedCells: ownedTerritory,
+            overlappingCells: ownedTerritory,
+            isPlacementAllowed: (_position, cells) =>
+                cells.every((cell) =>
+                    ownedTerritory.some(
+                        (owned) => owned.x === cell.x && owned.y === cell.y,
+                    ),
+                ),
+        });
+
+        expect(placement).not.toBeNull();
+        expect(placement!.cells).toEqual(line);
+    });
+
     it("refuse les placements sans contact orthogonal avec son territoire", () => {
         expect(canPlaceCells(line, 10, [], [{ x: 0, y: 0 }])).toBe(false);
         expect(canPlaceCells(line, 10, [], [])).toBe(false);

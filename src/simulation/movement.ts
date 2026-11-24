@@ -69,11 +69,6 @@ export function performMovements(state: MatchState, board: BoardDefinition): voi
             const role = assignMonsterRoles(strategicSnapshot, player).find(
                 (assignment) => assignment.monsterId === monster.id,
             );
-            if (role?.role === "hold") {
-                state.statistics[player].actionsSkippedByReason.heldForDefense =
-                    (state.statistics[player].actionsSkippedByReason.heldForDefense ?? 0) + 1;
-                break;
-            }
             const roleObjective =
                 role?.target ??
                 chooseBotObjective(
