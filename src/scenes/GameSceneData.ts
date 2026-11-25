@@ -14,7 +14,14 @@ import { createPlacedMonster, getAttackCost, getMovementCost } from "../game/mon
 import { getDefaultDeck, getPlayerDecks, parseDeck, type GameSetup } from "../game/decks";
 import { getInvokedMonsterCount } from "../game/matchRules";
 import { isSamePosition } from "../game/geometry";
-import type { BotProfile } from "../game/botStrategy";
+import { createMatchRandomStreams, type MatchRandomStreams } from "../game/random";
+import {
+    BOT_PROFILES,
+    parseBotStrategyWeightMap,
+    type BotProfile,
+    type BotStrategyWeightMap,
+} from "../game/botStrategy";
+import { parseBotDecisionOptions, type BotDecisionOptions } from "../game/botConfiguration";
 import {
     getBoardOrigin,
     getDefaultBoard,
@@ -67,6 +74,9 @@ export abstract class GameSceneData extends Phaser.Scene {
     protected playerDecks!: Record<PlayerId, string[]>;
     protected computerOpponent!: boolean;
     protected opponentProfile!: BotProfile;
+    protected playerProfile!: BotProfile;
+    protected botOptions!: BotDecisionOptions;
+    protected botStrategyWeights!: BotStrategyWeightMap;
     protected mode!: GameSetup["mode"];
     protected localPlayer!: PlayerId;
     protected isHost!: boolean;
@@ -94,6 +104,7 @@ export abstract class GameSceneData extends Phaser.Scene {
     protected hasLeftLockedPreviewBoard!: boolean;
     protected hoveredInvocationMonster!: Monster | null;
     protected nextMonsterId!: number;
+    protected randomStreams!: MatchRandomStreams;
     protected pendingResumeSnapshot!: GameSnapshot | null;
     protected board!: BoardDefinition;
     protected startingPositions!: Record<PlayerId, Position>;
@@ -125,6 +136,23 @@ export abstract class GameSceneData extends Phaser.Scene {
         this.mode = data?.mode ?? "computer";
         this.computerOpponent = data?.mode === "computer";
         this.opponentProfile = data?.opponentProfile ?? "balanced";
+        this.playerProfile = data?.playerProfile ?? "balanced";
+        if (
+            !BOT_PROFILES.includes(this.opponentProfile) ||
+            !BOT_PROFILES.includes(this.playerProfile)
+        ) {
+            throw new Error("Le profil de bot est invalide.");
+        }
+        const botOptions =
+            data?.botOptions === undefined ? {} : parseBotDecisionOptions(data.botOptions);
+        const botStrategyWeights =
+            data?.botStrategyWeights === undefined
+                ? {}
+                : parseBotStrategyWeightMap(data.botStrategyWeights);
+        if (!botOptions || !botStrategyWeights)
+            throw new Error("La configuration du bot est invalide.");
+        this.botOptions = botOptions;
+        this.botStrategyWeights = botStrategyWeights;
         this.localPlayer = data?.localPlayer ?? 1;
         this.playerDecks = getPlayerDecks(
             parseDeck(data?.playerDeck, configuration.deckSize) ??
@@ -157,6 +185,11 @@ export abstract class GameSceneData extends Phaser.Scene {
         this.hasLeftLockedPreviewBoard = false;
         this.hoveredInvocationMonster = null;
         this.nextMonsterId = 1;
+        const seed = data?.randomSeed ?? Math.floor(Math.random() * 0x1_0000_0000);
+        if (!Number.isInteger(seed) || seed < 0 || seed > 0xffffffff) {
+            throw new RangeError("La graine de partie est invalide.");
+        }
+        this.randomStreams = createMatchRandomStreams(seed);
     }
 
     protected gridToScreen(position: Position): Position {

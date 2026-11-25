@@ -7,6 +7,7 @@ import {
     createEmptyDiceReserve,
     getAvailableSymbolCount,
     getRollableDieFaces,
+    rollDieSymbol,
     spendSymbols,
     storeRemainingDice,
     storeRolledDie,
@@ -27,6 +28,11 @@ describe("dés", () => {
     it("retire les invocations des faces uniquement quand l’option le demande", () => {
         expect(getRollableDieFaces(DICE[0], false)).toEqual(DICE[0].faces);
         expect(getRollableDieFaces(DICE[0], true)).toEqual(["attack", "attack", "movement"]);
+    });
+
+    it("utilise le choix injecté sur les faces disponibles et rejette un indice invalide", () => {
+        expect(rollDieSymbol(DICE[0], true, (count) => count - 1)).toBe("movement");
+        expect(() => rollDieSymbol(DICE[0], true, (count) => count)).toThrow(RangeError);
     });
 });
 

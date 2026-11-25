@@ -5,6 +5,8 @@ import type { GameConfiguration } from "./gameConfiguration";
 import type { PlayerId } from "../types/GameTypes";
 import type { GameSnapshot } from "../types/GameTypes";
 import type { BotProfile } from "./botStrategy";
+import type { BotStrategyWeightMap } from "./botStrategy";
+import type { BotDecisionOptions } from "./botConfiguration";
 
 export const DECK_SIZE = DEFAULT_DECK_SIZE;
 export const DECK_STORAGE_KEY = "dungeon-dice.deck";
@@ -14,12 +16,16 @@ export interface GameSetup {
     playerDeck: string[];
     opponentDeck: string[];
     opponentProfile?: BotProfile;
+    playerProfile?: BotProfile;
+    botOptions?: BotDecisionOptions;
+    botStrategyWeights?: BotStrategyWeightMap;
     configuration?: GameConfiguration;
     board?: BoardDefinition;
     boardSelection?: BoardSelection;
     localPlayer?: 1 | 2;
     isHost?: boolean;
     resumeSnapshot?: GameSnapshot;
+    randomSeed?: number;
 }
 
 export function getDefaultDeck(deckSize = DEFAULT_DECK_SIZE): string[] {

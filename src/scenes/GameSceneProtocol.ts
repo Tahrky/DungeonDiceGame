@@ -1,4 +1,5 @@
 import type { DiceSymbol, GameSnapshot, RemoteGameCommand } from "../types/GameTypes";
+import { isMatchRandomState } from "../game/random";
 
 export function isRemoteGameCommand(value: unknown): value is RemoteGameCommand {
     if (typeof value !== "object" || value === null || !("type" in value)) return false;
@@ -52,6 +53,7 @@ export function isGameSnapshot(value: unknown): value is GameSnapshot {
     if (typeof value !== "object" || value === null) return false;
 
     return (
+        (!("randomState" in value) || isMatchRandomState(value.randomState)) &&
         "currentPlayer" in value &&
         (value.currentPlayer === 1 || value.currentPlayer === 2) &&
         "turnNumber" in value &&

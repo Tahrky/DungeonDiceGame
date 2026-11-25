@@ -14,6 +14,20 @@ export function getRollableDieFaces(
     return excludeInvocation ? die.faces.filter((symbol) => symbol !== "invocation") : die.faces;
 }
 
+export function rollDieSymbol(
+    die: DieDefinition,
+    excludeInvocation: boolean,
+    chooseIndex: (faceCount: number) => number,
+): DiceSymbol {
+    const faces = getRollableDieFaces(die, excludeInvocation);
+    if (faces.length === 0) throw new Error(`Le dé ${die.id} ne possède aucune face disponible.`);
+    const index = chooseIndex(faces.length);
+    if (!Number.isInteger(index) || index < 0 || index >= faces.length) {
+        throw new RangeError("L'indice de la face du dé est invalide.");
+    }
+    return faces[index]!;
+}
+
 export function createEmptyDiceReserve(): DiceReserve {
     return { invocation: 0, attack: 0, movement: 0 };
 }

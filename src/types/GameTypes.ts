@@ -1,11 +1,17 @@
 export type PlayerId = 1 | 2;
 
+export interface MatchRandomState {
+    dice: number;
+    actions: Record<PlayerId, number>;
+}
+
 export type DiceSymbol = "invocation" | "attack" | "movement";
 
 export type BoardCellHeight = -1 | 0 | 1;
 export type BoardHeightChange = 1 | -1;
 
-export type MonsterAttackAnimation = "attack" | "alternativeAttack1" | "alternativeAttack2" | "backstab";
+export type MonsterAttackAnimation =
+    "attack" | "alternativeAttack1" | "alternativeAttack2" | "backstab";
 
 export interface BoardObstacle {
     height: -1 | 1;
@@ -54,6 +60,7 @@ export interface GameSnapshot {
     actionHistory: GameActionLogEntry[];
     actionHistoryScrollOffset: number;
     nextMonsterId: number;
+    randomState?: MatchRandomState;
 }
 
 export type DiceReserve = Record<DiceSymbol, number>;

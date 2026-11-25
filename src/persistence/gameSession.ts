@@ -1,5 +1,7 @@
 import type { RoomRole } from "../app/types";
 import { parseBoardDefinition } from "../game/boards";
+import { parseBotDecisionOptions } from "../game/botConfiguration";
+import { parseBotStrategyWeightMap } from "../game/botStrategy";
 import { parseDeck, type GameSetup } from "../game/decks";
 import { parseGameConfiguration } from "../game/gameConfiguration";
 import { isGameSnapshot } from "../scenes/GameSceneProtocol";
@@ -31,7 +33,7 @@ function parseRoomRole(value: unknown): RoomRole | null | undefined {
     return value === "host" || value === "guest" ? value : undefined;
 }
 
-function parseGameSetup(value: unknown): GameSetup | null {
+export function parseGameSetup(value: unknown): GameSetup | null {
     if (
         !isRecord(value) ||
         (value.mode !== "computer" && value.mode !== "local" && value.mode !== "online")
@@ -47,11 +49,27 @@ function parseGameSetup(value: unknown): GameSetup | null {
     if (!playerDeck || !opponentDeck) return null;
 
     const opponentProfile = isProfile(value.opponentProfile) ? value.opponentProfile : undefined;
+    const playerProfile = isProfile(value.playerProfile) ? value.playerProfile : undefined;
+    const botOptions =
+        value.botOptions === undefined ? undefined : parseBotDecisionOptions(value.botOptions);
+    const botStrategyWeights =
+        value.botStrategyWeights === undefined
+            ? undefined
+            : parseBotStrategyWeightMap(value.botStrategyWeights);
+    const randomSeed = typeof value.randomSeed === "number" ? value.randomSeed : undefined;
     const localPlayer =
         value.localPlayer === 1 || value.localPlayer === 2 ? value.localPlayer : undefined;
     const isHost = typeof value.isHost === "boolean" ? value.isHost : undefined;
     if (
         (value.opponentProfile !== undefined && opponentProfile === undefined) ||
+        (value.playerProfile !== undefined && playerProfile === undefined) ||
+        botOptions === null ||
+        botStrategyWeights === null ||
+        (value.randomSeed !== undefined &&
+            (randomSeed === undefined ||
+                !Number.isInteger(randomSeed) ||
+                randomSeed < 0 ||
+                randomSeed > 0xffffffff)) ||
         (value.localPlayer !== undefined && localPlayer === undefined) ||
         (value.isHost !== undefined && isHost === undefined)
     ) {
@@ -65,6 +83,10 @@ function parseGameSetup(value: unknown): GameSetup | null {
         playerDeck,
         opponentDeck,
         ...(opponentProfile === undefined ? {} : { opponentProfile }),
+        ...(playerProfile === undefined ? {} : { playerProfile }),
+        ...(botOptions === undefined ? {} : { botOptions }),
+        ...(botStrategyWeights === undefined ? {} : { botStrategyWeights }),
+        ...(randomSeed === undefined ? {} : { randomSeed }),
         ...(localPlayer === undefined ? {} : { localPlayer }),
         ...(isHost === undefined ? {} : { isHost }),
     };

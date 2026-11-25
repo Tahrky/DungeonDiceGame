@@ -1,6 +1,7 @@
 import { GameSceneData } from "./GameSceneData";
 import { isGameSnapshot } from "./GameSceneProtocol";
 import { addSymbolsToReserve, convertReservedSymbols } from "../game/diceResources";
+import { getMatchRandomState, restoreMatchRandomStreams } from "../game/random";
 import {
     canUseActionThisTurn,
     getAttackActionsPerTurn,
@@ -199,6 +200,7 @@ export abstract class GameSceneState extends GameSceneData {
             actionHistory: this.actionHistory,
             actionHistoryScrollOffset: this.actionHistoryScrollOffset,
             nextMonsterId: this.nextMonsterId,
+            randomState: getMatchRandomState(this.randomStreams),
         };
     }
 
@@ -251,6 +253,7 @@ export abstract class GameSceneState extends GameSceneData {
         this.actionHistory = value.actionHistory;
         this.actionHistoryScrollOffset = value.actionHistoryScrollOffset;
         this.nextMonsterId = value.nextMonsterId;
+        if (value.randomState) this.randomStreams = restoreMatchRandomStreams(value.randomState);
     }
 
     protected abstract drawBoard(): void;
