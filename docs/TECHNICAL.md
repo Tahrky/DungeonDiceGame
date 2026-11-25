@@ -101,9 +101,8 @@ partagent ces modules :
 Dans `src/simulation/`, `simulator` enchaîne les tours via `playerTurn`, qui délègue l’invocation à
 `deployment` et `summonPlacement`, le déplacement à `movement` et `attackSetupMovement`, et les
 attaques à `combat/`. `matchState` porte l’état mutable d’un match et `finalBoard` produit le
-plateau final des rapports. Le tour du simulateur produit successivement les `BotAction` de
-`botAction` ; `playerTurn` les exécute avant de demander la suivante. Cette interface intermédiaire
-utilise encore l’état mutable et n’est pas encore partagée avec la scène.
+plateau final des rapports. Le décideur commun `playerTurn` produit successivement les `BotAction`
+de `botAction` ; le simulateur et la scène exécutent chaque action avant de demander la suivante.
 
 ## Cycle d’une partie
 
@@ -265,8 +264,8 @@ cosmétiques des monstres et l’identifiant du plateau sont volontairement excl
 et leurs cases critiques. Cette analyse sert au score de blocage, au placement et à l’évaluation
 stratégique; elle ne remplace pas le déplacement légal. Les déplacements continuent d’utiliser les
 helpers partagés de `src/game/monsterActions.ts` dans le jeu et dans le simulateur. En jeu, les
-obstacles actifs de la scène sont fournis à l’analyse; le simulateur utilise les cases bloquées de
-son plateau, puisqu’il ne simule pas la création d’obstacles de scène.
+obstacles actifs de la scène sont fournis à l’analyse ; l’état de simulation peut aussi recevoir
+des obstacles, mais la simulation ne crée pas elle-même d’obstacles pendant un match.
 
 La tactique défensive distribue des cibles de périmètre distinctes selon les approches ouvertes et
 réévalue les rôles après chaque déplacement simulé. Les nouveaux multiplicateurs de route et de
@@ -305,7 +304,7 @@ l’action immédiate et une attaque de réponse gloutonne; la profondeur 2 ajou
 phase future et une réponse. `--complete-attack-phases` poursuit gloutonnement les attaques restantes
 des deux côtés dans chaque phase simulée. `--broader-attack-candidates` ajoute au top glouton le
 meilleur candidat de chaque attaquant, un candidat de kill et celui dont l’état résultant est le
-meilleur. Ces options sont désactivées par défaut. `--movement-attack-combos` permet au simulateur
+meilleur. Ces options sont désactivées par défaut. `--movement-attack-combos` permet au bot
 de préférer un déplacement qui améliore le meilleur score d’attaque immédiatement disponible pour
 le monstre déplacé; l’attaque est résolue aussitôt après ce déplacement, avant les déplacements
 restants. La largeur borne les actions gloutonnes conservées à chaque niveau et le budget borne les
@@ -315,20 +314,38 @@ tient compte de la suppression des dés d’invocation lorsque l’armée est co
 coût, les phases plus éloignées conservent le modèle d’une attaque. Cette option est désactivée par
 défaut. `--summon-placement-pairs` évalue les monstres admissibles avec leurs placements possibles
 parmi les trois placements les mieux classés par l’heuristique existante, à l’aide de l’évaluation
-stratégique de l’état résultant, puis retient la paire la mieux notée. Pour chaque paire, le
-simulateur estime aussi la pire attaque de base ou attaque de dos légale et payable immédiatement
-ou après un déplacement adverse. Le bot en jeu examine de même les trois poses les mieux classées
-pour le monstre choisi. Chaque mode utilise ses propres règles de ciblage et de mouvement,
-notamment les obstacles de la scène. L’évaluation applique les effets et recharges du début du
+stratégique de l’état résultant, puis retient la paire la mieux notée. Pour chaque paire, le bot
+estime aussi la pire attaque de base ou attaque de dos légale et payable immédiatement ou après un
+déplacement adverse. L’évaluation applique les effets et recharges du début du
 tour adverse, mais ne suppose aucun nouveau lancer de dés ni aucune suite de plusieurs actions.
 La garde peut quitter la dernière entrée si son déplacement ne rend pas cette réponse plus
-dangereuse ; une victoire immédiate reste prioritaire. En simulation, cette garde est activée avec
-`--movement-attack-combos`. Sans ces options, le choix d’invocation et la garde du simulateur
-conservent leur comportement historique. La shortlist borne le coût de cette expérience.
-Le bot en jeu utilise le même classement des déplacements préparant une attaque que le simulateur,
-avec les vérifications de légalité propres à la scène.
+dangereuse ; une victoire immédiate reste prioritaire. Cette garde est activée avec
+`--movement-attack-combos`. Sans ces options, le choix d’invocation et la garde conservent leur
+comportement historique de simulation. La shortlist borne le coût de cette expérience.
 Les attaques de score égal sont départagées par identifiant de monstre, index d’attaque, puis
 coordonnées de cible (y, x), pour éviter que le résultat dépende de l’ordre des collections.
+
+### Bot en jeu et en simulation
+
+`decidePlayerTurn` produit la même séquence d’actions pour les deux modes. La scène adapte son état
+au `MatchState`, puis exécute les actions avec les règles communes et conserve les animations et
+l’historique de jeu. Le ciblage et la résolution des attaques, les effets de statut et les
+déplacements sont partagés. Le bot en jeu ne connaît pas le profil du joueur humain : il le suppose
+`balanced`, sauf si `GameSetup.playerProfile` est fourni. Les options de recherche et les poids
+utilisent les mêmes valeurs par défaut que la simulation ; `GameSetup.botOptions` et
+`GameSetup.botStrategyWeights` permettent de les fournir explicitement.
+
+`GameSetup.randomSeed` permet de reproduire les lancers. Les dés et les décisions de chaque joueur
+utilisent des flux séparés, identiques à ceux de la simulation. Leur état est enregistré dans les
+snapshots ; les anciennes sauvegardes restent acceptées, mais leur ancien hasard ne peut pas être
+reconstitué. Les profils, options et poids fournis dans le setup sont conservés à la reprise.
+Les actions sont sérialisables et identifient les monstres par leur identifiant.
+`createBotSnapshot` et `restoreBotSnapshot` permettent de rejouer un état et ses flux aléatoires.
+`createBotTurnCheckpoint` et `advanceBotTurn` fournissent une interface déterministe sans mutation
+de l’entrée, reprenable à chaque action ; elle reconstruit le générateur en rejouant les actions
+déjà validées. Le jeu et la simulation utilisent directement le générateur pour éviter ce coût de
+rejeu. La sauvegarde en jeu conserve le début du tour du bot, qui peut donc être rejoué après une
+interruption.
 
 L’API `runSimulations` accepte `playerOptions` pour activer ou désactiver les deux options par joueur,
 afin de comparer un candidat à une référence dans le même match. `measureTurnDurations` ajoute
@@ -341,6 +358,15 @@ Les tests des matchs 7 et 93 conservent les géométries des fins de tours 28 et
 à partir des positions finales, des routes et de l’historique exportés. Ils ajoutent des dés de
 déplacement et réinitialisent les recharges et orientations : ils vérifient ces positions sans
 prétendre reproduire intégralement les tours historiques.
+
+Mesure exploratoire après unification : 20 matchs par option et par lot de graines, decks
+identiques, camps inversés, contre le bot sans option. Avec `movementAttackCombos`, le candidat
+gagne 8 matchs sur 20 (seed 731), puis 16 sur 20 sur le lot inédit (seed 2731). Avec
+`summonPlacementPairs`, il gagne respectivement 11 et 10 matchs sur 20. Sur 20 matchs homogènes
+distincts pour chaque configuration, les débits observés sont 8,91 matchs/s sans option,
+9,30 avec combos et 5,32 avec paires ; les p95 de tour sont respectivement 16,19, 17,28 et
+22,46 ms. Ces petits échantillons et leur variabilité ne démontrent ni un gain de force ni un gain
+de vitesse ; ils ne justifient pas d’activer ces options par défaut.
 
 Sur 420 matchs reproductibles (seed `731`, profils `balanced` et `defensive`, plateau et
 configuration par défaut), le réglage 5/2/250 a pris 236,8 s contre 283,0 s pour 8/2/600 et
