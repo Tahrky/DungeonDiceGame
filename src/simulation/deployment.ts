@@ -12,6 +12,7 @@ import {
     DEFAULT_BOT_STRATEGY_WEIGHTS,
 } from "../game/botStrategy";
 import type { BotProfile } from "./types";
+import type { BotAction } from "./botAction";
 import { addEvent, canSpend, spend, type MatchState } from "./matchState";
 import {
     createSummonedMonsterCandidate,
@@ -116,13 +117,18 @@ function summonMonster(
     });
 }
 
-export function deployMonsters(
+export interface DeploymentDecision {
+    summon: SummonChoice;
+    candidateCount: number;
+}
+
+export function createDeploymentDecider(
     state: MatchState,
     configuration: GameConfiguration,
     board: BoardDefinition,
     profile: BotProfile,
     deckMonsters: readonly Monster[],
-): void {
+): () => DeploymentDecision | null {
     const player = state.currentPlayer;
     const weights = state.strategyWeights?.[player] ?? DEFAULT_BOT_STRATEGY_WEIGHTS;
     const profileScores = new Map(
@@ -132,19 +138,62 @@ export function deployMonsters(
         ]),
     );
 
-    while (
-        getInvokedMonsterCount(state.monsters, player) < configuration.maxMonstersPerPlayer &&
-        state.winner === null
-    ) {
+    return () => {
+        if (state.currentPlayer !== player) {
+            throw new Error("Le décideur d'invocation appartient à un autre joueur.");
+        }
+        if (
+            getInvokedMonsterCount(state.monsters, player) >= configuration.maxMonstersPerPlayer ||
+            state.winner !== null
+        ) {
+            return null;
+        }
         const affordableMonsters = deckMonsters.filter((monster) =>
             canSpend(state, player, "invocation", monster.cost),
         );
-        if (affordableMonsters.length === 0) return;
+        if (affordableMonsters.length === 0) return null;
         const placement = state.summonPlacementPairs ? null : findPlacement(state, board, player);
-        if (!state.summonPlacementPairs && !placement) return;
+        if (!state.summonPlacementPairs && !placement) return null;
         const choices = rankDeploymentChoices(state, profile, affordableMonsters, profileScores);
         const summon = selectSummon(state, board, choices, placement);
-        if (!summon || !spend(state, player, "invocation", summon.monster.cost)) return;
-        summonMonster(state, configuration, profile, summon, choices.length);
+        return summon ? { summon, candidateCount: choices.length } : null;
+    };
+}
+
+export function executeDeployment(
+    state: MatchState,
+    configuration: GameConfiguration,
+    profile: BotProfile,
+    { summon, candidateCount }: DeploymentDecision,
+): boolean {
+    if (!spend(state, state.currentPlayer, "invocation", summon.monster.cost)) return false;
+    summonMonster(state, configuration, profile, summon, candidateCount);
+    return true;
+}
+
+export function deployMonsters(
+    state: MatchState,
+    configuration: GameConfiguration,
+    board: BoardDefinition,
+    profile: BotProfile,
+    deckMonsters: readonly Monster[],
+): void {
+    for (const action of decideDeployments(state, configuration, board, profile, deckMonsters)) {
+        if (!executeDeployment(state, configuration, profile, action.decision)) return;
+    }
+}
+
+export function* decideDeployments(
+    state: MatchState,
+    configuration: GameConfiguration,
+    board: BoardDefinition,
+    profile: BotProfile,
+    deckMonsters: readonly Monster[],
+): Generator<Extract<BotAction, { type: "summon" }>> {
+    const decide = createDeploymentDecider(state, configuration, board, profile, deckMonsters);
+    for (;;) {
+        const decision = decide();
+        if (!decision) return;
+        yield { type: "summon", decision };
     }
 }

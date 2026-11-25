@@ -17,11 +17,14 @@ import {
     getMovementCost,
 } from "../game/monsterActions";
 import type { DiceSymbol, Monster, PlayerId } from "../types/GameTypes";
-import { finishPlayerTurn, getLegalAttackCosts, performAttacks } from "./combat";
-import { deployMonsters } from "./deployment";
+import { finishPlayerTurn, getLegalAttackCosts } from "./combat";
+import { decideAttacks } from "./combat/attackDecision";
+import { executeAttack } from "./combat/attackExecution";
+import { decideDeployments, executeDeployment } from "./deployment";
 import { addEvent, getPlayerMonsters, type MatchState } from "./matchState";
-import { performMovements } from "./movement";
+import { decideMovements, executeMovement } from "./movement";
 import { hasAvailablePlacement } from "./summonPlacement";
+import type { BotAction } from "./botAction";
 
 export interface PlayerTurnContext {
     state: MatchState;
@@ -90,11 +93,11 @@ function getUsableMovementCosts(state: MatchState, player: PlayerId): number[] {
         );
 }
 
-function convertSymbols(
+export function createConversionDecider(
     context: PlayerTurnContext,
     player: PlayerId,
     invocableMonsters: readonly Monster[],
-): void {
+): () => ReturnType<typeof chooseSymbolConversion> {
     const { state, board, strategyWeights } = context;
     const weights = strategyWeights[player];
     const invocationBonus = getInvokedMonsterCount(state.monsters, player) === 0 ? 2 : 0;
@@ -109,7 +112,10 @@ function convertSymbols(
     const movementCosts = getUsableMovementCosts(state, player);
     const reserve = state.reserves[player];
 
-    for (;;) {
+    return () => {
+        if (state.currentPlayer !== player) {
+            throw new Error("Le décideur de conversion appartient à un autre joueur.");
+        }
         const protectedCounts = {
             invocation: getLowestCost(
                 invocations
@@ -130,31 +136,37 @@ function convertSymbols(
             attack: attackCosts.some((cost) => cost > reserve.attack) ? 1 : 0,
             movement: movementCosts.some((cost) => cost > reserve.movement) ? 1 : 0,
         };
-        const choice = chooseSymbolConversion(reserve, opportunities, protectedCounts);
-        if (
-            !choice ||
-            !convertReservedSymbols(reserve, choice.sourceSymbols, choice.targetSymbol)
-        ) {
-            return;
-        }
-        state.statistics[player].conversionLosses++;
-        addEvent(state, {
-            turn: state.turn,
-            player,
-            type: "strategy",
-            description: `Conversion tactique : ${choice.sourceSymbols.join(" + ")} vers ${choice.targetSymbol}.`,
-        });
+        return chooseSymbolConversion(reserve, opportunities, protectedCounts);
+    };
+}
+
+function* decideConversions(
+    context: PlayerTurnContext,
+    player: PlayerId,
+    invocableMonsters: readonly Monster[],
+): Generator<Extract<BotAction, { type: "convert" }>> {
+    const decide = createConversionDecider(context, player, invocableMonsters);
+    for (;;) {
+        const choice = decide();
+        if (!choice) return;
+        yield { type: "convert", player, choice };
     }
 }
 
-function performActions(context: PlayerTurnContext, player: PlayerId): void {
+function* decideActions(context: PlayerTurnContext, player: PlayerId): Generator<BotAction> {
     const { state, configuration, board, deckMonsters } = context;
     const stats = state.statistics[player];
     const { summoned, attacks, movements } = stats;
-    deployMonsters(state, configuration, board, state.profiles[player], deckMonsters[player]);
-    performAttacks(state, board);
-    performMovements(state, board);
-    performAttacks(state, board);
+    yield* decideDeployments(
+        state,
+        configuration,
+        board,
+        state.profiles[player],
+        deckMonsters[player],
+    );
+    yield* decideAttacks(state, board);
+    yield* decideMovements(state, board);
+    yield* decideAttacks(state, board);
 
     const hasSummoned = stats.summoned !== summoned;
     const hasAttacked = stats.attacks !== attacks;
@@ -165,7 +177,7 @@ function performActions(context: PlayerTurnContext, player: PlayerId): void {
     if (!hasSummoned && !hasAttacked && !hasMoved) stats.turnsWithoutUsefulAction++;
 }
 
-export function playPlayerTurn(context: PlayerTurnContext, player: PlayerId): void {
+function beginBotTurn(context: PlayerTurnContext, player: PlayerId): void {
     const { state, decks } = context;
     const { turn, profiles } = state;
     const rolled = rollDice(context, player);
@@ -189,8 +201,77 @@ export function playPlayerTurn(context: PlayerTurnContext, player: PlayerId): vo
         type: "strategy",
         description: `Décision stratégique : ${decision.description}.`,
     });
+}
 
-    convertSymbols(context, player, getInvocableMonsters(context, player));
-    performActions(context, player);
-    finishPlayerTurn(state, player);
+export function* decidePlayerTurn(
+    context: PlayerTurnContext,
+    player: PlayerId,
+): Generator<BotAction> {
+    yield { type: "roll", player };
+    yield* decideConversions(context, player, getInvocableMonsters(context, player));
+    yield* decideActions(context, player);
+    yield { type: "endTurn", player };
+}
+
+export function decideNextAction(decider: Iterator<BotAction>): BotAction | null {
+    const result = decider.next();
+    return result.done ? null : result.value;
+}
+
+export function executeBotAction(context: PlayerTurnContext, action: BotAction): void {
+    const { state, board, configuration } = context;
+    switch (action.type) {
+        case "roll":
+            beginBotTurn(context, action.player);
+            return;
+        case "convert": {
+            const { player, choice } = action;
+            if (
+                !convertReservedSymbols(
+                    state.reserves[player],
+                    choice.sourceSymbols,
+                    choice.targetSymbol,
+                )
+            ) {
+                throw new Error("La conversion de symboles choisie par le bot a échoué.");
+            }
+            state.statistics[player].conversionLosses++;
+            addEvent(state, {
+                turn: state.turn,
+                player,
+                type: "strategy",
+                description: `Conversion tactique : ${choice.sourceSymbols.join(" + ")} vers ${choice.targetSymbol}.`,
+            });
+            return;
+        }
+        case "summon":
+            if (
+                !executeDeployment(
+                    state,
+                    configuration,
+                    state.profiles[state.currentPlayer],
+                    action.decision,
+                )
+            ) {
+                throw new Error("L'invocation choisie par le bot ne peut pas être payée.");
+            }
+            return;
+        case "attack":
+            executeAttack(state, board, action.choice);
+            return;
+        case "move":
+            if (!executeMovement(state, action)) {
+                throw new Error("Le déplacement choisi par le bot ne peut pas être payé.");
+            }
+            return;
+        case "endTurn":
+            finishPlayerTurn(state, action.player);
+    }
+}
+
+export function playPlayerTurn(context: PlayerTurnContext, player: PlayerId): void {
+    const decider = decidePlayerTurn(context, player);
+    for (let action = decideNextAction(decider); action; action = decideNextAction(decider)) {
+        executeBotAction(context, action);
+    }
 }

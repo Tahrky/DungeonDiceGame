@@ -101,7 +101,9 @@ partagent ces modules :
 Dans `src/simulation/`, `simulator` enchaîne les tours via `playerTurn`, qui délègue l’invocation à
 `deployment` et `summonPlacement`, le déplacement à `movement` et `attackSetupMovement`, et les
 attaques à `combat/`. `matchState` porte l’état mutable d’un match et `finalBoard` produit le
-plateau final des rapports.
+plateau final des rapports. Le tour du simulateur produit successivement les `BotAction` de
+`botAction` ; `playerTurn` les exécute avant de demander la suivante. Cette interface intermédiaire
+utilise encore l’état mutable et n’est pas encore partagée avec la scène.
 
 ## Cycle d’une partie
 

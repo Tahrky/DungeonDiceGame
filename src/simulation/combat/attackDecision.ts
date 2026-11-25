@@ -7,6 +7,7 @@ import type { AttackChoice } from "./attackChoices";
 import { getAvailableAttackChoices } from "./attackChoices";
 import { executeAttack } from "./attackExecution";
 import { searchBestAttack } from "./tacticalSearch";
+import type { BotAction } from "../botAction";
 
 function recordAttackDecision(
     state: MatchState,
@@ -51,17 +52,27 @@ function selectAttack(
     return searchBestAttack(state, board, choices, bestChoice);
 }
 
-function chooseAttack(state: MatchState, board: BoardDefinition): AttackChoice | null {
+export function chooseAttack(state: MatchState, board: BoardDefinition): AttackChoice | null {
+    if (state.winner !== null) return null;
     const choices = getAvailableAttackChoices(state, board);
     const [bestChoice] = choices;
     if (!bestChoice) return null;
     return recordAttackDecision(state, choices, selectAttack(state, board, choices, bestChoice));
 }
 
-export function performAttacks(state: MatchState, board: BoardDefinition): void {
+export function* decideAttacks(
+    state: MatchState,
+    board: BoardDefinition,
+): Generator<Extract<BotAction, { type: "attack" }>> {
     while (state.winner === null) {
         const choice = chooseAttack(state, board);
         if (!choice) return;
-        executeAttack(state, board, choice);
+        yield { type: "attack", choice };
+    }
+}
+
+export function performAttacks(state: MatchState, board: BoardDefinition): void {
+    for (const action of decideAttacks(state, board)) {
+        executeAttack(state, board, action.choice);
     }
 }

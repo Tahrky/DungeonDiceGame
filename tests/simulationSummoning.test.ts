@@ -6,7 +6,7 @@ import {
     getInitialAttackCooldowns,
     getInitialAttackUses,
 } from "../src/game/monsterActions";
-import { deployMonsters } from "../src/simulation/deployment";
+import { createDeploymentDecider, deployMonsters } from "../src/simulation/deployment";
 import { createStats, type MatchState } from "../src/simulation/matchState";
 import { createFormationScorer } from "../src/game/formation";
 import {
@@ -16,6 +16,15 @@ import {
 } from "../src/simulation/summonPlacement";
 import { getPlacementReplyPenalty } from "../src/simulation/placementReply";
 import { getAvailableAttackChoices } from "../src/simulation/combat/attackChoices";
+import { DEFAULT_BOT_STRATEGY_WEIGHTS } from "../src/game/botStrategy";
+import {
+    createConversionDecider,
+    decideNextAction,
+    decidePlayerTurn,
+    executeBotAction,
+    playPlayerTurn,
+    type PlayerTurnContext,
+} from "../src/simulation/playerTurn";
 
 function createMatchState(summonPlacementPairs: boolean): MatchState {
     const configuration = getDefaultGameConfiguration();
@@ -64,6 +73,94 @@ function createMatchState(summonPlacementPairs: boolean): MatchState {
 }
 
 describe("invocations tactiques de simulation", () => {
+    it("joue un tour action par action comme la boucle de simulation", () => {
+        const board = createCustomBoard(9, 9);
+        const configuration = getDefaultGameConfiguration();
+        const ghost = configuration.monsters.find(({ id }) => id === "ghost")!;
+        const createContext = (): PlayerTurnContext => ({
+            state: createMatchState(false),
+            board,
+            configuration,
+            random: () => 0,
+            decks: { 1: [ghost.id], 2: [ghost.id] },
+            deckMonsters: { 1: [ghost], 2: [ghost] },
+            strategyWeights: {
+                1: DEFAULT_BOT_STRATEGY_WEIGHTS,
+                2: DEFAULT_BOT_STRATEGY_WEIGHTS,
+            },
+        });
+        const stepped = createContext();
+        const reference = createContext();
+        const decider = decidePlayerTurn(stepped, 1);
+        const first = decideNextAction(decider);
+        expect(first).toEqual({ type: "roll", player: 1 });
+        expect(stepped.state.history).toHaveLength(0);
+        if (!first) throw new Error("Lancer attendu.");
+        executeBotAction(stepped, first);
+        const actions: string[] = [first.type];
+        for (let action = decideNextAction(decider); action; action = decideNextAction(decider)) {
+            actions.push(action.type);
+            executeBotAction(stepped, action);
+        }
+        playPlayerTurn(reference, 1);
+        expect(actions.at(-1)).toBe("endTurn");
+        expect(stepped.state).toEqual(reference.state);
+    });
+
+    it("choisit une conversion pour invoquer sans modifier les réserves", () => {
+        const board = createCustomBoard(9, 9);
+        const configuration = getDefaultGameConfiguration();
+        const ghost = configuration.monsters.find(({ id }) => id === "ghost")!;
+        const state = createMatchState(false);
+        state.monsters = [];
+        state.reserves[1] = { invocation: 0, attack: 2, movement: 0 };
+        const decide = createConversionDecider(
+            {
+                state,
+                board,
+                configuration,
+                random: () => 0,
+                decks: { 1: [ghost.id], 2: [] },
+                deckMonsters: { 1: [ghost], 2: [] },
+                strategyWeights: {
+                    1: DEFAULT_BOT_STRATEGY_WEIGHTS,
+                    2: DEFAULT_BOT_STRATEGY_WEIGHTS,
+                },
+            },
+            1,
+            [ghost],
+        );
+
+        expect(decide()).toEqual({
+            sourceSymbols: ["attack", "attack"],
+            targetSymbol: "invocation",
+        });
+        expect(state.reserves[1]).toEqual({ invocation: 0, attack: 2, movement: 0 });
+        state.currentPlayer = 2;
+        expect(decide).toThrow();
+    });
+
+    it("choisit une invocation avant de la payer et de la placer", () => {
+        const board = createCustomBoard(9, 9);
+        const configuration = getDefaultGameConfiguration();
+        const ghost = configuration.monsters.find(({ id }) => id === "ghost")!;
+        const state = createMatchState(false);
+        const decide = createDeploymentDecider(state, configuration, board, "expensive", [ghost]);
+        const reserve = state.reserves[1].invocation;
+
+        const decision = decide();
+
+        expect(decision?.summon.monster.id).toBe(ghost.id);
+        expect(state.monsters).toHaveLength(1);
+        expect(state.reserves[1].invocation).toBe(reserve);
+        if (!decision) throw new Error("Invocation attendue.");
+
+        deployMonsters(state, configuration, board, "expensive", [ghost]);
+        expect(state.monsters).toHaveLength(2);
+        expect(state.reserves[1].invocation).toBe(reserve - ghost.cost);
+        expect(decide()).toBeNull();
+    });
+
     it("choisit une paire qui protège le dos d’un allié contre une réponse payable", () => {
         const board = createCustomBoard(9, 9);
         const ghost = getDefaultGameConfiguration().monsters.find(({ id }) => id === "ghost")!;

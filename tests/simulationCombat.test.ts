@@ -7,6 +7,8 @@ import {
     performAttacks,
     TACTICAL_SEARCH_CONFIGURATION,
 } from "../src/simulation/combat";
+import { chooseAttack } from "../src/simulation/combat/attackDecision";
+import { executeAttack } from "../src/simulation/combat/attackExecution";
 import { createStats, type MatchState } from "../src/simulation/matchState";
 
 function createMatchState(allowBaseAttackOnSummonTurn: boolean): MatchState {
@@ -56,6 +58,25 @@ function createMatchState(allowBaseAttackOnSummonTurn: boolean): MatchState {
 }
 
 describe("combat de simulation", () => {
+    it("choisit une attaque sans l'exécuter et ne choisit rien après la victoire", () => {
+        const board = createCustomBoard(7, 7);
+        const state = createMatchState(true);
+        state.health[2] = 1;
+        const attackReserve = state.reserves[1].attack;
+
+        const choice = chooseAttack(state, board);
+
+        expect(choice?.target).toEqual(getStartingPositions(board)[2]);
+        expect(state.health[2]).toBe(1);
+        expect(state.reserves[1].attack).toBe(attackReserve);
+        expect(state.monsters[0]?.attacksUsedThisTurn).toBe(0);
+        if (!choice) throw new Error("Attaque attendue.");
+
+        executeAttack(state, board, choice);
+        expect(state.winner).toBe(1);
+        expect(chooseAttack(state, board)).toBeNull();
+    });
+
     it("pondère les comptes de dés d’attaque selon les faces réellement disponibles", () => {
         const standardDice = getAttackDiceCountDistribution(6, false);
         const invocationExcludedDice = getAttackDiceCountDistribution(6, true);

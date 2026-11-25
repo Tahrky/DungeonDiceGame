@@ -39,14 +39,17 @@ import {
     type StrategicSnapshot,
 } from "../game/ai";
 import { findAttackSetupMovement } from "./attackSetupMovement";
-import { performAttacks } from "./combat";
+import { decideAttacks } from "./combat/attackDecision";
+import { executeAttack } from "./combat/attackExecution";
 import { getAvailableAttackChoices } from "./combat/attackChoices";
 import { createFormationScorer } from "../game/formation";
 import { createMovementOptions } from "./movementOptions";
 import { getPlacementReplyPenalty } from "./placementReply";
+import type { BotAction } from "./botAction";
 
 type FormationScorer = ReturnType<typeof createFormationScorer>;
 type MovementStep = "moved" | "stopped" | "matchOver";
+type MovementAction = Extract<BotAction, { type: "move" | "attack" }>;
 
 interface MovementContext {
     readonly state: MatchState;
@@ -56,6 +59,12 @@ interface MovementContext {
     readonly ownMonsterCount: number;
     readonly snapshot: StrategicSnapshot;
     readonly weights: Readonly<BotStrategyWeights>;
+}
+
+interface MovementDecision {
+    readonly movement: ObjectiveMovement;
+    readonly description: string;
+    readonly attacksAfterMovement: boolean;
 }
 
 const MOVEMENT_GOALS: Partial<Record<RoleAssignment["role"], string>> = {
@@ -224,7 +233,7 @@ function applyMovement(
     });
 }
 
-function moveMonster(context: MovementContext, monster: PlacedMonster, cost: number): MovementStep {
+function chooseMovement(context: MovementContext, monster: PlacedMonster): MovementDecision | null {
     const { state, board, player, starts } = context;
     const movement = createMovementOptions(state, board, monster);
     const enemyPositions = movement.hostileCells ?? [];
@@ -236,7 +245,7 @@ function moveMonster(context: MovementContext, monster: PlacedMonster, cost: num
     const guardingGate = isGuardingGate(context, formation, monster, enemyPositions);
     if (guardingGate && !state.movementAttackCombos) {
         recordGuardDecision(state, player, monster.id);
-        return "stopped";
+        return null;
     }
     const planner = createObjectivePlanner(
         movement,
@@ -269,16 +278,15 @@ function moveMonster(context: MovementContext, monster: PlacedMonster, cost: num
     if (!selectedMovement) {
         if (guardingGate) recordGuardDecision(state, player, monster.id);
         else if (!onGuard) recordStagnation(state, player, monster.id);
-        return "stopped";
+        return null;
     }
     if (
         guardingGate &&
         opensGuardedThreat(context, monster, selectedMovement, !!attackSetupMovement)
     ) {
         recordGuardDecision(state, player, monster.id);
-        return "stopped";
+        return null;
     }
-    if (!spend(state, player, "movement", cost)) return "stopped";
 
     const description = attackSetupMovement
         ? ATTACK_SETUP_DESCRIPTION
@@ -287,13 +295,48 @@ function moveMonster(context: MovementContext, monster: PlacedMonster, cost: num
               !isSamePosition(selectedObjective, roleObjective),
               selectedMovement,
           );
-    applyMovement(state, player, monster, selectedMovement, cost, description);
-    if (!attackSetupMovement || !state.movementAttackCombos) return "moved";
-    performAttacks(state, board);
+    return {
+        movement: selectedMovement,
+        description,
+        attacksAfterMovement: !!attackSetupMovement && !!state.movementAttackCombos,
+    };
+}
+
+export function executeMovement(
+    state: MatchState,
+    action: Extract<BotAction, { type: "move" }>,
+): boolean {
+    const player = state.currentPlayer;
+    if (!spend(state, player, "movement", action.cost)) return false;
+    applyMovement(state, player, action.monster, action.movement, action.cost, action.description);
+    return true;
+}
+
+function* decideMonsterMovement(
+    context: MovementContext,
+    monster: PlacedMonster,
+    cost: number,
+): Generator<MovementAction, MovementStep> {
+    const { state, board } = context;
+    const decision = chooseMovement(context, monster);
+    if (!decision) return "stopped";
+
+    yield {
+        type: "move",
+        monster,
+        cost,
+        movement: decision.movement,
+        description: decision.description,
+    };
+    if (!decision.attacksAfterMovement) return "moved";
+    yield* decideAttacks(state, board);
     return state.winner === null ? "stopped" : "matchOver";
 }
 
-export function performMovements(state: MatchState, board: BoardDefinition): void {
+export function* decideMovements(
+    state: MatchState,
+    board: BoardDefinition,
+): Generator<MovementAction> {
     if (state.winner !== null) return;
 
     const player = state.currentPlayer;
@@ -324,9 +367,18 @@ export function performMovements(state: MatchState, board: BoardDefinition): voi
             );
             if (!canSpend(state, player, "movement", cost)) break;
 
-            const step = moveMonster(context, monster, cost);
+            const step = yield* decideMonsterMovement(context, monster, cost);
             if (step === "matchOver") return;
             if (step === "stopped") break;
+        }
+    }
+}
+
+export function performMovements(state: MatchState, board: BoardDefinition): void {
+    for (const action of decideMovements(state, board)) {
+        if (action.type === "attack") executeAttack(state, board, action.choice);
+        else if (!executeMovement(state, action)) {
+            throw new Error("Le déplacement choisi par le bot ne peut pas être payé.");
         }
     }
 }
