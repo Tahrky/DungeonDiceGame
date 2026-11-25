@@ -1,4 +1,10 @@
-import type { PlacedMonster, StatusEffectColor } from "../types/GameTypes";
+import type { MonsterAttack, PlacedMonster, StatusEffectColor } from "../types/GameTypes";
+import {
+    applyMonsterTurnBuff,
+    hasTurnBuff,
+    reduceAttackCooldowns,
+    resetAttackTurnState,
+} from "./monsterActions";
 
 export const STATUS_EFFECT_COLORS: Record<StatusEffectColor, number> = {
     green: 0x00ff00,
@@ -23,6 +29,33 @@ export function clearStatusEffects(monster: PlacedMonster): number {
     return clearedCount;
 }
 
+export function applyAttackStatusEffect(
+    target: PlacedMonster,
+    attack: MonsterAttack,
+    source: PlacedMonster,
+): void {
+    if (target.currentHp <= 0) {
+        clearStatusEffects(target);
+        return;
+    }
+    if (attack.clearsStatusEffects) clearStatusEffects(target);
+    const effect = attack.statusEffect;
+    if (!effect) return;
+    target.statusEffects = [
+        ...target.statusEffects.filter((existing) => existing.type !== effect.type),
+        {
+            ...effect,
+            remainingTurns: effect.duration,
+            source: {
+                id: source.id,
+                monsterId: source.monster.id,
+                name: source.monster.name,
+                owner: source.owner,
+            },
+        },
+    ];
+}
+
 export function healMonster(
     monster: PlacedMonster,
     healAmount: number,
@@ -32,6 +65,36 @@ export function healMonster(
     monster.currentHp += healed;
     const clearedEffects = clearsStatusEffects ? clearStatusEffects(monster) : 0;
     return { healed, clearedEffects };
+}
+
+export type SupportEffectResult =
+    | { type: "heal"; amount: number; healed: number; clearedEffects: number }
+    | { type: "cooldown"; reduction: number; reducedCooldowns: number; clearedEffects: number }
+    | { type: "buff" };
+
+export function applySupportEffect(
+    attack: MonsterAttack,
+    target: PlacedMonster,
+): SupportEffectResult | null {
+    if (attack.healAmount !== undefined) {
+        return {
+            type: "heal",
+            amount: attack.healAmount,
+            ...healMonster(target, attack.healAmount, attack.clearsStatusEffects),
+        };
+    }
+    if (attack.cooldownReduction !== undefined) {
+        const clearedEffects = attack.clearsStatusEffects ? clearStatusEffects(target) : 0;
+        return {
+            type: "cooldown",
+            reduction: attack.cooldownReduction,
+            reducedCooldowns: reduceAttackCooldowns(target, attack.cooldownReduction),
+            clearedEffects,
+        };
+    }
+    if (!hasTurnBuff(attack)) return null;
+    applyMonsterTurnBuff(target, attack);
+    return { type: "buff" };
 }
 
 export function applyStatusEffectsAtTurnStart(monster: PlacedMonster): number {
@@ -55,5 +118,12 @@ export function applyStatusEffectsAtTurnStart(monster: PlacedMonster): number {
     monster.statusEffects = activeEffects;
     monster.currentHp -= damage;
     if (monster.currentHp <= 0) monster.statusEffects = [];
+    return damage;
+}
+
+export function beginMonsterTurn(monster: PlacedMonster): number {
+    const damage = applyStatusEffectsAtTurnStart(monster);
+    resetAttackTurnState(monster);
+    monster.movementsUsedThisTurn = 0;
     return damage;
 }

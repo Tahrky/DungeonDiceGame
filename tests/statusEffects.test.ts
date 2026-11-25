@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import {
+    applyAttackStatusEffect,
     applyStatusEffectsAtTurnStart,
+    applySupportEffect,
+    beginMonsterTurn,
     healMonster,
 } from "../src/game/statusEffects";
 import { MONSTERS } from "../src/data/monsters";
+import { applyMonsterHit } from "../src/game/attackRules";
 import { getDefaultBoard } from "../src/game/boards";
 import { getDefaultGameConfiguration } from "../src/game/gameConfiguration";
 import { getInitialAttackCooldowns, getInitialAttackUses } from "../src/game/monsterActions";
@@ -57,6 +61,79 @@ function createPlacedMonster(
 }
 
 describe("effets de statut au début du tour", () => {
+    it("ne dissipe un effet lors d'une réduction de recharge que si l'attaque le demande", () => {
+        const target = createPoisonedMonster(2);
+        target.attackCooldowns = [2];
+        const attack = {
+            ...target.monster.attacks[0]!,
+            damage: 0,
+            targetsAlliesOnly: true,
+            cooldownReduction: 1,
+        };
+
+        expect(applySupportEffect(attack, target)).toEqual({
+            type: "cooldown",
+            reduction: 1,
+            reducedCooldowns: 1,
+            clearedEffects: 0,
+        });
+        expect(target.statusEffects).toHaveLength(1);
+        expect(applySupportEffect({ ...attack, clearsStatusEffects: true }, target)).toMatchObject({
+            clearedEffects: 1,
+        });
+        expect(target.statusEffects).toEqual([]);
+    });
+
+    it("résout les dégâts, le camouflage et les effets d'une élimination", () => {
+        const thief = createPlacedMonster("thief", "thief", 1, { x: 5, y: 7 });
+        const target = createPlacedMonster("target", "ghost", 2, { x: 6, y: 7 });
+        target.currentHp = 1;
+        target.isCamouflaged = true;
+        target.statusEffects = createPoisonedMonster(2).statusEffects;
+
+        const result = applyMonsterHit(thief, thief.monster.attacks[0]!, target, 3);
+
+        expect(result).toEqual({
+            effectiveDamage: 1,
+            overkillDamage: 2,
+            camouflageSuppressed: true,
+            camouflageTriggered: true,
+        });
+        expect(target.currentHp).toBe(-2);
+        expect(target.statusEffects).toEqual([]);
+        expect(target.isCamouflaged).toBe(false);
+        expect(thief.isCamouflaged).toBe(true);
+    });
+
+    it("applique les effets avant de réinitialiser les actions du monstre", () => {
+        const monster = createPoisonedMonster(2);
+        monster.attacksUsedThisTurn = 1;
+        monster.attackUsesThisTurn = [1];
+        monster.attackCooldowns = [2];
+        monster.movementsUsedThisTurn = 1;
+
+        expect(beginMonsterTurn(monster)).toBe(2);
+        expect(monster.currentHp).toBe(8);
+        expect(monster.attackCooldowns).toEqual([1]);
+        expect(monster.attackUsesThisTurn).toEqual([0]);
+        expect(monster.attacksUsedThisTurn).toBe(0);
+        expect(monster.movementsUsedThisTurn).toBe(0);
+    });
+
+    it("dissipe les anciens effets avant d'appliquer celui de l'attaque", () => {
+        const source = createPlacedMonster("source", "swamp-thing", 1, { x: 5, y: 7 });
+        const target = createPoisonedMonster(2);
+        const attack = { ...source.monster.attacks[0]!, clearsStatusEffects: true };
+
+        applyAttackStatusEffect(target, attack, source);
+
+        expect(target.statusEffects).toHaveLength(1);
+        expect(target.statusEffects[0]?.remainingTurns).toBe(attack.statusEffect?.duration);
+        expect(target.statusEffects[0]?.source?.id).toBe(source.id);
+        applyAttackStatusEffect(target, { ...attack, statusEffect: undefined }, source);
+        expect(target.statusEffects).toEqual([]);
+    });
+
     it("inflige les dégâts et conserve un effet jusqu'à la mort", () => {
         const target = createPoisonedMonster("untilDeath");
 

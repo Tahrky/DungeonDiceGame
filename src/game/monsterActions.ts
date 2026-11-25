@@ -6,7 +6,7 @@ import type {
     PlayerId,
     Position,
 } from "../types/GameTypes";
-import { getFacingFromMovement } from "./geometry";
+import { getFacingFromMovement, isSamePosition } from "./geometry";
 
 export * from "./attackZones";
 export * from "./movementPaths";
@@ -177,6 +177,23 @@ export function consumeMovementTurnBuff(monster: Pick<PlacedMonster, "turnBuffs"
     if (!monster.turnBuffs) return;
     monster.turnBuffs.movementRangeBonus = 0;
     monster.turnBuffs.movementCostReduction = 0;
+}
+
+export function applyMonsterMovement(
+    monster: PlacedMonster,
+    path: readonly Position[],
+): { from: Position; camouflageCleared: boolean } {
+    const destination = path[path.length - 1];
+    if (path.length < 2 || !destination || !isSamePosition(path[0]!, monster.position)) {
+        throw new Error("Le chemin de déplacement du monstre est invalide.");
+    }
+    const from = monster.position;
+    consumeMovementTurnBuff(monster);
+    const camouflageCleared = clearCamouflageForMovement(monster, path);
+    monster.movementsUsedThisTurn++;
+    monster.facing = getFacingFromMovement(from, destination, monster.facing);
+    monster.position = { ...destination };
+    return { from, camouflageCleared };
 }
 
 export function consumeAttackTurnBuff(monster: Pick<PlacedMonster, "turnBuffs">): void {

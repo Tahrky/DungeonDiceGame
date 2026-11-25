@@ -3,6 +3,7 @@ import type { MonsterTurnBuffs } from "../src/types/GameTypes";
 
 import {
     advanceAttackCooldowns,
+    applyMonsterMovement,
     applyMonsterTurnBuff,
     canUseActionThisTurn,
     canAttackBaseThisTurn,
@@ -12,6 +13,7 @@ import {
     clearMonsterTurnBuff,
     consumeAttackTurnBuff,
     consumeMovementTurnBuff,
+    createPlacedMonster,
     getAttackCost,
     getAttackDamage,
     getAttackZones,
@@ -35,6 +37,28 @@ import {
     formatHitPoints,
 } from "../src/game/monsterDescriptions";
 describe("portée des actions de monstre", () => {
+    it("applique un déplacement avec son orientation, son camouflage et ses bonus", () => {
+        const thief = MONSTERS.find((monster) => monster.id === "thief");
+        if (!thief) throw new Error("Voleur introuvable.");
+        const source = { x: 2, y: 2 };
+        const monster = createPlacedMonster("thief", thief, 1, source, [source], 1);
+        monster.isCamouflaged = true;
+        monster.turnBuffs = { movementRangeBonus: 2, movementCostReduction: 1, attackDamageBonus: 3 };
+
+        expect(() => applyMonsterMovement(monster, [{ x: 1, y: 1 }, { x: 1, y: 2 }])).toThrow();
+        const result = applyMonsterMovement(monster, [source, { x: 2, y: 3 }]);
+
+        expect(result).toEqual({ from: source, camouflageCleared: true });
+        expect(monster.position).toEqual({ x: 2, y: 3 });
+        expect(monster.facing).toBe("south");
+        expect(monster.movementsUsedThisTurn).toBe(1);
+        expect(monster.turnBuffs).toEqual({
+            movementRangeBonus: 0,
+            movementCostReduction: 0,
+            attackDamageBonus: 3,
+        });
+    });
+
     it("respecte les camps autorisés pour les cibles d'attaque", () => {
         expect(canTargetMonsterOwner({ targetsAlliesOnly: true }, 1, 1)).toBe(true);
         expect(canTargetMonsterOwner({ targetsAlliesOnly: true }, 2, 1)).toBe(false);

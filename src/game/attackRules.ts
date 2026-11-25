@@ -1,13 +1,15 @@
-import type { MonsterAttack, PlacedMonster, PlayerId, Position } from "../types/GameTypes";
+import type { BoardObstacle, MonsterAttack, PlacedMonster, PlayerId, Position } from "../types/GameTypes";
 import { isBoardCell, type BoardDefinition } from "./boards";
-import { getGridDistance, isSamePosition } from "./geometry";
+import { getGridDistance, hasLineOfSight, isSamePosition } from "./geometry";
 import { opposingPlayer } from "./matchRules";
 import {
     canAttackBaseThisTurn,
     canAttackMonster,
     canDirectlyTargetMonster,
     canTargetMonsterOwner,
+    type AttackZoneOption,
 } from "./monsterActions";
+import { applyAttackStatusEffect } from "./statusEffects";
 
 export interface AttackContext {
     readonly board: BoardDefinition;
@@ -16,6 +18,7 @@ export interface AttackContext {
     readonly currentPlayer: PlayerId;
     readonly turn: number;
     readonly allowBaseAttackOnSummonTurn: boolean;
+    readonly obstacles?: readonly BoardObstacle[];
 }
 
 export function findLivingMonsterAt(
@@ -48,6 +51,27 @@ export function isAttackCellInRange(
         attack.pattern.type !== "jumpArea" ||
         getGridDistance(attackerPosition, cell) <= attack.pattern.range
     );
+}
+
+export function applyMonsterHit(
+    attacker: PlacedMonster,
+    attack: MonsterAttack,
+    target: PlacedMonster,
+    damage: number,
+): { effectiveDamage: number; overkillDamage: number; camouflageSuppressed: boolean; camouflageTriggered: boolean } {
+    const effectiveDamage = Math.min(damage, target.currentHp);
+    const camouflageSuppressed = target.isCamouflaged === true;
+    if (camouflageSuppressed) target.isCamouflaged = false;
+    target.currentHp -= damage;
+    const camouflageTriggered = target.currentHp <= 0 && attacker.monster.id === "thief";
+    if (camouflageTriggered) attacker.isCamouflaged = true;
+    applyAttackStatusEffect(target, attack, attacker);
+    return {
+        effectiveDamage,
+        overkillDamage: damage - effectiveDamage,
+        camouflageSuppressed,
+        camouflageTriggered,
+    };
 }
 
 export function canTargetMonster(
@@ -132,4 +156,35 @@ export function isAttackZoneUsable(
 ): boolean {
     if (attack.movesToZone && !getJumpLanding(context, attacker, zone)) return false;
     return zone.some((cell) => isAttackCellUsable(context, attacker, attack, cell));
+}
+
+export function isReachableAttackZone(
+    context: AttackContext,
+    attacker: PlacedMonster,
+    attack: MonsterAttack,
+    { target, cells }: AttackZoneOption,
+): boolean {
+    if (
+        (attack.movesToZone && attack.pattern.type !== "jumpArea") ||
+        !isAttackZoneUsable(context, attacker, attack, cells)
+    ) {
+        return false;
+    }
+    if (
+        attack.hitsAllies ||
+        attack.movesToZone ||
+        attack.pattern.type === "directionalArea" ||
+        attack.pattern.type === "selfRadius"
+    ) {
+        return true;
+    }
+    const blockingCells = [
+        ...(context.obstacles ?? [])
+            .filter((obstacle) => obstacle.height === 1)
+            .map(({ position }) => position),
+        ...context.monsters
+            .filter((monster) => monster.currentHp > 0 && monster.id !== attacker.id)
+            .map(({ position }) => position),
+    ];
+    return hasLineOfSight(attacker.position, target, blockingCells);
 }
