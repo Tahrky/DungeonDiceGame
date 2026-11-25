@@ -152,7 +152,7 @@ describe("monster balance analysis", () => {
         expect(knight.averageDamagePerAttack).toBeGreaterThan(2);
         expect(knight.averageDamagePerAttack).toBeLessThan(7);
         expect(knight.averageDamagePerAttack).toBeCloseTo(4);
-        expect(pirateReport.averageDamagePerAttack).toBeCloseTo(5);
+        expect(pirateReport.averageDamagePerAttack).toBeCloseTo(4);
         expect(analyzeMonster(noAttacks).averageDamagePerAttack).toBeNull();
 
         for (const monster of MONSTERS) {

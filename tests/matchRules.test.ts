@@ -35,12 +35,12 @@ describe("limite d'invocations et victoire au nombre de monstres éliminés", ()
         expect(getInvokedMonsterCount(createMonsters(1, 8, 0), 1)).toBe(8);
     });
 
-    it("déclare la victoire après six monstres tués", () => {
-        expect(
-            getMonsterEliminationWinner([...createMonsters(1, 5, 0), ...createMonsters(2, 1, 1)]),
-        ).toBe(null);
+    it("déclare la victoire après sept monstres tués par défaut", () => {
         expect(
             getMonsterEliminationWinner([...createMonsters(1, 6, 0), ...createMonsters(2, 1, 1)]),
+        ).toBe(null);
+        expect(
+            getMonsterEliminationWinner([...createMonsters(1, 7, 0), ...createMonsters(2, 1, 1)]),
         ).toBe(2);
     });
 

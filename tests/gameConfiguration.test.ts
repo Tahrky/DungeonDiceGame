@@ -29,7 +29,7 @@ describe("configuration des règles de partie", () => {
             maxMonstersPerPlayer: GAME_OPTIONS.maxMonstersPerPlayer.default,
             monstersKilledForVictory: GAME_OPTIONS.monstersKilledForVictory.default,
         });
-        expect(configuration.initialPlayerHealth).toBe(6);
+        expect(configuration.initialPlayerHealth).toBe(4);
     });
 
     it("conserve les options sauvegardées mais donne la priorité aux monstres du code", () => {
@@ -193,14 +193,14 @@ describe("configuration des règles de partie", () => {
         expect(configuration.diceCount).toBe(5);
         expect(configuration.deckSize).toBe(DEFAULT_DECK_SIZE);
         expect(configuration.maxMonstersPerPlayer).toBe(8);
-        expect(configuration.monstersKilledForVictory).toBe(6);
+        expect(configuration.monstersKilledForVictory).toBe(7);
 
         const legacyConfiguration = JSON.parse(serializeGameConfiguration(configuration));
         legacyConfiguration.version = 2;
         delete legacyConfiguration.testBoard;
         delete legacyConfiguration.monstersKilledForVictory;
         expect(parseGameConfiguration(legacyConfiguration)?.testBoard).toBe(false);
-        expect(parseGameConfiguration(legacyConfiguration)?.monstersKilledForVictory).toBe(6);
+        expect(parseGameConfiguration(legacyConfiguration)?.monstersKilledForVictory).toBe(7);
     });
 
     it("migre les profils enregistrés en remplaçant l'ancien motif de soin du Prêtre", () => {
@@ -229,7 +229,7 @@ describe("configuration des règles de partie", () => {
         expect(migrated?.version).toBe(8);
         expect(migrated?.deckSize).toBe(DEFAULT_DECK_SIZE);
         expect(migrated?.diceCount).toBe(3);
-        expect(migrated?.monstersKilledForVictory).toBe(6);
+        expect(migrated?.monstersKilledForVictory).toBe(7);
         expect(
             migrated?.monsters.find((monster) => monster.id === "priest")?.attacks[0].pattern,
         ).toEqual({ type: "radius", range: 5 });
@@ -290,7 +290,7 @@ describe("configuration des règles de partie", () => {
         expect(parseGameConfiguration(legacyConfiguration)).toMatchObject({
             version: 8,
             deckSize: DEFAULT_DECK_SIZE,
-            monstersKilledForVictory: 6,
+            monstersKilledForVictory: 7,
         });
     });
 
