@@ -21,7 +21,7 @@ export const MONSTERS: Monster[] = [
             */
             {
                 name: "Coup au corps à corps",
-                damage: 2,
+                damage: 1,
                 cost: 2,
                 pattern: { type: "adjacent" },
             },
