@@ -8,6 +8,7 @@ import {
     TACTICAL_SEARCH_CONFIGURATION,
 } from "../src/simulation/combat";
 import { chooseAttack } from "../src/simulation/combat/attackDecision";
+import { getAvailableAttackChoices } from "../src/simulation/combat/attackChoices";
 import { executeAttack } from "../src/simulation/combat/attackExecution";
 import { createStats, type MatchState } from "../src/simulation/matchState";
 
@@ -58,6 +59,103 @@ function createMatchState(allowBaseAttackOnSummonTurn: boolean): MatchState {
 }
 
 describe("combat de simulation", () => {
+    it("ne propose une attaque de soutien que sur une cible alliée et la valide avant dépense", () => {
+        const board = createCustomBoard(7, 7);
+        const state = createMatchState(true);
+        const attacker = state.monsters[0]!;
+        attacker.position = { x: 3, y: 3 };
+        attacker.monster = {
+            ...attacker.monster,
+            attacks: [
+                {
+                    name: "Soin",
+                    damage: 0,
+                    cost: 1,
+                    pattern: { type: "area", range: 2, width: 2, depth: 2 },
+                    targetsAlliesOnly: true,
+                    healAmount: 2,
+                },
+            ],
+        };
+        const ally = {
+            ...attacker,
+            id: "ally",
+            position: { x: 4, y: 3 },
+            currentHp: attacker.monster.hp - 1,
+        };
+        state.monsters.push(ally);
+        state.reserves[1].attack = 1;
+        const choices = getAvailableAttackChoices(state, board);
+        expect(choices.length).toBeGreaterThan(0);
+        expect(choices.every((choice) => choice.target.x === 4 && choice.target.y === 3)).toBe(
+            true,
+        );
+
+        const choice = choices[0]!;
+        const before = JSON.stringify(state);
+        expect(() => executeAttack(state, board, { ...choice, target: { x: 3, y: 4 } })).toThrow(
+            "La cible de l'attaque de soutien est invalide.",
+        );
+        expect(JSON.stringify(state)).toBe(before);
+        const attack = attacker.monster.attacks[0]!;
+        attacker.monster = { ...attacker.monster, attacks: [{ ...attack, healAmount: undefined }] };
+        const beforeInvalidEffect = JSON.stringify(state);
+        expect(() => executeAttack(state, board, choice)).toThrow(
+            "L'attaque de soutien ne possède aucun effet.",
+        );
+        expect(JSON.stringify(state)).toBe(beforeInvalidEffect);
+        attacker.monster = { ...attacker.monster, attacks: [attack] };
+        executeAttack(state, board, choice);
+        expect(ally.currentHp).toBe(ally.monster.hp);
+        expect(state.reserves[1].attack).toBe(0);
+    });
+
+    it("ne touche pas les cases du saut situées au-delà de sa portée", () => {
+        const board = createCustomBoard(9, 9);
+        const state = createMatchState(true);
+        const attacker = state.monsters[0]!;
+        attacker.position = { x: 3, y: 3 };
+        attacker.cells = [attacker.position, { x: 5, y: 4 }];
+        attacker.monster = {
+            ...attacker.monster,
+            attacks: [
+                {
+                    name: "Saut",
+                    damage: 1,
+                    cost: 1,
+                    pattern: { type: "jumpArea", range: 2, width: 2, depth: 2 },
+                    hitsAllies: true,
+                    movesToZone: true,
+                },
+            ],
+        };
+        const near = {
+            ...attacker,
+            id: "near",
+            owner: 2 as const,
+            position: { x: 5, y: 3 },
+            currentHp: 2,
+        };
+        const far = {
+            ...attacker,
+            id: "far",
+            owner: 2 as const,
+            position: { x: 6, y: 3 },
+            currentHp: 2,
+        };
+        state.monsters.push(near, far);
+        state.reserves[1].attack = 1;
+        const choice = getAvailableAttackChoices(state, board).find(
+            (candidate) => candidate.target.x === 5 && candidate.target.y === 3,
+        );
+        if (!choice) throw new Error("Saut attendu.");
+
+        expect(choice.features.damage).toBe(1);
+        executeAttack(state, board, choice);
+        expect(near.currentHp).toBe(1);
+        expect(far.currentHp).toBe(2);
+    });
+
     it("choisit une attaque sans l'exécuter et ne choisit rien après la victoire", () => {
         const board = createCustomBoard(7, 7);
         const state = createMatchState(true);
@@ -349,13 +447,13 @@ describe("combat de simulation", () => {
     it("ajoute le meilleur candidat de chaque attaquant quand l’élargissement est activé", () => {
         const board = createCustomBoard(9, 9);
         const positions = [
-            { x: 1, y: 1 },
-            { x: 2, y: 1 },
-            { x: 1, y: 2 },
-            { x: 7, y: 7 },
-            { x: 6, y: 7 },
-            { x: 7, y: 6 },
-            { x: 4, y: 1 },
+            { x: 2, y: 3 },
+            { x: 3, y: 2 },
+            { x: 5, y: 2 },
+            { x: 6, y: 3 },
+            { x: 2, y: 5 },
+            { x: 3, y: 6 },
+            { x: 5, y: 6 },
         ];
         const createState = (broaderAttackCandidates: boolean): MatchState => {
             const state = createMatchState(true);

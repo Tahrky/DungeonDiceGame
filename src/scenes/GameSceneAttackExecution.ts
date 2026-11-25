@@ -1,17 +1,13 @@
 import { GameSceneAttackTargeting } from "./GameSceneAttackTargeting";
-import { isAttackCellInRange } from "../game/attackRules";
-import { getFacingFromMovement, isBehind, isSamePosition } from "../game/geometry";
-import { getMonsterEliminationWinner, opposingPlayer } from "../game/matchRules";
 import {
-    applyMonsterTurnBuff,
-    canAttackMonster,
-    getBuffedAttackDamage,
-    hasTurnBuff,
-    isAreaAttack,
-    reduceAttackCooldowns,
-    registerAttackUse,
-} from "../game/monsterActions";
-import { clearStatusEffects, healMonster } from "../game/statusEffects";
+    resolveAttack,
+    validateAttackResolution,
+    type AttackResolution,
+} from "../game/combatResolution";
+import { isBehind } from "../game/geometry";
+import { getMonsterEliminationWinner, opposingPlayer } from "../game/matchRules";
+import { hasTurnBuff, isAreaAttack } from "../game/monsterActions";
+import type { SupportEffectResult } from "../game/statusEffects";
 import { describeAppliedTurnBuff, describeCooldownReduction } from "./game/attackLabels";
 import type { MonsterAttack, PlacedMonster, Position } from "../types/GameTypes";
 
@@ -21,8 +17,8 @@ export abstract class GameSceneAttackExecution extends GameSceneAttackTargeting 
         attackIndex: number,
         targetPosition: Position,
         clickedMonster: PlacedMonster | undefined,
-    ): void {
-        if (!this.canAttackTarget(attacker.id, attackIndex, targetPosition)) return;
+    ): AttackResolution | undefined {
+        if (!this.canAttackTarget(attacker.id, attackIndex, targetPosition)) return undefined;
         const attack = attacker.monster.attacks[attackIndex];
         const allyTarget =
             attack.targetsAlliesOnly && clickedMonster?.owner === this.currentPlayer
@@ -35,154 +31,68 @@ export abstract class GameSceneAttackExecution extends GameSceneAttackTargeting 
                     attack.cooldownReduction === undefined &&
                     !hasTurnBuff(attack)))
         ) {
-            return;
+            return undefined;
         }
         const zone = this.getAttackZoneForTarget(attacker, attack, targetPosition);
-        const damage = getBuffedAttackDamage(attacker, attack);
+        if (zone)
+            validateAttackResolution(this.attackContext, attacker, attackIndex, targetPosition);
         if (
             !zone ||
             !this.spendCurrentSymbol("attack", this.getMonsterAttackCost(attacker, attack))
         ) {
-            return;
+            return undefined;
         }
-        registerAttackUse(attacker, attackIndex, targetPosition);
         const isBackstab =
             clickedMonster !== undefined &&
             clickedMonster.owner !== this.currentPlayer &&
             (attacker.monster.bonusDamageFromBehind ?? 0) > 0 &&
             isBehind(clickedMonster.position, attacker.position, clickedMonster.facing);
+        const resolution = resolveAttack(
+            this.attackContext,
+            attacker,
+            attackIndex,
+            targetPosition,
+            zone.cells,
+        );
         this.monsterSpriteView.playAttack(
             attacker.id,
             attack.animation,
             isBackstab,
-            attacker.facing,
+            resolution.attackFacing,
         );
 
-        if (allyTarget) {
-            this.executeAllyTargetedAttack(attacker, attack, allyTarget);
-        } else if (isAreaAttack(attack)) {
-            this.executeAreaAttack(attacker, attack, zone.cells, damage);
-        } else {
-            const backstabBonus = isBackstab ? (attacker.monster.bonusDamageFromBehind ?? 0) : 0;
-            this.executeSingleTargetAttack(
+        if (resolution.support) {
+            const { target, effect } = resolution.support;
+            this.recordAttack(
                 attacker,
-                attack,
-                targetPosition,
-                clickedMonster,
-                damage + backstabBonus,
+                `${target.monster.name} (J${target.owner})`,
+                0,
+                this.describeSupportEffect(attack, effect),
             );
-        }
-    }
-
-    private executeAllyTargetedAttack(
-        attacker: PlacedMonster,
-        attack: MonsterAttack,
-        target: PlacedMonster,
-    ): void {
-        const effect = this.applySupportEffect(attack, target);
-        if (effect === undefined) return;
-        this.recordAttack(attacker, `${target.monster.name} (J${target.owner})`, 0, effect);
-        this.finishAttack();
-    }
-
-    private applySupportEffect(attack: MonsterAttack, target: PlacedMonster): string | undefined {
-        if (attack.healAmount !== undefined) {
-            const { healed, clearedEffects } = healMonster(
-                target,
-                attack.healAmount,
-                attack.clearsStatusEffects,
-            );
-            return `+${healed} PV${clearedEffects > 0 ? ", effets dissipés" : ""}`;
-        }
-        if (attack.cooldownReduction !== undefined) {
-            if (attack.clearsStatusEffects) clearStatusEffects(target);
-            const reducedCooldowns = reduceAttackCooldowns(target, attack.cooldownReduction);
-            return describeCooldownReduction(reducedCooldowns, attack.cooldownReduction);
-        }
-        if (!hasTurnBuff(attack)) return undefined;
-        applyMonsterTurnBuff(target, attack);
-        return describeAppliedTurnBuff(attack);
-    }
-
-    private executeAreaAttack(
-        attacker: PlacedMonster,
-        attack: MonsterAttack,
-        zone: readonly Position[],
-        damage: number,
-    ): void {
-        const hitCells = zone.filter((cell) =>
-            isAttackCellInRange(attacker.position, attack, cell),
-        );
-        if (attack.movesToZone) {
-            const landing = this.getSlimeLanding(attacker, attack, zone);
-            if (landing) {
-                attacker.facing = getFacingFromMovement(
-                    attacker.position,
-                    landing,
-                    attacker.facing,
-                );
-                attacker.position = { ...landing };
-            }
-        }
-
-        let hitSomething = false;
-        for (const monster of this.placedMonsters) {
-            if (
-                monster.currentHp > 0 &&
-                monster.id !== attacker.id &&
-                hitCells.some((cell) => isSamePosition(cell, monster.position)) &&
-                (attack.hitsAllies || monster.owner !== this.currentPlayer) &&
-                canAttackMonster(attacker.monster, attack, monster.monster)
-            ) {
-                if (monster.isCamouflaged) monster.isCamouflaged = false;
-                this.hitMonster(attacker, attack, monster, damage);
-                hitSomething = true;
-            }
-        }
-        if (
-            this.canAttackBase(attacker) &&
-            hitCells.some((cell) => this.isOpponentStartingPosition(cell))
-        ) {
-            this.hitOpponentBase(attacker);
-            hitSomething = true;
-        }
-        if (!hitSomething) this.recordAttack(attacker, "zone ciblée", 0);
-        this.finishAttack();
-    }
-
-    private executeSingleTargetAttack(
-        attacker: PlacedMonster,
-        attack: MonsterAttack,
-        targetPosition: Position,
-        target: PlacedMonster | undefined,
-        damage: number,
-    ): void {
-        if (target) {
-            if (target.owner === this.currentPlayer) return;
-            this.hitMonster(attacker, attack, target, damage);
-        } else if (this.isOpponentStartingPosition(targetPosition)) {
-            this.hitOpponentBase(attacker);
         } else {
-            this.recordAttack(attacker, "case vide", 0);
+            for (const { target, damage } of resolution.hits) {
+                if (damage > 0) {
+                    this.monsterSpriteView.takeDamage(target.id, target.currentHp, target.position);
+                }
+                this.recordAttack(attacker, `${target.monster.name} (J${target.owner})`, damage);
+            }
+            if (resolution.baseHit) this.hitOpponentBase(attacker);
+            if (!resolution.hits.length && !resolution.baseHit) {
+                this.recordAttack(attacker, isAreaAttack(attack) ? "zone ciblée" : "case vide", 0);
+            }
         }
         this.finishAttack();
+        return resolution;
     }
 
-    private hitMonster(
-        attacker: PlacedMonster,
-        attack: MonsterAttack,
-        target: PlacedMonster,
-        damage: number,
-    ): void {
-        target.currentHp -= damage;
-        if (target.currentHp <= 0 && attacker.monster.id === "thief") {
-            attacker.isCamouflaged = true;
+    private describeSupportEffect(attack: MonsterAttack, effect: SupportEffectResult): string {
+        if (effect.type === "heal") {
+            return `+${effect.healed} PV${effect.clearedEffects > 0 ? ", effets dissipés" : ""}`;
         }
-        this.applyAttackStatusEffect(target, attack);
-        if (damage > 0) {
-            this.monsterSpriteView.takeDamage(target.id, target.currentHp, target.position);
+        if (effect.type === "cooldown") {
+            return describeCooldownReduction(effect.reducedCooldowns, effect.reduction);
         }
-        this.recordAttack(attacker, `${target.monster.name} (J${target.owner})`, damage);
+        return describeAppliedTurnBuff(attack);
     }
 
     private hitOpponentBase(attacker: PlacedMonster): void {
@@ -190,22 +100,6 @@ export abstract class GameSceneAttackExecution extends GameSceneAttackTargeting 
         this.playerHealth[opponent]--;
         if (this.playerHealth[opponent] === 0) this.winner = this.currentPlayer;
         this.recordAttack(attacker, `J${opponent} (départ)`, 1);
-    }
-
-    private applyAttackStatusEffect(
-        target: PlacedMonster,
-        { statusEffect: effect, clearsStatusEffects }: MonsterAttack,
-    ): void {
-        if (target.currentHp <= 0) {
-            clearStatusEffects(target);
-            return;
-        }
-        if (clearsStatusEffects) clearStatusEffects(target);
-        if (!effect) return;
-        target.statusEffects = [
-            ...target.statusEffects.filter((status) => status.type !== effect.type),
-            { ...effect, remainingTurns: effect.duration },
-        ];
     }
 
     private recordAttack(

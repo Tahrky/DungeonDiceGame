@@ -1,5 +1,6 @@
 import type { BoardDefinition } from "../game/boards";
 import type { GameConfiguration } from "../game/gameConfiguration";
+import type { BotDecisionOptions } from "../game/botConfiguration";
 import type {
     DiceReserve,
     MonsterStatusEffect,
@@ -26,7 +27,7 @@ export interface PlayerSimulationOptions {
     summonPlacementPairs?: boolean;
 }
 
-export interface SimulationOptions {
+export interface SimulationOptions extends BotDecisionOptions {
     games: number;
     seed: number;
     maxTurns: number;
@@ -35,11 +36,6 @@ export interface SimulationOptions {
     profilePairs?: readonly ProfilePair[];
     debug?: boolean;
     recordDecisionTraces?: boolean;
-    completeAttackPhases?: boolean;
-    broaderAttackCandidates?: boolean;
-    movementAttackCombos?: boolean;
-    nextTurnDiceExpectation?: boolean;
-    summonPlacementPairs?: boolean;
     playerOptions?: Partial<Record<PlayerId, PlayerSimulationOptions>>;
     measureTurnDurations?: boolean;
     strategyWeights?: BotStrategyWeightMap;

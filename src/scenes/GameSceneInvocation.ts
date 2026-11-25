@@ -1,8 +1,7 @@
 import { GameSceneState } from "./GameSceneState";
-import Phaser from "phaser";
 import { DICE } from "../data/dice";
 import { PLACEMENT_PATTERNS } from "../data/placementPatterns";
-import { getRollableDieFaces, storeRemainingDice, storeRolledDie } from "../game/diceResources";
+import { rollDieSymbol, storeRemainingDice, storeRolledDie } from "../game/diceResources";
 import {
     canPlaceCells,
     createInitialDeploymentProtection,
@@ -43,10 +42,11 @@ export abstract class GameSceneInvocation extends GameSceneState {
             this.gameConfiguration.removeInvocationDiceWhenNoMonsters &&
             this.hasReachedMonsterLimit();
         this.rolledDice = DICE.slice(0, this.gameConfiguration.diceCount).map((die) => {
-            const faces = getRollableDieFaces(die, excludeInvocation);
             return {
                 definitionId: die.id,
-                symbol: faces[Phaser.Math.Between(0, faces.length - 1)]!,
+                symbol: rollDieSymbol(die, excludeInvocation, (count) =>
+                    Math.floor(this.randomStreams.dice() * count),
+                ),
                 status: "available",
             };
         });

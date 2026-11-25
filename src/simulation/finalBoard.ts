@@ -2,7 +2,7 @@ import { getStartingPositions, type BoardDefinition } from "../game/boards";
 import { positionKey } from "../game/geometry";
 import { getMonsterSymbol } from "../game/monsterSymbols";
 import type { PlacedMonster, PlayerId } from "../types/GameTypes";
-import type { MatchState } from "./matchState";
+import { getBlockedCells, type MatchState } from "./matchState";
 import type { FinalBoard } from "./types";
 
 const TERRITORY_SYMBOLS: Record<PlayerId, string> = { 1: "a", 2: "b" };
@@ -26,7 +26,7 @@ export function buildMatchBoard(
             if (!livingMonstersByPosition.has(key)) livingMonstersByPosition.set(key, monster);
         }
     }
-    const blockedCells = new Set(board.blockedCells.map(positionKey));
+    const blockedCells = new Set(getBlockedCells(state, board).map(positionKey));
     const rows = Array.from({ length: board.height }, (_, y) =>
         Array.from({ length: board.width }, (_, x) => {
             const key = positionKey({ x, y });

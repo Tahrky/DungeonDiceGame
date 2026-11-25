@@ -1,16 +1,16 @@
 import type { GameConfiguration } from "../../game/gameConfiguration";
 import { getMonsterEliminationWinner } from "../../game/matchRules";
-import { clearMonsterTurnBuff, resetAttackTurnState } from "../../game/monsterActions";
-import { applyStatusEffectsAtTurnStart } from "../../game/statusEffects";
+import { clearMonsterTurnBuff } from "../../game/monsterActions";
+import { beginMonsterTurn } from "../../game/statusEffects";
 import type { PlacedMonster, PlayerId } from "../../types/GameTypes";
-import { addEvent, getPlayerMonsters, type MatchState } from "../matchState";
+import { addEvent, type MatchState } from "../matchState";
 
 function applyStatusDamage(state: MatchState, monster: PlacedMonster, player: PlayerId): void {
     const healthBefore = monster.currentHp;
     const source = monster.statusEffects.find(
         (effect) => effect.type === "damageOverTime" && effect.source,
     )?.source;
-    const damage = applyStatusEffectsAtTurnStart(monster);
+    const damage = beginMonsterTurn(monster);
     if (damage <= 0) return;
 
     const actualDamage = Math.min(damage, healthBefore);
@@ -37,10 +37,8 @@ export function beginTurn(
     player: PlayerId,
 ): void {
     state.currentPlayer = player;
-    for (const monster of getPlayerMonsters(state, player)) {
+    for (const monster of state.monsters.filter((monster) => monster.owner === player)) {
         applyStatusDamage(state, monster, player);
-        resetAttackTurnState(monster);
-        monster.movementsUsedThisTurn = 0;
     }
     state.winner ??= getMonsterEliminationWinner(
         state.monsters,

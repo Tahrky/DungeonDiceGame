@@ -2,7 +2,7 @@ import { createEmptyDiceReserve } from "../game/diceResources";
 import { byPlayer } from "../game/matchRules";
 import type { StrategicSnapshot } from "../game/ai";
 import type { BoardDefinition } from "../game/boards";
-import type { PlayerId, PlacedMonster, Position } from "../types/GameTypes";
+import type { BoardObstacle, PlayerId, PlacedMonster, Position } from "../types/GameTypes";
 import type { BotTactic, BotStrategyWeights } from "../game/botStrategy";
 import type {
     BotProfile,
@@ -37,6 +37,7 @@ export interface MatchState {
     health: Record<PlayerId, number>;
     reserves: Record<PlayerId, { invocation: number; attack: number; movement: number }>;
     monsters: PlacedMonster[];
+    obstacles?: readonly BoardObstacle[];
     movementStagnation: Record<string, number>;
     placementProtectionCache?: {
         key: string;
@@ -125,6 +126,9 @@ export function createStrategicSnapshot(
 ): StrategicSnapshot {
     return {
         board,
+        ...(state.obstacles?.length
+            ? { blockedCells: state.obstacles.map(({ position }) => position) }
+            : {}),
         health: state.health,
         initialHealth: Math.max(state.health[1], state.health[2], 1),
         monsters: state.monsters,
@@ -134,6 +138,12 @@ export function createStrategicSnapshot(
         currentPlayer: player,
         turn: state.turn,
     };
+}
+
+export function getBlockedCells(state: MatchState, board: BoardDefinition): readonly Position[] {
+    return state.obstacles?.length
+        ? [...board.blockedCells, ...state.obstacles.map(({ position }) => position)]
+        : board.blockedCells;
 }
 
 export function getPlayerMonsters(state: MatchState, player: PlayerId): PlacedMonster[] {

@@ -1,5 +1,6 @@
 import {
     canUseActionThisTurn,
+    applyMonsterMovement,
     consumeMovementTurnBuff,
     clearCamouflageForMovement,
     getMovementActionsPerTurn,
@@ -21,6 +22,7 @@ import {
     cloneMatchState,
     createStrategicSnapshot,
     getPlayerMonsters,
+    getBlockedCells,
     spend,
     type MatchState,
 } from "./matchState";
@@ -41,7 +43,7 @@ import {
 import { findAttackSetupMovement } from "./attackSetupMovement";
 import { decideAttacks } from "./combat/attackDecision";
 import { executeAttack } from "./combat/attackExecution";
-import { getAvailableAttackChoices } from "./combat/attackChoices";
+import { getAvailableAttackChoices, resolveAttackChoice } from "./combat/attackChoices";
 import { createFormationScorer } from "../game/formation";
 import { createMovementOptions } from "./movementOptions";
 import { getPlacementReplyPenalty } from "./placementReply";
@@ -130,8 +132,13 @@ function createMovementThreatScores(
     monster: PlacedMonster,
     deployedCells: readonly Position[],
 ): Map<string, number> {
+    const blockedCells = getBlockedCells(context.state, context.board);
+    const board =
+        blockedCells === context.board.blockedCells
+            ? context.board
+            : { ...context.board, blockedCells };
     const threatScores = new Map(
-        createThreatScores(context.board, context.state.monsters, monster.id, true),
+        createThreatScores(board, context.state.monsters, monster.id, true),
     );
     if (!formation.hasBackstabThreat) return threatScores;
     for (const position of deployedCells) {
@@ -207,12 +214,7 @@ function applyMovement(
     cost: number,
     description: string,
 ): void {
-    consumeMovementTurnBuff(monster);
-    clearCamouflageForMovement(monster, movement.path);
-    const from = monster.position;
-    monster.facing = getFacingFromMovement(from, movement.position, monster.facing);
-    monster.position = movement.position;
-    monster.movementsUsedThisTurn++;
+    const { from } = applyMonsterMovement(monster, movement.path);
     state.movementStagnation[monster.id] = 0;
     state.statistics[player].movements++;
     const subject = {
@@ -307,8 +309,10 @@ export function executeMovement(
     action: Extract<BotAction, { type: "move" }>,
 ): boolean {
     const player = state.currentPlayer;
+    const monster = state.monsters.find(({ id }) => id === action.monsterId);
+    if (!monster) throw new Error(`Monstre à déplacer introuvable : ${action.monsterId}`);
     if (!spend(state, player, "movement", action.cost)) return false;
-    applyMovement(state, player, action.monster, action.movement, action.cost, action.description);
+    applyMovement(state, player, monster, action.movement, action.cost, action.description);
     return true;
 }
 
@@ -323,7 +327,7 @@ function* decideMonsterMovement(
 
     yield {
         type: "move",
-        monster,
+        monsterId: monster.id,
         cost,
         movement: decision.movement,
         description: decision.description,
@@ -376,7 +380,8 @@ export function* decideMovements(
 
 export function performMovements(state: MatchState, board: BoardDefinition): void {
     for (const action of decideMovements(state, board)) {
-        if (action.type === "attack") executeAttack(state, board, action.choice);
+        if (action.type === "attack")
+            executeAttack(state, board, resolveAttackChoice(state, action.choice));
         else if (!executeMovement(state, action)) {
             throw new Error("Le déplacement choisi par le bot ne peut pas être payé.");
         }

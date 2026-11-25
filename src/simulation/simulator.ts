@@ -1,4 +1,5 @@
 import { getDefaultBoard, type BoardDefinition } from "../game/boards";
+import { createBotDecisionSettings } from "../game/botConfiguration";
 import {
     chooseBotTactic,
     DEFAULT_BOT_STRATEGY_WEIGHTS,
@@ -8,7 +9,11 @@ import { createEmptyDiceReserve } from "../game/diceResources";
 import { getDefaultGameConfiguration, type GameConfiguration } from "../game/gameConfiguration";
 import { byPlayer, opposingPlayer } from "../game/matchRules";
 import { getMonsterSymbol, getUniqueMonsterSymbols } from "../game/monsterSymbols";
-import { createSeededRandom } from "../game/random";
+import {
+    createMatchRandomStreams,
+    createSeededRandom,
+    type MatchRandomStreams,
+} from "../game/random";
 import type { Monster, PlacedMonster, PlayerId } from "../types/GameTypes";
 import { isPlainRecord } from "../utils/guards";
 import { beginTurn } from "./combat";
@@ -27,7 +32,6 @@ import {
 } from "./types";
 
 const DECK_SEED_SALTS: Record<PlayerId, number> = { 1: 0x9e3779b9, 2: 0x85ebca6b };
-const ACTION_SEED_SALTS: Record<PlayerId, number> = { 1: 0xa5a5a5a5, 2: 0x5a5a5a5a };
 
 function resolveDeck(
     deck: readonly string[],
@@ -40,12 +44,12 @@ function resolveDeck(
     });
 }
 
-function createInitialState(
+export function createInitialState(
     options: SimulationOptions,
     configuration: GameConfiguration,
     startingPlayer: PlayerId,
     strategyWeights: MatchState["strategyWeights"],
-    seed: number,
+    randomStreams: MatchRandomStreams,
 ): MatchState {
     const profiles: Record<PlayerId, BotProfile> = { 1: options.profile1, 2: options.profile2 };
     return {
@@ -54,18 +58,7 @@ function createInitialState(
         startingPlayer,
         debug: options.debug ?? false,
         protectFirstDeployment: configuration.protectFirstDeployment,
-        completeAttackPhases: options.completeAttackPhases === true,
-        broaderAttackCandidates: options.broaderAttackCandidates === true,
-        movementAttackCombos: options.movementAttackCombos === true,
-        summonPlacementPairs: options.summonPlacementPairs === true,
-        nextTurnDice: options.nextTurnDiceExpectation
-            ? {
-                  count: configuration.diceCount,
-                  removeInvocationDiceWhenNoMonsters:
-                      configuration.removeInvocationDiceWhenNoMonsters,
-                  maxMonstersPerPlayer: configuration.maxMonstersPerPlayer,
-              }
-            : undefined,
+        ...createBotDecisionSettings(configuration, options),
         strategyWeights,
         decisionTraces: options.recordDecisionTraces ? [] : undefined,
         profiles,
@@ -83,9 +76,7 @@ function createInitialState(
         statistics: byPlayer(() => createStats()),
         nextMonsterId: 1,
         monstersKilledForVictory: configuration.monstersKilledForVictory,
-        actionRandom: byPlayer((player) =>
-            createSeededRandom((seed ^ ACTION_SEED_SALTS[player]) >>> 0),
-        ),
+        actionRandom: randomStreams.actions,
     };
 }
 
@@ -135,12 +126,19 @@ function createMatch(
                 strategyWeights[player],
             ),
     );
-    const state = createInitialState(options, configuration, startingPlayer, strategyWeights, seed);
+    const randomStreams = createMatchRandomStreams(seed);
+    const state = createInitialState(
+        options,
+        configuration,
+        startingPlayer,
+        strategyWeights,
+        randomStreams,
+    );
     const context: PlayerTurnContext = {
         state,
         configuration,
         board,
-        random: createSeededRandom(seed),
+        random: randomStreams.dice,
         decks,
         deckMonsters: byPlayer((player) => resolveDeck(decks[player], monstersById)),
         strategyWeights,

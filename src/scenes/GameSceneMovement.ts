@@ -3,15 +3,10 @@ import Phaser from "phaser";
 import { storeRemainingDice } from "../game/diceResources";
 import { isBoardCell } from "../game/boards";
 import {
-    advanceAttackCooldowns,
     clearMonsterTurnBuff,
-    canPassHostileMonsters,
     canUseActionThisTurn,
-    consumeMovementTurnBuff,
-    clearCamouflageForMovement,
-    getFacingFromMovement,
+    applyMonsterMovement,
     getGridDistance,
-    getInitialAttackUses,
     getMonsterMovementPath,
     getMovementRange,
     getMovementActionsPerTurn,
@@ -19,8 +14,9 @@ import {
 } from "../game/monsterActions";
 import { ACTION_LOG_VISIBLE_COUNT } from "./game/hudLayout";
 import type { PlacedMonster, Position } from "../types/GameTypes";
-import { applyStatusEffectsAtTurnStart } from "../game/statusEffects";
+import { beginMonsterTurn } from "../game/statusEffects";
 import { getMonsterEliminationWinner, opposingPlayer } from "../game/matchRules";
+import { createMonsterMovementOptions } from "../game/movementRules";
 
 export abstract class GameSceneMovement extends GameSceneCombat {
     protected handleMovementAction(position: Position, monsterId: string | null): void {
@@ -46,13 +42,10 @@ export abstract class GameSceneMovement extends GameSceneCombat {
         if (path.length < 2) return;
         if (!this.spendCurrentSymbol("movement", this.getMonsterMovementCost(monster))) return;
 
-        consumeMovementTurnBuff(monster);
-        if (clearCamouflageForMovement(monster, path)) {
+        const { camouflageCleared } = applyMonsterMovement(monster, path);
+        if (camouflageCleared) {
             this.monsterSpriteView.clearCamouflage(monster.id);
         }
-        monster.movementsUsedThisTurn++;
-        monster.facing = getFacingFromMovement(monster.position, position, monster.facing);
-        monster.position = { ...position };
         this.monsterSpriteView.moveMonster(monster.id, path.slice(1), monster.facing, () =>
             this.render(),
         );
@@ -92,23 +85,13 @@ export abstract class GameSceneMovement extends GameSceneCombat {
     }
 
     protected getMovementOptions(monster: PlacedMonster, destination: Position): MovementOptions {
-        const otherLivingMonsters = this.getLivingMonsters().filter(({ id }) => id !== monster.id);
-
-        return {
-            source: monster.position,
+        return createMonsterMovementOptions(
+            this.board,
+            this.placedMonsters,
+            this.getBlockedCells(),
+            monster,
             destination,
-            deployedCells: this.placedMonsters.flatMap((placed) => placed.cells),
-            occupiedCells: otherLivingMonsters.map((placed) => placed.position),
-            blockedCells: [...Object.values(this.startingPositions), ...this.getBlockedCells()],
-            range: this.getMonsterMovementRange(monster),
-            hostileCells: otherLivingMonsters
-                .filter((placed) => placed.owner !== monster.owner)
-                .map((placed) => placed.position),
-            canPassHostiles: canPassHostileMonsters(monster.monster),
-            canPassUndeployedCells: monster.monster.flying === true,
-            boardWidth: this.board.width,
-            boardHeight: this.board.height,
-        };
+        );
     }
 
     protected getMovementCandidates(monsterId: string): Position[] {
@@ -161,14 +144,10 @@ export abstract class GameSceneMovement extends GameSceneCombat {
         for (const monster of this.placedMonsters) {
             if (monster.owner === previousPlayer) clearMonsterTurnBuff(monster);
             if (monster.owner !== this.currentPlayer) continue;
-            const statusDamage = applyStatusEffectsAtTurnStart(monster);
+            const statusDamage = beginMonsterTurn(monster);
             if (statusDamage > 0) {
                 this.monsterSpriteView.takeDamage(monster.id, monster.currentHp, monster.position);
             }
-            monster.attacksUsedThisTurn = 0;
-            monster.attackUsesThisTurn = getInitialAttackUses(monster.monster);
-            monster.movementsUsedThisTurn = 0;
-            monster.attackCooldowns = advanceAttackCooldowns(monster.attackCooldowns);
         }
         this.winner ??= getMonsterEliminationWinner(
             this.placedMonsters,

@@ -8,7 +8,7 @@ import {
     scoreMonsterForProfile,
     type BotStrategyWeights,
 } from "../game/botStrategy";
-import { convertReservedSymbols, getRollableDieFaces } from "../game/diceResources";
+import { convertReservedSymbols, rollDieSymbol } from "../game/diceResources";
 import type { GameConfiguration } from "../game/gameConfiguration";
 import { getInvokedMonsterCount, opposingPlayer } from "../game/matchRules";
 import {
@@ -20,7 +20,8 @@ import type { DiceSymbol, Monster, PlayerId } from "../types/GameTypes";
 import { finishPlayerTurn, getLegalAttackCosts } from "./combat";
 import { decideAttacks } from "./combat/attackDecision";
 import { executeAttack } from "./combat/attackExecution";
-import { decideDeployments, executeDeployment } from "./deployment";
+import { resolveAttackChoice } from "./combat/attackChoices";
+import { decideDeployments, executeDeploymentAction } from "./deployment";
 import { addEvent, getPlayerMonsters, type MatchState } from "./matchState";
 import { decideMovements, executeMovement } from "./movement";
 import { hasAvailablePlacement } from "./summonPlacement";
@@ -47,10 +48,9 @@ function rollDice(
     const excludeInvocation =
         configuration.removeInvocationDiceWhenNoMonsters &&
         getInvokedMonsterCount(state.monsters, player) >= configuration.maxMonstersPerPlayer;
-    const rolled = DICE.slice(0, configuration.diceCount).map((die) => {
-        const faces = getRollableDieFaces(die, excludeInvocation);
-        return faces[Math.floor(random() * faces.length)]!;
-    });
+    const rolled = DICE.slice(0, configuration.diceCount).map((die) =>
+        rollDieSymbol(die, excludeInvocation, (count) => Math.floor(random() * count)),
+    );
     for (const symbol of rolled) state.reserves[player][symbol]++;
     return rolled;
 }
@@ -177,10 +177,13 @@ function* decideActions(context: PlayerTurnContext, player: PlayerId): Generator
     if (!hasSummoned && !hasAttacked && !hasMoved) stats.turnsWithoutUsefulAction++;
 }
 
-function beginBotTurn(context: PlayerTurnContext, player: PlayerId): void {
+export function recordBotTurn(
+    context: PlayerTurnContext,
+    player: PlayerId,
+    rolled: readonly DiceSymbol[],
+): void {
     const { state, decks } = context;
     const { turn, profiles } = state;
-    const rolled = rollDice(context, player);
     addEvent(state, {
         turn,
         player,
@@ -222,7 +225,7 @@ export function executeBotAction(context: PlayerTurnContext, action: BotAction):
     const { state, board, configuration } = context;
     switch (action.type) {
         case "roll":
-            beginBotTurn(context, action.player);
+            recordBotTurn(context, action.player, rollDice(context, action.player));
             return;
         case "convert": {
             const { player, choice } = action;
@@ -246,18 +249,19 @@ export function executeBotAction(context: PlayerTurnContext, action: BotAction):
         }
         case "summon":
             if (
-                !executeDeployment(
+                !executeDeploymentAction(
                     state,
                     configuration,
                     state.profiles[state.currentPlayer],
-                    action.decision,
+                    action,
+                    context.deckMonsters[state.currentPlayer],
                 )
             ) {
                 throw new Error("L'invocation choisie par le bot ne peut pas être payée.");
             }
             return;
         case "attack":
-            executeAttack(state, board, action.choice);
+            executeAttack(state, board, resolveAttackChoice(state, action.choice));
             return;
         case "move":
             if (!executeMovement(state, action)) {

@@ -9,9 +9,8 @@ import {
     getMovementCost,
     getMovementPathMap,
     isAreaAttack,
-    resetAttackTurnState,
 } from "../game/monsterActions";
-import { applyStatusEffectsAtTurnStart } from "../game/statusEffects";
+import { beginMonsterTurn } from "../game/statusEffects";
 import { DEFEAT_REPLY_PENALTY, scoreReplyThreat } from "../game/replyThreat";
 import type { PlayerId } from "../types/GameTypes";
 import { getAvailableAttackChoices } from "./combat/attackChoices";
@@ -31,9 +30,7 @@ export function getPlacementReplyPenalty(
     }
     for (const monster of reply.monsters) {
         if (monster.owner !== opponent || monster.currentHp <= 0) continue;
-        applyStatusEffectsAtTurnStart(monster);
-        resetAttackTurnState(monster);
-        monster.movementsUsedThisTurn = 0;
+        beginMonsterTurn(monster);
     }
     if (getMonsterEliminationWinner(reply.monsters, reply.monstersKilledForVictory) !== null) {
         return 0;

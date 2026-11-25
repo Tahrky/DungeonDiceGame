@@ -20,7 +20,7 @@ import {
     DEFAULT_BOT_STRATEGY_WEIGHTS,
     type BotTactic,
 } from "../game/botStrategy";
-import { createStrategicSnapshot, type MatchState } from "./matchState";
+import { createStrategicSnapshot, getBlockedCells, type MatchState } from "./matchState";
 import { createFormationScorer } from "../game/formation";
 import { getPlacementReplyPenalty } from "./placementReply";
 import {
@@ -58,11 +58,12 @@ function getFirstDeploymentProtection(
     ) {
         return undefined;
     }
+    const blockedCells = getBlockedCells(state, board);
     const placementKey = [
         board.width,
         board.height,
         opponent,
-        ...board.blockedCells.map(positionKey).sort(),
+        ...blockedCells.map(positionKey).sort(),
         "|",
         ...occupiedCells.map(positionKey).sort(),
     ].join(";");
@@ -74,7 +75,7 @@ function getFirstDeploymentProtection(
             start: opponentStart,
             occupiedCells,
             connectedCells: [opponentStart],
-            blockedCells: board.blockedCells,
+            blockedCells,
         });
         if (preservesFirstDeployment) {
             state.placementProtectionCache = { key: placementKey, preservesFirstDeployment };
@@ -91,6 +92,7 @@ function createSummonSearchContext(
     player: PlayerId,
 ): SummonSearchContext {
     const starts = getStartingPositions(board);
+    const blockedCells = getBlockedCells(state, board);
     const opponent = opposingPlayer(player);
     const occupiedCells = [...Object.values(starts), ...state.monsters.flatMap((m) => m.cells)];
     const ownCells = state.monsters
@@ -116,7 +118,7 @@ function createSummonSearchContext(
             occupiedCells,
             connectedCells: [starts[player], ...ownCells],
             overlappingCells: ownCells,
-            blockedCells: board.blockedCells,
+            blockedCells,
             isPlacementAllowed: (position) => !livingMonsterKeys.has(positionKey(position)),
             isFootprintAllowed: getFirstDeploymentProtection(
                 state,
@@ -136,7 +138,7 @@ export function createSummonedMonsterCandidate(
     placement: PatternPlacement,
 ): PlacedMonster {
     return createPlacedMonster(
-        `m${state.nextMonsterId}`,
+        `monster-${state.nextMonsterId}`,
         monster,
         player,
         placement.position,
@@ -182,6 +184,7 @@ function createPlacementScorer(
     context: SummonSearchContext,
 ) {
     const { starts, ownCells, enemyPositions } = context;
+    const blockedCells = getBlockedCells(state, board);
     const opponent = opposingPlayer(player);
     const tactic = state.tactics[player];
     const expansionObjective = chooseBotObjective(
@@ -198,7 +201,7 @@ function createPlacementScorer(
         expansionObjective,
     );
     const blockingCells = [
-        ...board.blockedCells,
+        ...blockedCells,
         ...state.monsters
             .filter((monster) => monster.currentHp > 0)
             .map((monster) => monster.position),
@@ -221,7 +224,7 @@ function createPlacementScorer(
                   starts[player],
                   starts[opponent],
                   ownCells,
-                  board.blockedCells,
+                  blockedCells,
                   weights,
               )
             : () => 0;

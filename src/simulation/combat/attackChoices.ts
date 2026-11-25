@@ -4,7 +4,8 @@ import {
     canTargetMonster,
     findLivingMonsterAt,
     getEnemyStart,
-    isAttackZoneUsable,
+    isAttackCellInRange,
+    isReachableAttackZone,
     type AttackContext,
 } from "../../game/attackRules";
 import {
@@ -13,7 +14,7 @@ import {
     scoreTacticalAttack,
     type TacticalAttackValue,
 } from "../../game/botStrategy";
-import { hasLineOfSight, isBehind, isSamePosition } from "../../game/geometry";
+import { isBehind, isSamePosition } from "../../game/geometry";
 import { opposingPlayer } from "../../game/matchRules";
 import {
     canUseActionThisTurn,
@@ -36,6 +37,25 @@ export interface AttackChoice {
     features: TacticalAttackValue;
 }
 
+export type SerializedAttackChoice = Omit<AttackChoice, "attacker"> & { attackerId: string };
+
+export function serializeAttackChoice({
+    attacker,
+    ...choice
+}: AttackChoice): SerializedAttackChoice {
+    return { ...choice, attackerId: attacker.id };
+}
+
+export function resolveAttackChoice(
+    state: MatchState,
+    choice: SerializedAttackChoice,
+): AttackChoice {
+    const { attackerId, ...rest } = choice;
+    const attacker = state.monsters.find(({ id }) => id === attackerId);
+    if (!attacker) throw new Error(`Attaquant introuvable : ${attackerId}`);
+    return { ...rest, attacker };
+}
+
 export function createAttackContext(state: MatchState, board: BoardDefinition): AttackContext {
     return {
         board,
@@ -44,6 +64,7 @@ export function createAttackContext(state: MatchState, board: BoardDefinition): 
         currentPlayer: state.currentPlayer,
         turn: state.turn,
         allowBaseAttackOnSummonTurn: state.allowBaseAttackOnSummonTurn,
+        obstacles: state.obstacles,
     };
 }
 
@@ -89,7 +110,11 @@ function evaluateAttack(
     const baseDamage = getBuffedAttackDamage(attacker, attack);
     const backstabBonus = attacker.monster.bonusDamageFromBehind ?? 0;
     for (const cell of isArea ? cells : [target]) {
-        if (!isBoardCell(context.board, cell)) continue;
+        if (
+            !isBoardCell(context.board, cell) ||
+            !isAttackCellInRange(attacker.position, attack, cell)
+        )
+            continue;
         if (canHitBase && isSamePosition(cell, enemyStart)) {
             value.baseDamage = 1;
             continue;
@@ -128,23 +153,27 @@ function getLegalAttackOptions(
 ) {
     const enemyStart = getEnemyStart(context);
     const canHitBase = canAttackEnemyBase(context, attacker);
-    const needsLineOfSight = !isAreaAttack(attack);
-    const blockers = needsLineOfSight
-        ? context.monsters
-              .filter((monster) => monster.currentHp > 0 && monster.id !== attacker.id)
-              .map((monster) => monster.position)
-        : [];
-
+    const seenTargets = new Set<string>();
     return getAttackZoneOptions(
         attacker.position,
         attacker.facing,
         attack.pattern,
         attack.targetsSelf,
-    ).filter(({ target, cells }) => {
+    ).filter((option) => {
+        const { target } = option;
         if (!isBoardCell(context.board, target)) return false;
         if (isSamePosition(target, enemyStart) && !canHitBase) return false;
-        if (needsLineOfSight && !hasLineOfSight(attacker.position, target, blockers)) return false;
-        return isAttackZoneUsable(context, attacker, attack, cells);
+        if (
+            attack.targetsAlliesOnly &&
+            findLivingMonsterAt(context.monsters, target)?.owner !== context.currentPlayer
+        ) {
+            return false;
+        }
+        if (!isReachableAttackZone(context, attacker, attack, option)) return false;
+        const key = `${target.x},${target.y}`;
+        if (seenTargets.has(key)) return false;
+        seenTargets.add(key);
+        return true;
     });
 }
 

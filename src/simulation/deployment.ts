@@ -179,8 +179,23 @@ export function deployMonsters(
     deckMonsters: readonly Monster[],
 ): void {
     for (const action of decideDeployments(state, configuration, board, profile, deckMonsters)) {
-        if (!executeDeployment(state, configuration, profile, action.decision)) return;
+        if (!executeDeploymentAction(state, configuration, profile, action, deckMonsters)) return;
     }
+}
+
+export function executeDeploymentAction(
+    state: MatchState,
+    configuration: GameConfiguration,
+    profile: BotProfile,
+    action: Extract<BotAction, { type: "summon" }>,
+    deckMonsters: readonly Monster[],
+): boolean {
+    const monster = deckMonsters.find(({ id }) => id === action.monsterId);
+    if (!monster) throw new Error(`Monstre à invoquer introuvable : ${action.monsterId}`);
+    return executeDeployment(state, configuration, profile, {
+        summon: { monster, placement: action.placement },
+        candidateCount: action.candidateCount,
+    });
 }
 
 export function* decideDeployments(
@@ -194,6 +209,11 @@ export function* decideDeployments(
     for (;;) {
         const decision = decide();
         if (!decision) return;
-        yield { type: "summon", decision };
+        yield {
+            type: "summon",
+            monsterId: decision.summon.monster.id,
+            placement: decision.summon.placement,
+            candidateCount: decision.candidateCount,
+        };
     }
 }

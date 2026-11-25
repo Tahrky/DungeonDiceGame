@@ -1,13 +1,12 @@
 import { GameSceneInvocation } from "./GameSceneInvocation";
 import {
     canAttackEnemyBase,
-    getJumpLanding,
     isAttackCellInRange,
-    isAttackZoneUsable,
+    isReachableAttackZone,
     type AttackContext,
 } from "../game/attackRules";
 import { isBoardCell } from "../game/boards";
-import { hasLineOfSight, isSamePosition } from "../game/geometry";
+import { isSamePosition } from "../game/geometry";
 import { opposingPlayer } from "../game/matchRules";
 import {
     canUseActionThisTurn,
@@ -32,6 +31,7 @@ export abstract class GameSceneAttackTargeting extends GameSceneInvocation {
             currentPlayer: this.currentPlayer,
             turn: this.turnNumber,
             allowBaseAttackOnSummonTurn: this.gameConfiguration.allowBaseAttackOnSummonTurn,
+            obstacles: this.obstacles,
         };
     }
 
@@ -127,17 +127,6 @@ export abstract class GameSceneAttackTargeting extends GameSceneInvocation {
         );
     }
 
-    // In the scene, only jump-area attacks can move the attacker into their zone.
-    protected getSlimeLanding(
-        attacker: PlacedMonster,
-        attack: MonsterAttack,
-        zone: readonly Position[],
-    ): Position | undefined {
-        return attack.pattern.type === "jumpArea"
-            ? getJumpLanding(this.attackContext, attacker, zone)
-            : undefined;
-    }
-
     private getUsableAttack(attackerId: string, attackIndex: number): UsableAttack | undefined {
         const attacker = this.getLivingMonster(attackerId);
         const attack = attacker?.monster.attacks[attackIndex];
@@ -173,38 +162,9 @@ export abstract class GameSceneAttackTargeting extends GameSceneInvocation {
     private isReachableZone(
         attacker: PlacedMonster,
         attack: MonsterAttack,
-        { target, cells }: AttackZoneOption,
+        option: AttackZoneOption,
     ): boolean {
-        return (
-            (!attack.movesToZone || attack.pattern.type === "jumpArea") &&
-            isAttackZoneUsable(this.attackContext, attacker, attack, cells) &&
-            this.canSeeAttackTarget(attacker, attack, target)
-        );
-    }
-
-    private canSeeAttackTarget(
-        attacker: PlacedMonster,
-        attack: MonsterAttack,
-        target: Position,
-    ): boolean {
-        if (
-            attack.hitsAllies ||
-            attack.movesToZone ||
-            attack.pattern.type === "directionalArea" ||
-            attack.pattern.type === "selfRadius"
-        ) {
-            return true;
-        }
-
-        const blockingCells = [
-            ...this.obstacles
-                .filter((obstacle) => obstacle.height === 1)
-                .map(({ position }) => position),
-            ...this.getLivingMonsters()
-                .filter((monster) => monster.id !== attacker.id)
-                .map(({ position }) => position),
-        ];
-        return hasLineOfSight(attacker.position, target, blockingCells);
+        return isReachableAttackZone(this.attackContext, attacker, attack, option);
     }
 
     protected abstract canAffordMovement(monster: PlacedMonster): boolean;

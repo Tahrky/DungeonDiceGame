@@ -3,12 +3,18 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("phaser", () => ({ default: { Scene: class {} } }));
 
 import { createCustomBoard, getStartingPositions } from "../src/game/boards";
+import { PLACEMENT_PATTERNS } from "../src/data/placementPatterns";
 import { getDefaultGameConfiguration } from "../src/game/gameConfiguration";
-import { createPlacedMonster } from "../src/game/monsterActions";
+import { applyMonsterMovement, createPlacedMonster } from "../src/game/monsterActions";
 import { GameSceneComputer } from "../src/scenes/GameSceneComputer";
 import type { GameHudActions } from "../src/scenes/game/GameHud";
-import { createStats, type MatchState } from "../src/simulation/matchState";
-import { performMovements } from "../src/simulation/movement";
+import type { MonsterSpriteView } from "../src/scenes/game/MonsterSpriteView";
+import { cloneMatchState, createStats, type MatchState } from "../src/simulation/matchState";
+import { decideMovements, performMovements } from "../src/simulation/movement";
+import { getAvailableAttackChoices } from "../src/simulation/combat/attackChoices";
+import { getPlacementReplyPenalty } from "../src/simulation/placementReply";
+import { findBestSummonPlacementPair, findPlacement } from "../src/simulation/summonPlacement";
+import { findValidPlacements } from "../src/game/placement";
 import type { BoardObstacle, Monster, PlacedMonster, Position } from "../src/types/GameTypes";
 
 const board = createCustomBoard(9, 9);
@@ -42,13 +48,16 @@ function createAttacker(): PlacedMonster {
 
 class TestComputer extends GameSceneComputer {
     protected drawBoard(): void {}
+    protected render(): void {}
     protected get hudActions(): GameHudActions {
         throw new Error("Interface non utilisée par ce test.");
     }
 
     configure(monster: PlacedMonster, attackReserve: number): void {
         this.init({ mode: "computer", board });
+        this.prepareSprites();
         this.currentPlayer = 2;
+        this.opponentProfile = "offensive";
         this.turnNumber = 1;
         this.playerHealth[1] = 1;
         this.diceReserves[2] = { invocation: 0, movement: 1, attack: attackReserve };
@@ -56,7 +65,12 @@ class TestComputer extends GameSceneComputer {
     }
 
     move(monster: PlacedMonster): void {
-        Reflect.apply(Reflect.get(this, "moveComputerMonster"), this, [monster]);
+        if (!this.placedMonsters.includes(monster)) throw new Error("Monstre introuvable.");
+        const context = this.createComputerContext();
+        context.state.movementAttackCombos = true;
+        for (const action of decideMovements(context.state, board)) {
+            this.executeComputerAction(context, action);
+        }
     }
 
     get result(): number | null {
@@ -65,6 +79,7 @@ class TestComputer extends GameSceneComputer {
 
     configureReply(monsters: PlacedMonster[], attack: number, movement: number): void {
         this.init({ mode: "computer", board });
+        this.prepareSprites();
         this.currentPlayer = 2;
         this.turnNumber = 3;
         this.playerHealth[2] = 1;
@@ -84,9 +99,14 @@ class TestComputer extends GameSceneComputer {
     }
 
     guardThreat(monster: PlacedMonster, path: Position[]): [number, number] {
+        const state = this.createComputerContext().state;
+        const moved = cloneMatchState(state);
+        const guard = moved.monsters.find(({ id }) => id === monster.id);
+        if (!guard) throw new Error("Garde introuvable.");
+        applyMonsterMovement(guard, path);
         return [
-            this.getComputerReplyPenalty(this.placedMonsters),
-            this.getComputerMovementReplyPenalty(monster, path),
+            getPlacementReplyPenalty(state, board, 2),
+            getPlacementReplyPenalty(moved, board, 2),
         ];
     }
 
@@ -94,12 +114,48 @@ class TestComputer extends GameSceneComputer {
         this.obstacles = obstacles;
     }
 
+    setMonsters(monsters: PlacedMonster[]): void {
+        this.placedMonsters = monsters;
+    }
+
+    canTarget(attackerId: string, target: Position): boolean {
+        return this.canAttackTarget(attackerId, 0, target);
+    }
+
     reply(monster: Monster, position: Position, cells: Position[]): number {
-        return this.getComputerPlacementReplyPenalty(monster, { position, cells });
+        const state = this.createComputerContext().state;
+        state.monsters = [
+            ...state.monsters,
+            createPlacedMonster("candidate", monster, 2, position, cells, state.turn),
+        ];
+        return getPlacementReplyPenalty(state, board, 2);
     }
 
     placement(monster?: Monster) {
-        return this.findComputerPlacement(monster);
+        const state = this.createComputerContext().state;
+        return monster
+            ? (findBestSummonPlacementPair(state, board, 2, [monster])?.placement ?? null)
+            : findPlacement(state, board, 2);
+    }
+
+    placements() {
+        const ownCells = this.placedMonsters
+            .filter(({ owner }) => owner === 2)
+            .flatMap(({ cells }) => cells);
+        return findValidPlacements({
+            patterns: PLACEMENT_PATTERNS,
+            boardWidth: board.width,
+            boardHeight: board.height,
+            start: starts[2],
+            occupiedCells: [
+                ...Object.values(starts),
+                ...this.placedMonsters.flatMap(({ cells }) => cells),
+            ],
+            connectedCells: [starts[2], ...ownCells],
+            overlappingCells: ownCells,
+            blockedCells: this.getBlockedCells(),
+            isPlacementAllowed: (position) => !this.getLivingMonsterAt(position),
+        });
     }
 
     get replyState() {
@@ -112,18 +168,14 @@ class TestComputer extends GameSceneComputer {
         };
     }
 
-    protected handleMovementAction(position: Position, monsterId: string | null): void {
-        const monster = this.getLivingMonster(monsterId ?? "");
-        if (!monster) throw new Error("Monstre introuvable.");
-        monster.position = position;
-        monster.movementsUsedThisTurn++;
-    }
-
-    protected executeAttack(attacker: PlacedMonster, attackIndex: number, target: Position): void {
-        if (!this.canAttackTarget(attacker.id, attackIndex, target)) {
-            throw new Error("Attaque illégale.");
-        }
-        if (target.x === starts[1].x && target.y === starts[1].y) this.winner = 2;
+    private prepareSprites(): void {
+        const view: MonsterSpriteView = Object.create(null);
+        view.playAttack = vi.fn();
+        view.takeDamage = vi.fn();
+        view.clearCamouflage = vi.fn();
+        view.moveMonster = vi.fn();
+        view.isMoving = vi.fn().mockReturnValue(false);
+        this.monsterSpriteView = view;
     }
 }
 
@@ -152,6 +204,56 @@ function createSimulation(monster: PlacedMonster, attackReserve: number): MatchS
 }
 
 describe("déplacement préparant une attaque", () => {
+    it("applique les mêmes règles de ligne de vue et de déplacement d'attaque", () => {
+        const ghost = getDefaultGameConfiguration().monsters.find(({ id }) => id === "ghost")!;
+        const target = { x: 3, y: 4 };
+        const obstacle: BoardObstacle = { height: 1, position: { x: 4, y: 4 } };
+        const cases = [
+            { height: 1 as const, hitsAllies: false, movesToZone: false, expected: false },
+            { height: -1 as const, hitsAllies: false, movesToZone: false, expected: true },
+            { height: 1 as const, hitsAllies: true, movesToZone: false, expected: true },
+            { height: -1 as const, hitsAllies: false, movesToZone: true, expected: false },
+        ];
+        for (const test of cases) {
+            const monster = {
+                ...ghost,
+                attacks: [
+                    {
+                        name: "Test",
+                        damage: 1,
+                        cost: 1,
+                        pattern: { type: "radius" as const, range: 4 },
+                        hitsAllies: test.hitsAllies,
+                        movesToZone: test.movesToZone,
+                    },
+                ],
+            };
+            const attacker = createPlacedMonster(
+                "attacker",
+                monster,
+                2,
+                { x: 6, y: 4 },
+                [{ x: 6, y: 4 }],
+                0,
+            );
+            const victim = createPlacedMonster("victim", ghost, 1, target, [target], 0);
+            const obstacles = [{ ...obstacle, height: test.height }];
+            const scene = new TestComputer();
+            scene.configure(attacker, 1);
+            scene.setMonsters([attacker, victim]);
+            scene.setObstacles(obstacles);
+            const simulation = createSimulation(attacker, 1);
+            simulation.monsters.push(victim);
+            simulation.obstacles = obstacles;
+
+            const simulationCanTarget = getAvailableAttackChoices(simulation, board).some(
+                (choice) => choice.target.x === target.x && choice.target.y === target.y,
+            );
+            expect(scene.canTarget(attacker.id, target)).toBe(test.expected);
+            expect(simulationCanTarget).toBe(test.expected);
+        }
+    });
+
     it("évite une pose qui ouvre le dos d’un allié à une réponse payable", () => {
         const ghost = getDefaultGameConfiguration().monsters.find(({ id }) => id === "ghost")!;
         const threat = {
@@ -195,7 +297,9 @@ describe("déplacement préparant une attaque", () => {
         ally.facing = "east";
         const scene = new TestComputer();
         scene.configureReply([attacker, ally], 1, 1);
-        const baseline = scene.placement();
+        const baseline = scene
+            .placements()
+            .find((placement) => scene.reply(ghost, placement.position, placement.cells) > 0);
         const chosen = scene.placement(ghost);
         expect(baseline).not.toBeNull();
         expect(chosen).not.toBeNull();

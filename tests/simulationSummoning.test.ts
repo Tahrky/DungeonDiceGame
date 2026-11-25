@@ -73,6 +73,20 @@ function createMatchState(summonPlacementPairs: boolean): MatchState {
 }
 
 describe("invocations tactiques de simulation", () => {
+    it("ne pose pas de route sur un obstacle de scène", () => {
+        const board = createCustomBoard(9, 9);
+        const state = createMatchState(false);
+        const initial = findPlacement(state, board, 1);
+        if (!initial) throw new Error("Pose initiale attendue.");
+        const blocked = initial.cells[0]!;
+        state.obstacles = [{ position: blocked, height: 1 }];
+
+        const placement = findPlacement(state, board, 1);
+
+        expect(placement).not.toBeNull();
+        expect(placement?.cells).not.toContainEqual(blocked);
+    });
+
     it("joue un tour action par action comme la boucle de simulation", () => {
         const board = createCustomBoard(9, 9);
         const configuration = getDefaultGameConfiguration();

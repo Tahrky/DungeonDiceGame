@@ -4,7 +4,11 @@ import { opposingPlayer } from "../../game/matchRules";
 import { pickIndex } from "../../game/random";
 import type { MatchState } from "../matchState";
 import type { AttackChoice } from "./attackChoices";
-import { getAvailableAttackChoices } from "./attackChoices";
+import {
+    getAvailableAttackChoices,
+    resolveAttackChoice,
+    serializeAttackChoice,
+} from "./attackChoices";
 import { executeAttack } from "./attackExecution";
 import { searchBestAttack } from "./tacticalSearch";
 import type { BotAction } from "../botAction";
@@ -67,12 +71,12 @@ export function* decideAttacks(
     while (state.winner === null) {
         const choice = chooseAttack(state, board);
         if (!choice) return;
-        yield { type: "attack", choice };
+        yield { type: "attack", choice: serializeAttackChoice(choice) };
     }
 }
 
 export function performAttacks(state: MatchState, board: BoardDefinition): void {
     for (const action of decideAttacks(state, board)) {
-        executeAttack(state, board, action.choice);
+        executeAttack(state, board, resolveAttackChoice(state, action.choice));
     }
 }

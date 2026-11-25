@@ -1,11 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { createCustomBoard } from "../src/game/boards";
 import { getDefaultGameConfiguration } from "../src/game/gameConfiguration";
-import { getInitialAttackCooldowns, getInitialAttackUses } from "../src/game/monsterActions";
+import {
+    getInitialAttackCooldowns,
+    getInitialAttackUses,
+    getMonsterMovementPath,
+} from "../src/game/monsterActions";
 import { performAttacks } from "../src/simulation/combat";
 import { cloneMatchState, createStats, type MatchState } from "../src/simulation/matchState";
 import { performMovements } from "../src/simulation/movement";
 import { getPlacementReplyPenalty } from "../src/simulation/placementReply";
+import { createMovementOptions } from "../src/simulation/movementOptions";
 
 function createMatchState(
     movementAttackCombos: boolean,
@@ -83,6 +88,18 @@ function createMatchState(
 }
 
 describe("déplacement tactique de simulation", () => {
+    it("ne traverse pas un obstacle de scène sur une route déployée", () => {
+        const board = createCustomBoard(9, 9);
+        const state = createMatchState(false);
+        const monster = state.monsters[0]!;
+        const destination = { x: 4, y: 3 };
+        const options = () => ({ ...createMovementOptions(state, board, monster), destination });
+        expect(getMonsterMovementPath(options()).length).toBeGreaterThan(1);
+
+        state.obstacles = [{ position: destination, height: -1 }];
+        expect(getMonsterMovementPath(options())).toEqual([]);
+    });
+
     it("garde une entrée menacée sans consommer le dé du coéquipier", () => {
         const board = createCustomBoard(9, 9);
         const state = createMatchState(false);

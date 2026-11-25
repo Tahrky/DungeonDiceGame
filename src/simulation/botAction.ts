@@ -1,16 +1,21 @@
 import type { SymbolConversionChoice, ObjectiveMovement } from "../game/botStrategy";
-import type { PlacedMonster, PlayerId } from "../types/GameTypes";
-import type { AttackChoice } from "./combat/attackChoices";
-import type { DeploymentDecision } from "./deployment";
+import type { PatternPlacement } from "../game/placement";
+import type { PlayerId } from "../types/GameTypes";
+import type { SerializedAttackChoice } from "./combat/attackChoices";
 
 export type BotAction =
     | { type: "roll"; player: PlayerId }
     | { type: "convert"; player: PlayerId; choice: SymbolConversionChoice }
-    | { type: "summon"; decision: DeploymentDecision }
-    | { type: "attack"; choice: AttackChoice }
+    | {
+          type: "summon";
+          monsterId: string;
+          placement: PatternPlacement;
+          candidateCount: number;
+      }
+    | { type: "attack"; choice: SerializedAttackChoice }
     | {
           type: "move";
-          monster: PlacedMonster;
+          monsterId: string;
           movement: ObjectiveMovement;
           cost: number;
           description: string;
