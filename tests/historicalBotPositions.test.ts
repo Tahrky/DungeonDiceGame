@@ -1,9 +1,18 @@
-import { describe, expect, it } from "vitest";
-import { createCustomBoard } from "../src/game/boards";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("phaser", () => ({ default: { Scene: class {} } }));
+
+import { createCustomBoard, type BoardDefinition } from "../src/game/boards";
+import { DEFAULT_BOT_STRATEGY_WEIGHTS } from "../src/game/botStrategy";
 import { getDefaultGameConfiguration } from "../src/game/gameConfiguration";
 import { createPlacedMonster } from "../src/game/monsterActions";
-import { createStats, type MatchState } from "../src/simulation/matchState";
-import { performMovements } from "../src/simulation/movement";
+import { GameSceneComputer } from "../src/scenes/GameSceneComputer";
+import type { GameHudActions } from "../src/scenes/game/GameHud";
+import type { MonsterSpriteView } from "../src/scenes/game/MonsterSpriteView";
+import type { BotAction } from "../src/simulation/botAction";
+import { cloneMatchState, createStats, type MatchState } from "../src/simulation/matchState";
+import { decideMovements, performMovements } from "../src/simulation/movement";
+import { executeBotAction, type PlayerTurnContext } from "../src/simulation/playerTurn";
 import type { PlayerId, Position } from "../src/types/GameTypes";
 
 type Point = readonly [number, number];
@@ -195,6 +204,67 @@ function historicalPosition(pieces: Piece[], movement: number): MatchState {
     };
 }
 
+class HistoricalScene extends GameSceneComputer {
+    protected drawBoard(): void {}
+    protected render(): void {}
+    protected get hudActions(): GameHudActions {
+        throw new Error("Interface non utilisée par ce test.");
+    }
+
+    configure(state: MatchState, board: BoardDefinition): void {
+        this.init({ mode: "computer", board });
+        this.currentPlayer = state.currentPlayer;
+        this.turnNumber = state.turn;
+        this.playerHealth = state.health;
+        this.diceReserves = state.reserves;
+        this.placedMonsters = state.monsters;
+        const view: MonsterSpriteView = Object.create(null);
+        view.playAttack = vi.fn();
+        view.takeDamage = vi.fn();
+        view.clearCamouflage = vi.fn();
+        view.moveMonster = vi.fn();
+        view.isMoving = vi.fn().mockReturnValue(false);
+        this.monsterSpriteView = view;
+    }
+
+    execute(context: PlayerTurnContext, action: BotAction): void {
+        this.executeComputerAction(context, action);
+    }
+}
+
+function assertHistoricalParity(initial: MatchState): void {
+    const board = createCustomBoard(19, 15);
+    const configuration = getDefaultGameConfiguration();
+    const createContext = (state: MatchState): PlayerTurnContext => ({
+        state,
+        board,
+        configuration,
+        random: () => 0.5,
+        decks: { 1: [], 2: [] },
+        deckMonsters: { 1: [], 2: [] },
+        strategyWeights: { 1: DEFAULT_BOT_STRATEGY_WEIGHTS, 2: DEFAULT_BOT_STRATEGY_WEIGHTS },
+    });
+    const simulation = createContext(cloneMatchState(initial));
+    const sceneContext = createContext(cloneMatchState(initial));
+    const scene = new HistoricalScene();
+    scene.configure(sceneContext.state, board);
+    const simulatedActions: BotAction[] = [];
+    for (const action of decideMovements(simulation.state, board)) {
+        simulatedActions.push(structuredClone(action));
+        executeBotAction(simulation, action);
+    }
+    const sceneActions: BotAction[] = [];
+    for (const action of decideMovements(sceneContext.state, board)) {
+        sceneActions.push(structuredClone(action));
+        scene.execute(sceneContext, action);
+    }
+    expect(sceneActions).toEqual(simulatedActions);
+    expect(sceneContext.state.monsters).toEqual(simulation.state.monsters);
+    expect(sceneContext.state.reserves).toEqual(simulation.state.reserves);
+    expect(sceneContext.state.health).toEqual(simulation.state.health);
+    expect(sceneContext.state.winner).toBe(simulation.state.winner);
+}
+
 describe("géométries historiques des matchs 7 et 93", () => {
     it("rompt l’aller-retour du match 7 en préparant une attaque utile", () => {
         const baseline = historicalPosition(match7, 2);
@@ -204,6 +274,7 @@ describe("géométries historiques des matchs 7 et 93", () => {
         const state = historicalPosition(match7, 2);
         state.turn = 29;
         state.reserves[1].attack = 25;
+        assertHistoricalParity(state);
         performMovements(baseline, createCustomBoard(19, 15));
         performMovements(state, createCustomBoard(19, 15));
         expect(
@@ -221,6 +292,7 @@ describe("géométries historiques des matchs 7 et 93", () => {
         state.turn = 12;
         state.profiles[1] = "random-strategy";
         state.tactics[1] = "balanced";
+        assertHistoricalParity(state);
         performMovements(state, createCustomBoard(19, 15));
         expect(state.monsters.find(({ id }) => id === "m9")?.position).toEqual({ x: 5, y: 8 });
         expect(state.statistics[1].stagnantMonsterTurns).toBe(0);
