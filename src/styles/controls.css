@@ -1,0 +1,75 @@
+.deck-json {
+    display: grid;
+    gap: 10px;
+    margin-top: 26px;
+}
+
+.deck-json label,
+.room-join label {
+    color: #e6edf5;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.deck-json textarea {
+    width: 100%;
+    min-height: 136px;
+    resize: vertical;
+    border: 1px solid #3d4b5a;
+    border-radius: 6px;
+    padding: 12px;
+    color: #d9e3ed;
+    background: #151e28;
+    font:
+        13px/1.5 Consolas,
+        monospace;
+}
+
+.deck-json textarea:focus,
+.room-join input:focus {
+    border-color: var(--accent-gold);
+    outline: 2px solid rgb(var(--accent-gold-rgb) / 20%);
+}
+
+.deck-json > small {
+    color: #94a1af;
+}
+
+.deck-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 9px;
+}
+
+.primary-button,
+.secondary-button {
+    min-height: 40px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    padding: 9px 14px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.primary-button {
+    color: #1c232b;
+    background: var(--accent-gold);
+}
+
+.secondary-button {
+    border-color: #526170;
+    color: #e4e9ef;
+    background: #2b3947;
+}
+
+.secondary-button:hover {
+    border-color: #a8b7c5;
+    background: #354555;
+}
+
+.notice {
+    min-height: 20px;
+    margin: 12px 0 0;
+    color: var(--accent-gold);
+    font-size: 13px;
+}

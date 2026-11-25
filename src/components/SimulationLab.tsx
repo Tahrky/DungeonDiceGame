@@ -1,9 +1,11 @@
 import { useCallback, useState } from "react";
+
 import type { GameConfiguration } from "../game/gameConfiguration";
 import type { SimulationBatchResult } from "../simulation/types";
+import { MenuScreen } from "./common/MenuScreen";
+import { MonsterBalancePanel } from "./simulation/MonsterBalancePanel";
 import { ResultsAnalysisPanel } from "./simulation/ResultsAnalysisPanel";
 import { RunSimulationPanel } from "./simulation/RunSimulationPanel";
-import { MonsterBalancePanel } from "./simulation/MonsterBalancePanel";
 
 interface SimulationLabProps {
     readonly sessionId: string;
@@ -11,8 +13,14 @@ interface SimulationLabProps {
     readonly onBack: () => void;
 }
 
+const TABS = [
+    { id: "run", label: "Lancer une simulation" },
+    { id: "analysis", label: "Analyser un JSON" },
+    { id: "balance", label: "Équilibrage des monstres" },
+] as const;
+
 export function SimulationLab({ sessionId, configuration, onBack }: SimulationLabProps) {
-    const [activeTab, setActiveTab] = useState<"run" | "analysis" | "balance">("run");
+    const [activeTab, setActiveTab] = useState<(typeof TABS)[number]["id"]>("run");
     const [isRunning, setIsRunning] = useState(false);
     const [generatedResult, setGeneratedResult] = useState<SimulationBatchResult | null>(null);
 
@@ -22,54 +30,40 @@ export function SimulationLab({ sessionId, configuration, onBack }: SimulationLa
     }, []);
 
     return (
-        <section id="menu-screen" className="simulation-screen">
-            <section className="menu-panel">
-                <button className="back-button" onClick={onBack} disabled={isRunning}>
-                    ← Retour à l’accueil
-                </button>
-                <p className="eyebrow">OUTIL D’ÉQUILIBRAGE</p>
-                <h2>Laboratoire de simulation</h2>
-                <nav className="simulation-tabs" aria-label="Outils de simulation">
+        <MenuScreen
+            screenClassName="simulation-screen"
+            isBackDisabled={isRunning}
+            onBack={onBack}
+            eyebrow="OUTIL D’ÉQUILIBRAGE"
+            title="Laboratoire de simulation"
+        >
+            <nav className="simulation-tabs" aria-label="Outils de simulation">
+                {TABS.map(({ id, label }) => (
                     <button
-                        className={activeTab === "run" ? "is-active" : ""}
-                        aria-pressed={activeTab === "run"}
+                        key={id}
+                        className={activeTab === id ? "is-active" : ""}
+                        aria-pressed={activeTab === id}
                         disabled={isRunning}
-                        onClick={() => setActiveTab("run")}
+                        onClick={() => setActiveTab(id)}
                     >
-                        Lancer une simulation
+                        {label}
                     </button>
-                    <button
-                        className={activeTab === "analysis" ? "is-active" : ""}
-                        aria-pressed={activeTab === "analysis"}
-                        disabled={isRunning}
-                        onClick={() => setActiveTab("analysis")}
-                    >
-                        Analyser un JSON
-                    </button>
-                    <button
-                        className={activeTab === "balance" ? "is-active" : ""}
-                        aria-pressed={activeTab === "balance"}
-                        disabled={isRunning}
-                        onClick={() => setActiveTab("balance")}
-                    >
-                        Équilibrage des monstres
-                    </button>
-                </nav>
-                <div hidden={activeTab !== "run"}>
-                    <RunSimulationPanel
-                        sessionId={sessionId}
-                        configuration={configuration}
-                        onRunningChange={setIsRunning}
-                        onResult={showResult}
-                    />
-                </div>
-                <div hidden={activeTab !== "analysis"}>
-                    <ResultsAnalysisPanel generatedResult={generatedResult} />
-                </div>
-                <div hidden={activeTab !== "balance"}>
-                    <MonsterBalancePanel />
-                </div>
-            </section>
-        </section>
+                ))}
+            </nav>
+            <div hidden={activeTab !== "run"}>
+                <RunSimulationPanel
+                    sessionId={sessionId}
+                    configuration={configuration}
+                    onRunningChange={setIsRunning}
+                    onResult={showResult}
+                />
+            </div>
+            <div hidden={activeTab !== "analysis"}>
+                <ResultsAnalysisPanel generatedResult={generatedResult} />
+            </div>
+            <div hidden={activeTab !== "balance"}>
+                <MonsterBalancePanel />
+            </div>
+        </MenuScreen>
     );
 }

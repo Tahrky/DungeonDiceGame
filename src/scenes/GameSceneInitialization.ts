@@ -6,6 +6,7 @@ import { BoardView } from "./game/BoardView";
 import { GameHud } from "./game/GameHud";
 import { MonsterTooltip } from "./game/MonsterTooltip";
 import { MonsterSpriteView } from "./game/MonsterSpriteView";
+import { arialStyle } from "./game/uiStyle";
 import { GameSceneComputer } from "./GameSceneComputer";
 
 const IDLE_ACTIONS: readonly MonsterSpriteAction[] = ["idle"];
@@ -108,23 +109,19 @@ export abstract class GameSceneInitialization extends GameSceneComputer {
             .rectangle(screenWidth / 2, screenHeight / 2, 430, 112, 0x263340, 1)
             .setStrokeStyle(1, 0xf0c974);
         const title = this.add
-            .text(screenWidth / 2, screenHeight / 2 - 20, "Préparation de la partie", {
-                color: "#f0c974",
-                fontFamily: "Arial",
-                fontSize: "22px",
-                fontStyle: "bold",
-            })
+            .text(
+                screenWidth / 2,
+                screenHeight / 2 - 20,
+                "Préparation de la partie",
+                arialStyle(22, "#f0c974", { fontStyle: "bold" }),
+            )
             .setOrigin(0.5);
         this.loadingMessage = this.add
             .text(
                 screenWidth / 2,
                 screenHeight / 2 + 20,
                 "Chargement des sprites essentiels… 0 %",
-                {
-                    color: "#ffffff",
-                    fontFamily: "Arial",
-                    fontSize: "15px",
-                },
+                arialStyle(15, "#ffffff"),
             )
             .setOrigin(0.5);
         this.loadingOverlay = this.add

@@ -1,0 +1,119 @@
+@media (max-width: 520px) {
+    header {
+        padding-top: 28px;
+    }
+
+    header h1 {
+        font-size: clamp(32px, 9vw, 42px);
+        letter-spacing: 5px;
+    }
+
+    main {
+        padding: 8px 12px 20px;
+    }
+
+    .menu-card-grid,
+    .menu-card-grid--two {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+
+    .menu-card {
+        min-height: 100px;
+        flex-direction: row;
+        justify-content: flex-start;
+        gap: 16px;
+        padding: 10px 14px;
+    }
+
+    .menu-card strong {
+        font-size: 23px;
+        text-align: left;
+    }
+
+    .choice-icon {
+        width: 60px;
+        height: 60px;
+        font-size: 76px;
+    }
+
+    .choice-die-icon {
+        width: 60px;
+        height: 60px;
+    }
+
+    .choice-monitor-icon,
+    .choice-book-icon {
+        width: 60px;
+        height: 60px;
+    }
+
+    .deck-actions > button {
+        flex: 1 1 100%;
+    }
+
+    .simulation-tabs button {
+        flex: 1 1 100%;
+        text-align: left;
+    }
+
+    .simulation-table {
+        font-size: 12px;
+    }
+}
+
+@media (orientation: portrait) and (max-width: 900px) {
+    .portrait-orientation-message {
+        position: fixed;
+        z-index: 25;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        background: #151b25f5;
+        text-align: center;
+        pointer-events: auto;
+    }
+
+    .portrait-orientation-message > div {
+        max-width: 360px;
+    }
+
+    .portrait-orientation-message span {
+        display: block;
+        margin-bottom: 20px;
+        color: var(--accent-gold);
+        font-size: 56px;
+    }
+
+    .portrait-orientation-message strong {
+        color: var(--accent-gold);
+        font-family: Georgia, serif;
+        font-size: clamp(22px, 6vw, 30px);
+        font-weight: 500;
+    }
+
+    .portrait-orientation-message p {
+        color: #c1cbd6;
+        font-size: 16px;
+        line-height: 1.5;
+    }
+
+    .portrait-return-button {
+        min-width: 99px;
+        min-height: 44px;
+        border: 2px solid #293441;
+        padding: 8px 18px;
+        color: #ffffff;
+        background: #a45e39;
+        font:
+            14px Arial,
+            sans-serif;
+        cursor: pointer;
+        pointer-events: auto;
+    }
+
+    .portrait-return-button:hover {
+        background: #c47b4e;
+    }
+}

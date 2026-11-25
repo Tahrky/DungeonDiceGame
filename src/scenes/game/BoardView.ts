@@ -2,65 +2,31 @@ import Phaser from "phaser";
 
 import { GAME_CONFIG } from "../../config";
 import { MONSTER_SPRITES } from "../../data/monsterSprites";
-import { PLACEMENT_PATTERNS } from "../../data/placementPatterns";
 import { getBoardOrigin, isBoardCell, type BoardDefinition } from "../../game/boards";
-import { getPatternCells } from "../../game/placement";
+import { FACING_VECTORS } from "../../game/geometry";
+import type { PlacedMonster, PlayerId, Position } from "../../types/GameTypes";
 
 import type { GameViewState } from "./GameViewState";
-import type { PlayerId, Position } from "../../types/GameTypes";
+import { adjustColor, toGrayscale } from "./boardColors";
+import {
+    createCellRenderContext,
+    getCellStyle,
+    type BoardActions,
+    type CellRenderContext,
+    type CellStyle,
+} from "./boardCellStyle";
+import { arialStyle } from "./uiStyle";
 
-interface CellStyle {
-    color: number;
-    fillAlpha: number;
-}
-
-interface BoardActions {
-    canPlace: (origin: Position) => boolean;
-    canMove: (monsterId: string, destination: Position) => boolean;
-    getMovementCandidates: (monsterId: string) => Position[];
-    canAttack: (attackerId: string, attackIndex: number | null, target: Position) => boolean;
-    getAttackCandidates: (attackerId: string, attackIndex: number) => Position[];
-    getAttackRange: (attackerId: string, attackIndex: number) => Position[];
-    getAttackPreview: (attackerId: string, attackIndex: number, target: Position) => Position[];
-}
-
-interface CellRenderContext {
-    state: GameViewState;
-    previewCells: readonly Position[];
-    actions: BoardActions;
-    attackRange: readonly Position[];
-    attackCandidates: readonly Position[];
-    attackPreview: readonly Position[];
-    movementCandidates: readonly Position[];
-}
-
-const VALID_ACTION_COLOR = 0xf1cf65;
-const INVALID_MOVE_COLOR = 0x555d68;
-const ACTION_HOVER_COLOR = 0x54c8c0;
-
-const OWNER_COLORS: Record<PlayerId, number> = {
-    1: 0x914d49,
-    2: 0x416e9a,
+const MARKER_COLORS: Record<PlayerId, { fill: number; outline: number }> = {
+    1: { fill: 0xff6655, outline: 0x000000 },
+    2: { fill: 0x55aaff, outline: 0xffffff },
 };
 
-const PREVIEW_COLORS: Record<PlayerId, { valid: number; invalid: number }> = {
-    1: { valid: 0xff6655, invalid: 0x914d49 },
-    2: { valid: 0x55aaff, invalid: 0x416e9a },
-};
+const ELEVATED_FACE_TONE = 0.52;
+const ELEVATED_OUTLINE_COLOR = 0x30363a;
 
-function toGrayscale(color: number): number {
-    const red = (color >> 16) & 0xff;
-    const green = (color >> 8) & 0xff;
-    const blue = color & 0xff;
-    const gray = Math.round(red * 0.299 + green * 0.587 + blue * 0.114);
-    return (gray << 16) | (gray << 8) | gray;
-}
-
-function adjustColor(color: number, factor: number): number {
-    const red = Math.min(255, Math.round(((color >> 16) & 0xff) * factor));
-    const green = Math.min(255, Math.round(((color >> 8) & 0xff) * factor));
-    const blue = Math.min(255, Math.round((color & 0xff) * factor));
-    return (red << 16) | (green << 8) | blue;
+function shade(state: GameViewState, color: number): number {
+    return state.winner === null ? color : toGrayscale(color);
 }
 
 export class BoardView {
@@ -113,100 +79,84 @@ export class BoardView {
 
     draw(state: GameViewState, actions: BoardActions): void {
         this.graphics.clear();
-        const { width: boardWidth, height: boardHeight } = this.board;
-        const previewCells = this.getPreviewCells(state);
-        const attackRange = this.getAttackRange(state, actions);
-        const attackCandidates = this.getAttackCandidates(state, actions);
-        const attackPreview = this.getAttackPreview(state, actions);
-        const movementCandidates = this.getMovementCandidates(state, actions);
-        const context: CellRenderContext = {
-            state,
-            previewCells,
-            actions,
-            attackRange,
-            attackCandidates,
-            attackPreview,
-            movementCandidates,
-        };
+        const context = createCellRenderContext(state, actions);
 
-        for (let y = 0; y < boardHeight; y++) {
-            for (let x = 0; x < boardWidth; x++) {
-                if (!isBoardCell(this.board, { x, y })) continue;
-                this.drawCell({ x, y }, context);
+        for (let y = 0; y < this.board.height; y++) {
+            for (let x = 0; x < this.board.width; x++) {
+                if (isBoardCell(this.board, { x, y })) this.drawCell({ x, y }, context);
             }
         }
 
         this.drawElevatedCells(state, context);
         this.drawStartingPositions(state);
-        this.drawMonsters(state);
+        this.drawFallbackMonsters(state);
     }
 
     private drawCell(cell: Position, context: CellRenderContext): void {
-        const center = this.toScreen(cell);
-        const style = this.getCellStyle(cell, context);
-
-        const color = context.state.winner === null ? style.color : toGrayscale(style.color);
-        const borderColor = context.state.winner === null ? 0x35443a : toGrayscale(0x35443a);
-        this.graphics.fillStyle(color, style.fillAlpha);
-        this.graphics.lineStyle(1.5, borderColor, 0.9);
-
-        const points = this.getDiamondPoints(center);
-        this.graphics.fillPoints(points, true);
-        this.graphics.strokePoints(points, true);
+        const { state } = context;
+        const style = getCellStyle(cell, context);
+        this.drawPolygon(
+            this.getDiamondPoints(this.toScreen(cell)),
+            shade(state, style.color),
+            style.fillAlpha,
+            { width: 1.5, color: shade(state, 0x35443a), alpha: 0.9 },
+        );
     }
 
     private drawElevatedCells(state: GameViewState, context: CellRenderContext): void {
-        const { tileHeight } = GAME_CONFIG;
-        const elevatedCells = [...state.obstacles].sort(
+        const obstacles = [...state.obstacles].sort(
             (first, second) =>
-                first.position.x +
-                first.position.y -
-                second.position.x -
-                second.position.y,
+                first.position.x + first.position.y - second.position.x - second.position.y,
         );
-        for (const obstacle of elevatedCells) {
-            const center = this.toScreen(obstacle.position);
-            const style = this.getCellStyle(obstacle.position, context);
-            if (obstacle.height === -1) {
-                const surfaceColor =
-                    context.state.winner === null ? style.color : toGrayscale(style.color);
-                const points = this.getDiamondPoints(center);
+        for (const { position, height } of obstacles) {
+            const center = this.toScreen(position);
+            if (height === -1) {
                 this.graphics.fillStyle(0x151b22, 1);
-                this.graphics.lineStyle(3, adjustColor(surfaceColor, 0.52), 1);
-                this.graphics.fillPoints(points, true);
-                continue;
+                this.graphics.fillPoints(this.getDiamondPoints(center), true);
+            } else {
+                this.drawRaisedCell(center, getCellStyle(position, context), state);
             }
-
-            const basePoints = this.getDiamondPoints(center);
-            const raisedCenter = {
-                x: center.x,
-                y: center.y - tileHeight * 0.45,
-            };
-            const topPoints = this.getDiamondPoints(raisedCenter);
-            const cellColor = style.color;
-            const color =
-                context.state.winner === null ? cellColor : toGrayscale(cellColor);
-            const faceTone = 0.52;
-            const leftFace = [topPoints[2], topPoints[3], basePoints[3], basePoints[2]];
-            const rightFace = [topPoints[1], topPoints[2], basePoints[2], basePoints[1]];
-
-            this.graphics.fillStyle(adjustColor(color, faceTone), 1);
-            this.graphics.lineStyle(1.25, 0x30363a, 1);
-            this.graphics.fillPoints(leftFace, true);
-            this.graphics.strokePoints(leftFace, true);
-            this.graphics.fillStyle(adjustColor(color, faceTone * 0.78), 1);
-            this.graphics.fillPoints(rightFace, true);
-            this.graphics.strokePoints(rightFace, true);
-
-            const surfaceColor =
-                context.state.winner === null ? style.color : toGrayscale(style.color);
-            const topColor = adjustColor(surfaceColor, 1.22);
-            const borderColor = context.state.winner === null ? 0x30363a : toGrayscale(0x30363a);
-            this.graphics.fillStyle(topColor, style.fillAlpha);
-            this.graphics.lineStyle(1.75, borderColor, 1);
-            this.graphics.fillPoints(topPoints, true);
-            this.graphics.strokePoints(topPoints, true);
         }
+    }
+
+    private drawRaisedCell(center: Position, style: CellStyle, state: GameViewState): void {
+        const base = this.getDiamondPoints(center);
+        const top = this.getDiamondPoints({
+            x: center.x,
+            y: center.y - GAME_CONFIG.tileHeight * 0.45,
+        });
+        const color = shade(state, style.color);
+        const faceLine = { width: 1.25, color: ELEVATED_OUTLINE_COLOR, alpha: 1 };
+
+        this.drawPolygon(
+            [top[2], top[3], base[3], base[2]],
+            adjustColor(color, ELEVATED_FACE_TONE),
+            1,
+            faceLine,
+        );
+        this.drawPolygon(
+            [top[1], top[2], base[2], base[1]],
+            adjustColor(color, ELEVATED_FACE_TONE * 0.78),
+            1,
+            faceLine,
+        );
+        this.drawPolygon(top, adjustColor(color, 1.22), style.fillAlpha, {
+            width: 1.75,
+            color: shade(state, ELEVATED_OUTLINE_COLOR),
+            alpha: 1,
+        });
+    }
+
+    private drawPolygon(
+        points: Phaser.Math.Vector2[],
+        fillColor: number,
+        fillAlpha: number,
+        line: { width: number; color: number; alpha: number },
+    ): void {
+        this.graphics.fillStyle(fillColor, fillAlpha);
+        this.graphics.lineStyle(line.width, line.color, line.alpha);
+        this.graphics.fillPoints(points, true);
+        this.graphics.strokePoints(points, true);
     }
 
     private getDiamondPoints(center: Position): Phaser.Math.Vector2[] {
@@ -224,276 +174,79 @@ export class BoardView {
         const lastColumn = this.board.width - 1;
         const lastRow = this.board.height - 1;
         const labels = [
-            {
-                text: "N",
-                position: this.toScreen({ x: 0, y: 0 }),
-                offsetX: 0,
-                offsetY: -(tileHeight / 2 + 14),
-            },
-            {
-                text: "E",
-                position: this.toScreen({ x: lastColumn, y: 0 }),
-                offsetX: tileWidth / 2 + 14,
-                offsetY: 0,
-            },
+            { text: "N", cell: { x: 0, y: 0 }, offsetX: 0, offsetY: -(tileHeight / 2 + 14) },
+            { text: "E", cell: { x: lastColumn, y: 0 }, offsetX: tileWidth / 2 + 14, offsetY: 0 },
             {
                 text: "S",
-                position: this.toScreen({ x: lastColumn, y: lastRow }),
+                cell: { x: lastColumn, y: lastRow },
                 offsetX: 0,
                 offsetY: tileHeight / 2 + 14,
             },
-            {
-                text: "O",
-                position: this.toScreen({ x: 0, y: lastRow }),
-                offsetX: -(tileWidth / 2 + 14),
-                offsetY: 0,
-            },
+            { text: "O", cell: { x: 0, y: lastRow }, offsetX: -(tileWidth / 2 + 14), offsetY: 0 },
         ];
 
-        for (const { text, position, offsetX, offsetY } of labels) {
+        for (const { text, cell, offsetX, offsetY } of labels) {
+            const position = this.toScreen(cell);
             this.scene.add
-                .text(position.x + offsetX, position.y + offsetY, text, {
-                    fontFamily: "Arial",
-                    fontSize: "16px",
-                    fontStyle: "bold",
-                    color: "#f1cf65",
-                    stroke: "#202a36",
-                    strokeThickness: 4,
-                })
+                .text(
+                    position.x + offsetX,
+                    position.y + offsetY,
+                    text,
+                    arialStyle(16, "#f1cf65", {
+                        fontStyle: "bold",
+                        stroke: "#202a36",
+                        strokeThickness: 4,
+                    }),
+                )
                 .setOrigin(0.5)
                 .setDepth(2);
         }
     }
 
-    private getCellStyle(cell: Position, context: CellRenderContext): CellStyle {
-        const { state, previewCells, actions } = context;
-        const actionStyle = this.getActionCellStyle(cell, context);
-        if (actionStyle) return actionStyle;
-
-        let color = this.getBaseCellColor(cell, state);
-        let fillAlpha = 1;
-
-        if (this.hasCell(state.pendingCells, cell)) {
-            color = state.currentPlayer === 1 ? 0xc36a60 : 0x5d91bd;
-        } else {
-            const previewOrigin = state.lockedPreviewCell ?? state.hoveredCell;
-            if (this.hasCell(previewCells, cell) && previewOrigin) {
-                const isValid = actions.canPlace(previewOrigin);
-                color = this.getPreviewColor(state.currentPlayer, isValid);
-                fillAlpha = isValid ? 1 : 0.7;
-            }
-        }
-
-        if (this.isHoveredPendingCell(cell, state)) {
-            color = VALID_ACTION_COLOR;
-        }
-
-        return { color, fillAlpha };
-    }
-
-    private getActionCellStyle(cell: Position, context: CellRenderContext): CellStyle | null {
-        if (context.state.actionMode.type === "attack") {
-            return this.getAttackCellStyle(cell, context);
-        }
-        if (context.state.actionMode.type === "movement") {
-            return this.getMovementCellStyle(cell, context);
-        }
-        return null;
-    }
-
-    private getAttackCellStyle(cell: Position, context: CellRenderContext): CellStyle | null {
-        const { state, attackPreview, attackRange, attackCandidates } = context;
-        if (state.actionMode.type !== "attack") return null;
-        const { attackerId, attackIndex } = state.actionMode;
-        if (!attackerId || attackIndex === null) return null;
-        if (this.hasCell(attackPreview, cell)) {
-            return { color: ACTION_HOVER_COLOR, fillAlpha: 1 };
-        }
-        if (this.hasCell(attackRange, cell)) {
-            return { color: VALID_ACTION_COLOR, fillAlpha: 1 };
-        }
-        if (this.hasCell(attackCandidates, cell)) {
-            return { color: INVALID_MOVE_COLOR, fillAlpha: 0.8 };
-        }
-        return null;
-    }
-
-    private getMovementCellStyle(cell: Position, context: CellRenderContext): CellStyle | null {
-        const { state, actions, movementCandidates } = context;
-        if (state.actionMode.type !== "movement") return null;
-        const { monsterId } = state.actionMode;
-        if (!monsterId || !this.hasCell(movementCandidates, cell)) return null;
-
-        const canMove = actions.canMove(monsterId, cell);
-        let color = canMove ? VALID_ACTION_COLOR : INVALID_MOVE_COLOR;
-        if (canMove && this.isHoveredCell(cell, state)) color = ACTION_HOVER_COLOR;
-        return { color, fillAlpha: canMove ? 1 : 0.8 };
-    }
-
-    private getMovementCandidates(state: GameViewState, actions: BoardActions): Position[] {
-        if (state.actionMode.type !== "movement" || !state.actionMode.monsterId) return [];
-        return actions.getMovementCandidates(state.actionMode.monsterId);
-    }
-
-    private getAttackCandidates(state: GameViewState, actions: BoardActions): Position[] {
-        if (
-            state.actionMode.type !== "attack" ||
-            !state.actionMode.attackerId ||
-            state.actionMode.attackIndex === null
-        ) {
-            return [];
-        }
-        return actions.getAttackCandidates(
-            state.actionMode.attackerId,
-            state.actionMode.attackIndex,
-        );
-    }
-
-    private getAttackRange(state: GameViewState, actions: BoardActions): Position[] {
-        if (
-            state.actionMode.type !== "attack" ||
-            !state.actionMode.attackerId ||
-            state.actionMode.attackIndex === null
-        ) {
-            return [];
-        }
-        return actions.getAttackRange(state.actionMode.attackerId, state.actionMode.attackIndex);
-    }
-
-    private getAttackPreview(state: GameViewState, actions: BoardActions): Position[] {
-        if (
-            state.actionMode.type !== "attack" ||
-            !state.actionMode.attackerId ||
-            state.actionMode.attackIndex === null ||
-            !state.hoveredCell ||
-            !actions.canAttack(
-                state.actionMode.attackerId,
-                state.actionMode.attackIndex,
-                state.hoveredCell,
-            )
-        ) {
-            return [];
-        }
-        return actions.getAttackPreview(
-            state.actionMode.attackerId,
-            state.actionMode.attackIndex,
-            state.hoveredCell,
-        );
-    }
-
-    private getBaseCellColor(cell: Position, state: GameViewState): number {
-        const owner = this.getCellOwner(cell, state);
-        if (owner !== null) return OWNER_COLORS[owner];
-
-        return (cell.x + cell.y) % 2 === 0 ? 0x667b61 : 0x71866a;
-    }
-
-    private getPreviewColor(player: PlayerId, isValid: boolean): number {
-        return isValid ? PREVIEW_COLORS[player].valid : PREVIEW_COLORS[player].invalid;
-    }
-
-    private isHoveredPendingCell(cell: Position, state: GameViewState): boolean {
-        const hoveredCell = state.hoveredCell;
-        if (hoveredCell?.x !== cell.x || hoveredCell?.y !== cell.y) return false;
-
-        return this.hasCell(state.pendingCells, cell);
-    }
-
-    private hasCell(cells: readonly Position[] | null, target: Position): boolean {
-        return cells?.some((cell) => cell.x === target.x && cell.y === target.y) ?? false;
-    }
-
-    private isHoveredCell(cell: Position, state: GameViewState): boolean {
-        return state.hoveredCell?.x === cell.x && state.hoveredCell.y === cell.y;
-    }
-
-    private getPreviewCells(state: GameViewState): Position[] {
-        if (state.pendingCells) return state.pendingCells;
-        if (state.onlineGame && !state.isLocalTurn) return [];
-        if (!state.selectedMonster || !state.hasRolled) return [];
-
-        const previewOrigin = state.lockedPreviewCell ?? state.hoveredCell;
-        return previewOrigin ? this.getMonsterCells(previewOrigin, state) : [];
-    }
-
-    private getMonsterCells(origin: Position, state: GameViewState): Position[] {
-        return getPatternCells(
-            PLACEMENT_PATTERNS[state.selectedPattern],
-            origin,
-            state.patternRotation,
-            state.patternMirrored,
-        );
-    }
-
-    private getCellOwner(cell: Position, state: GameViewState): PlayerId | null {
-        for (const player of [1, 2] as PlayerId[]) {
-            const start = state.startingPositions[player];
-            if (start.x === cell.x && start.y === cell.y) return player;
-        }
-
-        const placed = state.placedMonsters.find((monster) =>
-            monster.cells.some((occupied) => occupied.x === cell.x && occupied.y === cell.y),
-        );
-        return placed?.owner ?? null;
-    }
-
     private drawStartingPositions(state: GameViewState): void {
-        for (const player of [1, 2] as PlayerId[]) {
-            const start = state.startingPositions[player];
-            const center = this.toScreen(start);
-            const fillColor = player === 1 ? 0xff6655 : 0x55aaff;
-            const outlineColor = player === 1 ? 0x000000 : 0xffffff;
-            this.graphics.fillStyle(state.winner === null ? fillColor : toGrayscale(fillColor), 1);
+        for (const player of [1, 2] as const) {
+            const center = this.toScreen(state.startingPositions[player]);
+            const { fill, outline } = MARKER_COLORS[player];
+            this.graphics.fillStyle(shade(state, fill), 1);
             this.graphics.fillCircle(center.x, center.y, 10);
-            this.graphics.lineStyle(
-                2.5,
-                state.winner === null ? outlineColor : toGrayscale(outlineColor),
-                1,
-            );
+            this.graphics.lineStyle(2.5, shade(state, outline), 1);
             this.graphics.strokeCircle(center.x, center.y, 10);
         }
     }
 
-    private drawMonsters(state: GameViewState): void {
+    private drawFallbackMonsters(state: GameViewState): void {
         for (const placed of state.placedMonsters) {
-            if (placed.currentHp <= 0) continue;
-            if (MONSTER_SPRITES[placed.monster.id]) continue;
-
-            const center = this.toScreen(placed.position);
-            this.graphics.fillStyle(
-                state.winner === null
-                    ? placed.isCamouflaged
-                        ? toGrayscale(placed.monster.color)
-                        : placed.monster.color
-                    : toGrayscale(placed.monster.color),
-                placed.isCamouflaged ? 0.7 : 1,
-            );
-            this.graphics.fillCircle(center.x, center.y - 3, 8);
-            const ownerOutlineColor = placed.owner === 1 ? 0x000000 : 0xffffff;
-            const outlineColor =
-                state.winner === null ? ownerOutlineColor : toGrayscale(ownerOutlineColor);
-            this.graphics.lineStyle(2, outlineColor, 1);
-            this.graphics.strokeCircle(center.x, center.y - 3, 8);
-            const facingOffset = {
-                north: { x: 0, y: -1 },
-                east: { x: 1, y: 0 },
-                south: { x: 0, y: 1 },
-                west: { x: -1, y: 0 },
-            }[placed.facing];
-            const facingPoint = this.toScreen({
-                x: placed.position.x + facingOffset.x,
-                y: placed.position.y + facingOffset.y,
-            });
-            const directionLength = Phaser.Math.Distance.Between(
-                center.x,
-                center.y,
-                facingPoint.x,
-                facingPoint.y,
-            );
-            const markerX = center.x + ((facingPoint.x - center.x) / directionLength) * 11;
-            const markerY = center.y + ((facingPoint.y - center.y) / directionLength) * 11;
-            this.graphics.lineStyle(2.5, outlineColor, 1);
-            this.graphics.lineBetween(center.x, center.y - 3, markerX, markerY - 3);
+            if (placed.currentHp > 0 && !MONSTER_SPRITES[placed.monster.id]) {
+                this.drawFallbackMonster(placed, state);
+            }
         }
+    }
+
+    private drawFallbackMonster(placed: PlacedMonster, state: GameViewState): void {
+        const center = this.toScreen(placed.position);
+        const bodyColor = placed.isCamouflaged
+            ? toGrayscale(placed.monster.color)
+            : shade(state, placed.monster.color);
+        this.graphics.fillStyle(bodyColor, placed.isCamouflaged ? 0.7 : 1);
+        this.graphics.fillCircle(center.x, center.y - 3, 8);
+        const outlineColor = shade(state, MARKER_COLORS[placed.owner].outline);
+        this.graphics.lineStyle(2, outlineColor, 1);
+        this.graphics.strokeCircle(center.x, center.y - 3, 8);
+
+        const facing = FACING_VECTORS[placed.facing];
+        const facingPoint = this.toScreen({
+            x: placed.position.x + facing.x,
+            y: placed.position.y + facing.y,
+        });
+        const directionLength = Phaser.Math.Distance.Between(
+            center.x,
+            center.y,
+            facingPoint.x,
+            facingPoint.y,
+        );
+        const markerX = center.x + ((facingPoint.x - center.x) / directionLength) * 11;
+        const markerY = center.y + ((facingPoint.y - center.y) / directionLength) * 11;
+        this.graphics.lineStyle(2.5, outlineColor, 1);
+        this.graphics.lineBetween(center.x, center.y - 3, markerX, markerY - 3);
     }
 }

@@ -1,101 +1,125 @@
 import type { CSSProperties } from "react";
 import { GAME_CONFIG } from "../../config";
-import { GRID_FACING_TO_SPRITE_FACING, MONSTER_SPRITES } from "../../data/monsterSprites";
 import { getMonsterSymbol, getUniqueMonsterSymbols } from "../../game/monsterSymbols";
 import type { GameConfiguration } from "../../game/gameConfiguration";
 import type { AnalyzableMatch } from "../../simulation/analysis";
-import type { Facing, PlayerId } from "../../types/GameTypes";
+import type { PlayerId } from "../../types/GameTypes";
+import { getCellLabel, getMonsterSpriteStyle, getTileClass } from "./simulationBoardStyles";
+
+type FinalMonster = AnalyzableMatch["finalMonsters"][number];
 
 interface SimulationBoardProps {
     readonly match: AnalyzableMatch;
     readonly configuration: GameConfiguration;
 }
 
-function getSpriteStyle(monsterId: string, owner: PlayerId): CSSProperties {
-    const definition = MONSTER_SPRITES[monsterId];
-    const idle = definition?.animations.idle;
-    const glow = owner === 1 ? "drop-shadow(0 0 5px #ff6470)" : "drop-shadow(0 0 5px #70bdff)";
-    if (!definition || !idle) {
-        return {
-            width: 32,
-            height: 32,
-            left: (GAME_CONFIG.tileWidth - 32) / 2,
-            top: (GAME_CONFIG.tileHeight - 32) / 2,
-            filter: glow,
-        };
-    }
-
-    const facing: Facing = owner === 1 ? "east" : "west";
-    const scale = definition.scale;
-    const frameWidth = definition.frameWidth * scale;
-    const frameHeight = definition.frameHeight * scale;
-    const position: CSSProperties = {
-        width: frameWidth,
-        height: frameHeight,
-        left: GAME_CONFIG.tileWidth / 2 - frameWidth * definition.originX,
-        top:
-            GAME_CONFIG.tileHeight / 2 -
-            3 +
-            (definition.facingOffsetY?.[facing] ?? 0) -
-            frameHeight * definition.originY,
-    };
-    if ("spriteSheet" in idle) {
-        const rowCount = Object.keys(idle.rows).length;
-        const row = idle.rows[GRID_FACING_TO_SPRITE_FACING[facing]];
-        return {
-            ...position,
-            backgroundImage: `url("${idle.spriteSheet}")`,
-            backgroundSize: `${idle.framesPerRow * 100}% ${rowCount * 100}%`,
-            backgroundPosition: `0% ${rowCount > 1 ? (row / (rowCount - 1)) * 100 : 0}%`,
-            filter: glow,
-        };
-    }
-
-    return {
-        ...position,
-        backgroundImage: `url("${idle.files[facing]}")`,
-        filter: glow,
-    };
+interface BoardCellProps {
+    readonly x: number;
+    readonly y: number;
+    readonly marker: string;
+    readonly boardHeight: number;
+    readonly monster: FinalMonster | undefined;
+    readonly monsterSymbols: ReadonlyMap<string, string>;
+    readonly monsterColors: ReadonlyMap<string, number>;
 }
 
-function getTileClass(marker: string, x: number, y: number): string {
-    switch (marker) {
-        case "#":
-            return "simulation-board-tile--blocked";
-        case "1":
-        case "a":
-            return "simulation-board-tile--player-one";
-        case "2":
-        case "b":
-            return "simulation-board-tile--player-two";
-        default:
-            return (x + y) % 2 === 0
-                ? "simulation-board-tile--ground-even"
-                : "simulation-board-tile--ground-odd";
-    }
+interface LegendItemProps {
+    readonly code: string;
+    readonly label: string;
+    readonly className?: string;
 }
 
-function getCellLabel(marker: string, x: number, y: number): string {
-    if (marker === "1" || marker === "2") return `Base J${marker}, case ${x}, ${y}`;
-    if (marker === "#") return `Case bloquée, ${x}, ${y}`;
-    if (marker === "a" || marker === "b") {
-        return `Territoire joueur ${marker === "a" ? "1" : "2"}, case ${x}, ${y}`;
-    }
-    return `Case libre, ${x}, ${y}`;
+const TERRITORY_MARKERS: Record<PlayerId, string> = { 1: "a", 2: "b" };
+
+const LEGEND_ITEMS: readonly LegendItemProps[] = [
+    { code: ".", label: "Case libre" },
+    { code: "#", label: "Case bloquée" },
+    { code: "1", label: "Base joueur 1" },
+    { code: "2", label: "Base joueur 2" },
+    { code: "a", label: "Territoire joueur 1" },
+    { code: "b", label: "Territoire joueur 2" },
+    { code: "J1", label: "Monstres joueur 1", className: "simulation-board-owner-1" },
+    { code: "J2", label: "Monstres joueur 2", className: "simulation-board-owner-2" },
+];
+
+function LegendItem({ code, label, className }: LegendItemProps) {
+    return (
+        <li>
+            <code className={className}>{code}</code> {label}
+        </li>
+    );
+}
+
+function BoardCell({
+    x,
+    y,
+    marker,
+    boardHeight,
+    monster,
+    monsterSymbols,
+    monsterColors,
+}: BoardCellProps) {
+    const tileMarker = monster ? TERRITORY_MARKERS[monster.owner] : marker;
+    const positionStyle: CSSProperties = {
+        left: ((x - y + boardHeight - 1) * GAME_CONFIG.tileWidth) / 2,
+        top: ((x + y) * GAME_CONFIG.tileHeight) / 2,
+    };
+    const symbol = monster ? getMonsterSymbol(monsterSymbols, monster.monsterId) : "";
+
+    return (
+        <div
+            className="simulation-board-cell"
+            role="gridcell"
+            aria-label={
+                monster
+                    ? `J${monster.owner}, ${monster.name}, symbole ${symbol}, case ${x}, ${y}`
+                    : getCellLabel(marker, x, y)
+            }
+            title={monster ? `J${monster.owner} · ${monster.name} (${symbol})` : undefined}
+            style={positionStyle}
+        >
+            <span
+                className={`simulation-board-tile ${getTileClass(tileMarker, x, y)}`}
+                aria-hidden="true"
+                style={{ zIndex: 1 }}
+            />
+            {monster && (
+                <span
+                    className="simulation-board-sprite"
+                    aria-hidden="true"
+                    style={getMonsterSpriteStyle(
+                        monster.monsterId,
+                        monster.owner,
+                        monsterColors.get(monster.monsterId),
+                        x + y + 2,
+                    )}
+                />
+            )}
+            {!monster && (marker === "1" || marker === "2") && (
+                <span
+                    className={`simulation-board-base simulation-board-base--player-${marker}`}
+                    aria-hidden="true"
+                    style={{ zIndex: x + y + 2 }}
+                />
+            )}
+        </div>
+    );
 }
 
 export function SimulationBoard({ match, configuration }: SimulationBoardProps) {
+    const { finalBoard } = match;
     const monsterSymbols = getUniqueMonsterSymbols(configuration.monsters);
+    const monsterColors = new Map(
+        configuration.monsters.map((monster) => [monster.id, monster.color]),
+    );
     const monstersByPosition = new Map(
         match.finalMonsters
             .filter((monster) => monster.hp > 0)
             .map((monster) => [`${monster.position.x},${monster.position.y}`, monster]),
     );
-    const definitionsById = new Map(configuration.monsters.map((monster) => [monster.id, monster]));
-    const boardWidth =
-        ((match.finalBoard.width + match.finalBoard.height) * GAME_CONFIG.tileWidth) / 2;
+    const boardWidth = ((finalBoard.width + finalBoard.height) * GAME_CONFIG.tileWidth) / 2;
     const boardHeight =
-        ((match.finalBoard.width + match.finalBoard.height - 2) * GAME_CONFIG.tileHeight) / 2 +
+        ((finalBoard.width + finalBoard.height - 2) * GAME_CONFIG.tileHeight) / 2 +
         GAME_CONFIG.tileHeight;
 
     return (
@@ -106,107 +130,31 @@ export function SimulationBoard({ match, configuration }: SimulationBoardProps) 
                 aria-label={`Plateau final du match ${match.id}`}
                 style={{ width: boardWidth, height: boardHeight }}
             >
-                {match.finalBoard.rows.flatMap((row, y) =>
-                    Array.from({ length: match.finalBoard.width }, (_, x) => {
-                        const marker = row[x] ?? ".";
-                        const monster = monstersByPosition.get(`${x},${y}`);
-                        const tileMarker = monster ? (monster.owner === 1 ? "a" : "b") : marker;
-                        const positionStyle: CSSProperties = {
-                            left:
-                                ((x - y + match.finalBoard.height - 1) * GAME_CONFIG.tileWidth) / 2,
-                            top: ((x + y) * GAME_CONFIG.tileHeight) / 2,
-                        };
-                        const symbol = monster
-                            ? getMonsterSymbol(monsterSymbols, monster.monsterId)
-                            : "";
-                        const monsterDefinition = monster
-                            ? definitionsById.get(monster.monsterId)
-                            : undefined;
-                        const monsterColor = monsterDefinition
-                            ? `#${monsterDefinition.color.toString(16).padStart(6, "0")}`
-                            : undefined;
-                        const spriteStyle = monster
-                            ? getSpriteStyle(monster.monsterId, monster.owner)
-                            : {};
-
-                        return (
-                            <div
-                                key={`${x}-${y}`}
-                                className="simulation-board-cell"
-                                role="gridcell"
-                                aria-label={
-                                    monster
-                                        ? `J${monster.owner}, ${monster.name}, symbole ${symbol}, case ${x}, ${y}`
-                                        : getCellLabel(marker, x, y)
-                                }
-                                title={
-                                    monster
-                                        ? `J${monster.owner} · ${monster.name} (${symbol})`
-                                        : undefined
-                                }
-                                style={positionStyle}
-                            >
-                                <span
-                                    className={`simulation-board-tile ${getTileClass(tileMarker, x, y)}`}
-                                    aria-hidden="true"
-                                    style={{ zIndex: 1 }}
-                                />
-                                {monster ? (
-                                    <span
-                                        className="simulation-board-sprite"
-                                        aria-hidden="true"
-                                        style={{
-                                            ...spriteStyle,
-                                            zIndex: x + y + 2,
-                                            ...(spriteStyle.backgroundImage
-                                                ? {}
-                                                : {
-                                                      backgroundColor: monsterColor,
-                                                      borderRadius: "50%",
-                                                  }),
-                                        }}
-                                    />
-                                ) : marker === "1" || marker === "2" ? (
-                                    <span
-                                        className={`simulation-board-base simulation-board-base--player-${marker}`}
-                                        aria-hidden="true"
-                                        style={{ zIndex: x + y + 2 }}
-                                    />
-                                ) : null}
-                            </div>
-                        );
-                    }),
+                {finalBoard.rows.flatMap((row, y) =>
+                    Array.from({ length: finalBoard.width }, (_, x) => (
+                        <BoardCell
+                            key={`${x}-${y}`}
+                            x={x}
+                            y={y}
+                            marker={row[x] ?? "."}
+                            boardHeight={finalBoard.height}
+                            monster={monstersByPosition.get(`${x},${y}`)}
+                            monsterSymbols={monsterSymbols}
+                            monsterColors={monsterColors}
+                        />
+                    )),
                 )}
             </div>
             <ul className="simulation-board-legend" aria-label="Légende du plateau">
-                <li>
-                    <code>.</code> Case libre
-                </li>
-                <li>
-                    <code>#</code> Case bloquée
-                </li>
-                <li>
-                    <code>1</code> Base joueur 1
-                </li>
-                <li>
-                    <code>2</code> Base joueur 2
-                </li>
-                <li>
-                    <code>a</code> Territoire joueur 1
-                </li>
-                <li>
-                    <code>b</code> Territoire joueur 2
-                </li>
-                <li>
-                    <code className="simulation-board-owner-1">J1</code> Monstres joueur 1
-                </li>
-                <li>
-                    <code className="simulation-board-owner-2">J2</code> Monstres joueur 2
-                </li>
+                {LEGEND_ITEMS.map((item) => (
+                    <LegendItem key={item.code} {...item} />
+                ))}
                 {configuration.monsters.map((monster) => (
-                    <li key={monster.id}>
-                        <code>{getMonsterSymbol(monsterSymbols, monster.id)}</code> {monster.name}
-                    </li>
+                    <LegendItem
+                        key={monster.id}
+                        code={getMonsterSymbol(monsterSymbols, monster.id)}
+                        label={monster.name}
+                    />
                 ))}
             </ul>
         </div>

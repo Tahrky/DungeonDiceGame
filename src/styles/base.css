@@ -1,0 +1,84 @@
+:root {
+    --accent-gold: #f0c974;
+    --accent-gold-rgb: 240 201 116;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    background: radial-gradient(ellipse at 50% -18%, #344454 0, transparent 56%), #151b25;
+    color: #ffffff;
+    font-family: Arial, sans-serif;
+}
+
+#app {
+    width: 100%;
+    min-height: 100vh;
+}
+
+.app-shell {
+    width: 100%;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow: hidden;
+}
+
+.app-shell.game-active {
+    width: 100%;
+    height: 100vh;
+    height: 100dvh;
+    min-height: 0;
+}
+
+header {
+    position: relative;
+    width: 100%;
+    max-width: 1300px;
+    text-align: center;
+    padding: 42px 15px 20px;
+}
+
+.game-active header {
+    display: none;
+}
+
+header h1 {
+    margin: 0;
+    letter-spacing: 8px;
+    color: var(--accent-gold);
+    font-family: Georgia, serif;
+    font-size: clamp(42px, 7vw, 66px);
+    text-shadow: 0 5px 28px rgb(var(--accent-gold-rgb) / 24%);
+}
+
+header p {
+    margin: 12px 0 0;
+    color: #aab5c2;
+    letter-spacing: 0.4px;
+}
+
+main {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    padding: 8px 20px 30px;
+    flex: 1;
+}
+
+#menu-screen {
+    width: min(100%, 920px);
+    align-self: flex-start;
+}
+
+.menu-panel {
+    border: 1px solid #576779;
+    border-radius: 12px;
+    padding: clamp(22px, 5vw, 42px);
+    background: linear-gradient(145deg, #263340f5, #1d2732f5);
+    box-shadow: 0 25px 80px #0005;
+}

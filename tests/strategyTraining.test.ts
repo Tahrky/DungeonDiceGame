@@ -1,17 +1,11 @@
 import { describe, expect, it } from "vitest";
-import {
-    createTrainingSeedPartitions,
-    trainBotStrategies,
-} from "../src/simulation/strategyTraining";
-import { BOT_WEIGHT_GROUPS } from "../src/simulation/trainingVersioning";
+import { createTrainingSeedPartitions, trainBotStrategies } from "../src/simulation/training";
+import { BOT_WEIGHT_GROUPS } from "../src/simulation/training/versioning";
 import { DEFAULT_BOT_STRATEGY_WEIGHTS } from "../src/game/botStrategy";
 import { getDefaultBoard } from "../src/game/boards";
 import { getDefaultGameConfiguration } from "../src/game/gameConfiguration";
 import { runSimulations } from "../src/simulation/simulator";
-import {
-    evaluateWeights,
-    type TrainingSimulationRunner,
-} from "../src/simulation/trainingMetrics";
+import { evaluateWeights, type TrainingSimulationRunner } from "../src/simulation/training/metrics";
 
 describe("apprentissage hors ligne des stratégies", () => {
     it("sépare reproductiblement les trois partitions de seeds", () => {

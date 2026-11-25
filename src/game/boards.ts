@@ -2,6 +2,7 @@ import { GAME_CONFIG } from "../config";
 import type { Position, PlayerId } from "../types/GameTypes";
 import { PLACEMENT_PATTERNS } from "../data/placementPatterns";
 import { hasValidPlacement } from "./placement";
+import { getOrthogonalNeighbors, positionKey } from "./geometry";
 
 export const MIN_BOARD_DIMENSION = 7;
 export const MAX_BOARD_DIMENSION = 23;
@@ -139,7 +140,7 @@ export function parseBoardDefinition(value: unknown): BoardDefinition | null {
         ) {
             return null;
         }
-        const key = `${cell.x},${cell.y}`;
+        const key = positionKey(cell);
         if (keys.has(key)) return null;
         keys.add(key);
         blockedCells.push({ x: cell.x, y: cell.y });
@@ -177,35 +178,21 @@ function isValidDimension(value: unknown): value is number {
     );
 }
 
-function getStartingPositionsOrNull(
-    board: BoardDefinition,
-): Record<PlayerId, Position> | null {
-    const blocked = new Set(board.blockedCells.map(({ x, y }) => `${x},${y}`));
+function getStartingPositionsOrNull(board: BoardDefinition): Record<PlayerId, Position> | null {
+    const blocked = new Set(board.blockedCells.map(positionKey));
     const openCells: Position[] = [];
     for (let y = 0; y < board.height; y++) {
         for (let x = 0; x < board.width; x++) {
-            if (!blocked.has(`${x},${y}`)) openCells.push({ x, y });
+            if (!blocked.has(positionKey({ x, y }))) openCells.push({ x, y });
         }
     }
     if (openCells.length < MIN_PLAYABLE_CELLS) return null;
-    const visited = new Set([`${openCells[0].x},${openCells[0].y}`]);
+    const visited = new Set([positionKey(openCells[0])]);
     const pending = [openCells[0]];
     for (const cell of pending) {
-        for (const neighbor of [
-            { x: cell.x + 1, y: cell.y },
-            { x: cell.x - 1, y: cell.y },
-            { x: cell.x, y: cell.y + 1 },
-            { x: cell.x, y: cell.y - 1 },
-        ]) {
-            const key = `${neighbor.x},${neighbor.y}`;
-            if (
-                neighbor.x >= 0 &&
-                neighbor.y >= 0 &&
-                neighbor.x < board.width &&
-                neighbor.y < board.height &&
-                !blocked.has(key) &&
-                !visited.has(key)
-            ) {
+        for (const neighbor of getOrthogonalNeighbors(cell)) {
+            const key = positionKey(neighbor);
+            if (isInsideBoard(board, neighbor) && !blocked.has(key) && !visited.has(key)) {
                 visited.add(key);
                 pending.push(neighbor);
             }
@@ -216,13 +203,11 @@ function getStartingPositionsOrNull(
     const centerY = Math.floor(board.height / 2);
     const leftToRight = [...openCells].sort(
         (first, second) =>
-            first.x - second.x ||
-            Math.abs(first.y - centerY) - Math.abs(second.y - centerY),
+            first.x - second.x || Math.abs(first.y - centerY) - Math.abs(second.y - centerY),
     );
     const rightToLeft = [...openCells].sort(
         (first, second) =>
-            second.x - first.x ||
-            Math.abs(first.y - centerY) - Math.abs(second.y - centerY),
+            second.x - first.x || Math.abs(first.y - centerY) - Math.abs(second.y - centerY),
     );
     const first = leftToRight[0];
     const second = rightToLeft[0];
@@ -249,21 +234,21 @@ export function getBoardOrigin(board: BoardDefinition): Position {
         ((GAME_CONFIG.boardWidth + GAME_CONFIG.boardHeight - 2) * GAME_CONFIG.tileHeight) / 4;
     return {
         x: centerX - ((board.width - board.height) * GAME_CONFIG.tileWidth) / 4,
-        y:
-            centerY -
-            ((board.width + board.height - 2) * GAME_CONFIG.tileHeight) / 4,
+        y: centerY - ((board.width + board.height - 2) * GAME_CONFIG.tileHeight) / 4,
     };
+}
+
+export function isInsideBoard(
+    board: Pick<BoardDefinition, "width" | "height">,
+    { x, y }: Position,
+): boolean {
+    return x >= 0 && y >= 0 && x < board.width && y < board.height;
 }
 
 export function isBoardCell(board: BoardDefinition, position: Position): boolean {
     return (
-        position.x >= 0 &&
-        position.y >= 0 &&
-        position.x < board.width &&
-        position.y < board.height &&
-        !board.blockedCells.some(
-            (cell) => cell.x === position.x && cell.y === position.y,
-        )
+        isInsideBoard(board, position) &&
+        !board.blockedCells.some((cell) => cell.x === position.x && cell.y === position.y)
     );
 }
 
@@ -274,10 +259,6 @@ export function resolveBoardSelection(selection: BoardSelection): BoardDefinitio
         case "preset":
             return getBoardPreset(selection.presetId);
         case "custom":
-            return createCustomBoard(
-                selection.width,
-                selection.height,
-                selection.blockedCells,
-            );
+            return createCustomBoard(selection.width, selection.height, selection.blockedCells);
     }
 }

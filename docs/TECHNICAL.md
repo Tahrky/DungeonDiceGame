@@ -42,14 +42,29 @@ dans la vérification TypeScript déclenchée par la compilation.
 api/
   ably-token.ts             Validation des demandes et création de jetons Ably
 src/
-  App.tsx                   Navigation entre menus, initialisation Phaser et connexion Ably
-  components/               Menus React, éditeur de deck et écrans de configuration
-  data/                      Définitions des monstres, dés, motifs et sprites
-  game/                      Règles et fonctions de domaine indépendantes du rendu
-  scenes/                    État de partie, actions, IA et orchestration Phaser
-    game/                    Plateau, HUD, infobulles et vues des sprites
-  types/GameTypes.ts         Types partagés du domaine et du protocole en ligne
-tests/                       Tests unitaires Vitest des règles de domaine
+  App.tsx                   Navigation entre écrans et montage de Phaser
+  app/                      Hooks d’application : moteur, salon en ligne, restauration, navigation
+  components/               Écrans React
+    common/                 Champs, menus, dialogues et garde des modifications non enregistrées
+    deck/                   Éditeur de deck et cartes de monstres
+    settings/               Réglages de partie et de monstres
+    simulation/             Laboratoire : lancement, tableaux, inspecteur de matchs, équilibrage
+  data/                     Définitions des monstres, dés, motifs et sprites
+  game/                     Règles de domaine indépendantes du rendu
+    ai/                     Évaluation stratégique, rôles, menaces et couverture des routes
+  persistence/              IndexedDB, sessions de jeu et lots de simulation reprenables
+  scenes/                   État de partie, actions, IA et orchestration Phaser
+    game/                   Plateau, HUD, infobulles et vues des sprites
+  simulation/               Simulateur hors ligne : tour, déploiement, déplacement, résultats
+    analysis/               Lecture et agrégation des rapports de simulation
+    cli/                    Arguments, fichiers et entraînement en ligne de commande
+    combat/                 Choix, exécution et recherche tactique des attaques
+    monsterBalance/         Analyse théorique de l’équilibrage des monstres
+    training/               Entraînement des poids des bots et versionnement des rapports
+  styles/                   Feuilles CSS par zone d’interface, importées par `index.css`
+  types/GameTypes.ts        Types partagés du domaine et du protocole en ligne
+  utils/                    Utilitaires génériques : maths, tas binaire, erreurs, gardes
+tests/                      Tests unitaires Vitest
 ```
 
 ### Démarrage et rendu
@@ -70,7 +85,23 @@ fois.
 
 Les règles réutilisables sont dans `src/game/` : elles calculent les placements, les mouvements,
 les attaques, les ressources de dés, les plateaux, les decks et la configuration sans dépendre de
-l’interface. Les définitions de contenu se trouvent dans `src/data/`.
+l’interface. Les définitions de contenu se trouvent dans `src/data/`. Le jeu et le simulateur
+partagent ces modules :
+
+- `geometry`, `attackZones`, `attackRules`, `movementPaths` : positions, zones d’attaque, ligne de
+  vue et chemins de déplacement ;
+- `placement` (avec `placementSearchContext` et `patternTransforms`) : recherche des poses légales ;
+- `routeAnalysis` (avec `routeGrid`) : distances, routes alternatives et cases critiques ;
+- `botStrategy` : façade des profils (`botProfiles`), decks (`botDeck`), déplacements
+  (`botMovement`) et poses (`botPlacement`) des bots ;
+- `matchRules`, `diceResources`, `gameConfiguration`, `monsterConfiguration` : règles de partie,
+  ressources et configuration ;
+- `random` : générateurs pseudo-aléatoires reproductibles.
+
+Dans `src/simulation/`, `simulator` enchaîne les tours via `playerTurn`, qui délègue l’invocation à
+`deployment` et `summonPlacement`, le déplacement à `movement` et `attackSetupMovement`, et les
+attaques à `combat/`. `matchState` porte l’état mutable d’un match et `finalBoard` produit le
+plateau final des rapports.
 
 ## Cycle d’une partie
 
@@ -223,7 +254,7 @@ compact des options d’attaque examinées, de leurs caractéristiques observabl
 du choix. Cette instrumentation est désactivée par défaut.
 
 Lorsqu’une règle, une donnée de gameplay ou une méthode d’évaluation change, incrémenter la
-constante de version correspondante dans `src/simulation/trainingVersioning.ts`. Les éléments
+constante de version correspondante dans `src/simulation/training/versioning.ts`. Les éléments
 cosmétiques des monstres et l’identifiant du plateau sont volontairement exclus des empreintes.
 
 ### Analyse des routes et coordination défensive
@@ -241,10 +272,33 @@ coordination sont stockés dans le schéma de poids version 2. Les anciens poids
 complétés par la valeur neutre; toutefois, un changement de version d’évaluation ou de simulateur
 rend un ancien rapport incompatible pour le transfert d’entraînement sans autorisation explicite.
 
+Dans la simulation, chaque pose compare les cases d’invocation légales du motif. Une route
+alliée **interdit la pose adverse** sur ses cases, mais **n’interdit pas le déplacement adverse** :
+pour garder une entrée, il faut aussi la tenir avec un monstre. Le bot défensif compare l’expansion
+à un périmètre latéral, évite d’ouvrir plusieurs entrées près de sa base et peut tenir la dernière
+entrée sous pression. Les autres profils donnent moins de poids à cette formation. Face à un
+monstre avec bonus de dos, la pose tient aussi compte des cases ouvertes derrière les alliés ;
+le déplacement estime le risque à partir de l’orientation **après** le mouvement. Cette estimation
+locale n’est pas une garantie contre une future pose adverse ni contre une attaque à distance.
+
+Pour rejoindre une cible, le bot cherche les cases déployées accessibles les plus proches, y compris
+sur les routes adverses. Une étape peut l’éloigner à vol d’oiseau si elle raccourcit le trajet
+restant. En simulation, les monstres se relaient pour utiliser les dés de déplacement. Dans
+l’inspecteur, les **blocages de déplacement** sont cumulés par monstre : plusieurs peuvent survenir
+pendant un tour où le joueur a effectivement agi. Les **tours sans action utile** comptent les tours
+du joueur sans invocation, attaque ni déplacement.
+
+Pour reproduire le lot de comparaison (mêmes règles et plateau que dans l’export), depuis la
+racine du projet sous PowerShell :
+
+```powershell
+npm run simulate -- --cross-profile --games 220 --seed 319438822 --max-turns 30 --record-decisions --config "$HOME\Downloads\dungeon-dice-simulations-seed-319438822.json" --output simulation-results\rejeu-319438822.json
+```
+
 ### Recherche tactique
 
 Tous les modes d’exécution partagent `TACTICAL_SEARCH_CONFIGURATION` dans
-`src/simulation/combat.ts` : profondeur 2, largeur 5 et budget de 250 nœuds. La profondeur 1 évalue
+`src/simulation/combat/searchState.ts` : profondeur 2, largeur 5 et budget de 250 nœuds. La profondeur 1 évalue
 l’action immédiate et une attaque de réponse gloutonne; la profondeur 2 ajoute une attaque de la
 phase future et une réponse. `--complete-attack-phases` poursuit gloutonnement les attaques restantes
 des deux côtés dans chaque phase simulée. `--broader-attack-candidates` ajoute au top glouton le
@@ -313,7 +367,7 @@ Les rapports s’archivent actuellement par export/import JSON manuel : il n’e
 d’historique de campagnes consultable dans l’application.
 
 Le tableau théorique est dérivé des caractéristiques de monstres et d’hypothèses fixes dans
-`src/simulation/monsterBalance.ts` : plateau 19 × 13, cinq ressources par tour, densités d’alliés et
+`src/simulation/monsterBalance/options.ts` : plateau 19 × 13, cinq ressources par tour, densités d’alliés et
 d’ennemis estimées, horizon d’analyse de 12 tours et efficacité de soins estimée. La robustesse
 applique théoriquement l’armure séparément à chaque attaque du catalogue; l’offensive estime les
 cibles de zone au lieu d’utiliser systématiquement leur maximum et tient compte des coûts et

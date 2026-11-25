@@ -46,7 +46,7 @@ describe("stratégie des bots", () => {
             boardHeight: 5,
         };
 
-        expect(findObjectiveMovement(options, cells, { x: 0, y: 0 })).toMatchObject({
+        expect(findObjectiveMovement(options, { x: 0, y: 0 })).toMatchObject({
             position: { x: 3, y: 2 },
             routeProgress: 1,
         });
@@ -70,11 +70,41 @@ describe("stratégie des bots", () => {
         };
 
         expect(
-            findObjectiveMovement(options, cells, { x: 0, y: 0 }, [{ x: 4, y: 1 }], "hunt"),
+            findObjectiveMovement(options, { x: 0, y: 0 }, [{ x: 4, y: 1 }], "hunt"),
         ).toMatchObject({
             position: { x: 3, y: 1 },
-            routeProgress: 1,
+            routeProgress: 2,
         });
+    });
+    it("ne revient pas au fond d’une impasse après le premier pas du détour", () => {
+        const deployedCells = [
+            { x: 2, y: 2 },
+            { x: 3, y: 2 },
+            { x: 3, y: 1 },
+            { x: 3, y: 0 },
+            { x: 2, y: 0 },
+            { x: 1, y: 0 },
+            { x: 0, y: 0 },
+        ];
+        const objective = { x: 0, y: 1 };
+        let source = deployedCells[0]!;
+        for (const next of deployedCells.slice(1)) {
+            const move = findObjectiveMovement(
+                {
+                    source,
+                    destination: source,
+                    deployedCells,
+                    occupiedCells: [],
+                    blockedCells: [],
+                    range: 1,
+                    boardWidth: 5,
+                    boardHeight: 5,
+                },
+                objective,
+            );
+            expect(move?.position).toEqual(next);
+            source = next;
+        }
     });
 
     it("évite une case menacée quand une progression équivalente est disponible", () => {
@@ -95,14 +125,7 @@ describe("stratégie des bots", () => {
         };
 
         expect(
-            findObjectiveMovement(
-                options,
-                cells,
-                { x: 5, y: 3 },
-                [],
-                "balanced",
-                new Map([["3,2", 10]]),
-            ),
+            findObjectiveMovement(options, { x: 5, y: 3 }, [], "balanced", new Map([["3,2", 10]])),
         ).toMatchObject({
             position: { x: 2, y: 3 },
             routeProgress: 1,
@@ -140,9 +163,9 @@ describe("stratégie des bots", () => {
             boardHeight: 15,
         };
 
-        expect(findObjectiveMovement(options, [deployedCells[0]!], { x: 18, y: 7 })).toMatchObject({
+        expect(findObjectiveMovement(options, { x: 18, y: 7 })).toMatchObject({
             position: { x: 15, y: 7 },
-            routeProgress: -1,
+            routeProgress: 1,
         });
     });
 
@@ -222,15 +245,24 @@ describe("stratégie des bots", () => {
         expect(scoreBlockade([{ x: 7, y: 0 }])).toBe(0);
     });
 
-    it("pondère séparément le déni de route et ignore les cases sans impact", () => {
-        const scoreDefault = createPathBlockadeScorer(
+    it("détecte un motif qui ferme deux passages parallèles sans case critique commune", () => {
+        const score = createPathBlockadeScorer(
             7,
-            7,
-            { x: 6, y: 3 },
-            { x: 0, y: 3 },
+            3,
+            { x: 0, y: 1 },
+            { x: 6, y: 1 },
             [],
-            [],
+            [{ x: 3, y: 1 }],
         );
+        const upper = { x: 3, y: 0 };
+        const lower = { x: 3, y: 2 };
+        expect(score([upper])).toBeLessThan(500);
+        expect(score([lower])).toBeLessThan(500);
+        expect(score([upper, lower])).toBe(500);
+    });
+
+    it("pondère séparément le déni de route et ignore les cases sans impact", () => {
+        const scoreDefault = createPathBlockadeScorer(7, 7, { x: 6, y: 3 }, { x: 0, y: 3 }, [], []);
         const scoreConservateur = createPathBlockadeScorer(
             7,
             7,
@@ -242,9 +274,7 @@ describe("stratégie des bots", () => {
         );
 
         expect(scoreDefault([{ x: 1, y: 1 }])).toBe(0);
-        expect(scoreDefault([{ x: 3, y: 3 }])).toBeGreaterThan(
-            scoreConservateur([{ x: 3, y: 3 }]),
-        );
+        expect(scoreDefault([{ x: 3, y: 3 }])).toBeGreaterThan(scoreConservateur([{ x: 3, y: 3 }]));
     });
 
     it("applique les priorités de victoire et respecte les profils", () => {

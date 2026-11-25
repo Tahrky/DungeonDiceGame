@@ -1,0 +1,99 @@
+.simulation-table-wrap {
+    overflow-x: auto;
+    margin: 18px 0;
+}
+
+.simulation-table {
+    width: 100%;
+    border-collapse: collapse;
+    color: #dce4ec;
+    font-size: 13px;
+    text-align: left;
+}
+
+.simulation-table th,
+.simulation-table td {
+    border-bottom: 1px solid #354351;
+    padding: 9px 10px;
+    vertical-align: top;
+}
+
+.simulation-table thead th {
+    color: #aab5c2;
+    font-size: 11px;
+    letter-spacing: 0.4px;
+    line-height: 1.25;
+    max-width: 135px;
+    white-space: normal;
+}
+
+.simulation-table-sort-button {
+    border: 0;
+    padding: 0;
+    color: inherit;
+    background: transparent;
+    font: inherit;
+    text-align: left;
+    white-space: normal;
+    cursor: pointer;
+}
+
+.simulation-table-sort-button:hover,
+.simulation-table-sort-button:focus-visible {
+    color: var(--accent-gold);
+}
+
+.simulation-table tbody th {
+    color: #fff;
+    font-weight: 600;
+}
+
+.simulation-table tbody tr:last-child > * {
+    border-bottom: 0;
+}
+
+.simulation-attack-list {
+    display: grid;
+    gap: 3px;
+    min-width: 220px;
+    margin: 0;
+    padding-left: 18px;
+}
+
+.simulation-comparison-table {
+    table-layout: fixed;
+}
+
+.simulation-comparison-table th:first-child {
+    width: 50%;
+}
+
+.simulation-comparison-table td {
+    width: 25%;
+}
+
+.simulation-comparison-table td strong {
+    font-weight: 700;
+}
+
+.simulation-comparison-maximum {
+    color: #76e6a2;
+}
+
+.simulation-player-label {
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.simulation-player-label--1 {
+    color: #ff9188;
+}
+
+.simulation-player-label--2 {
+    color: #8fc5ff;
+}
+
+.simulation-damaged-hp {
+    color: #ff9188;
+    font-weight: 700;
+}

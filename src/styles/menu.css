@@ -1,0 +1,118 @@
+.eyebrow {
+    margin: 0 0 10px;
+    color: var(--accent-gold);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2.5px;
+}
+
+.menu-panel h2 {
+    margin: 0 0 25px;
+    font-family: Georgia, serif;
+    font-size: clamp(28px, 4vw, 38px);
+    font-weight: 500;
+}
+
+.menu-card-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 20px;
+}
+
+.menu-card-grid--two {
+    grid-template-columns: repeat(2, minmax(0, 280px));
+    justify-content: center;
+}
+
+.menu-card {
+    display: flex;
+    min-height: 220px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    border: 1px solid #3d4b5a;
+    border-radius: 10px;
+    color: #fff;
+    background: #202c38;
+    cursor: pointer;
+    transition:
+        border-color 140ms ease,
+        background 140ms ease,
+        transform 140ms ease;
+}
+
+.menu-card:hover,
+.menu-card:focus-visible {
+    transform: translateY(-3px);
+    border-color: var(--accent-gold);
+    background: #2b3947;
+    outline: none;
+}
+
+.menu-card:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.menu-card strong {
+    color: var(--accent-gold);
+    font-family: Georgia, serif;
+    font-size: 26px;
+    font-weight: 500;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    line-height: 1.15;
+    text-align: center;
+}
+
+.choice-die-icon {
+    width: 80px;
+    height: 80px;
+    overflow: visible;
+}
+
+.choice-die-icon path {
+    fill: none;
+    stroke: var(--accent-gold);
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 1.8;
+}
+
+.choice-die-icon circle {
+    fill: var(--accent-gold);
+}
+
+.choice-icon {
+    display: grid;
+    width: 80px;
+    height: 80px;
+    place-items: center;
+    color: var(--accent-gold);
+    font-size: 100px;
+    line-height: 1;
+}
+
+.choice-monitor-icon,
+.choice-book-icon {
+    width: 80px;
+    height: 80px;
+    fill: none;
+    overflow: visible;
+    stroke: var(--accent-gold);
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 2;
+}
+
+.choice-monitor-icon .monitor-screen {
+    stroke-width: 1.5;
+}
+
+.panel-description {
+    margin: -12px 0 22px;
+    color: #aab5c2;
+    font-size: 14px;
+    line-height: 1.6;
+}

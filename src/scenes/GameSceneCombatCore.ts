@@ -1,13 +1,21 @@
 import { GameSceneAttackExecution } from "./GameSceneAttackExecution";
-import { getAvailableSymbolCount } from "../game/diceResources";
-import {
-    canUseActionThisTurn,
-    getAttackActionsPerTurn,
-    getAttackCost,
-    getMovementActionsPerTurn,
-    getMovementCost,
-} from "../game/monsterActions";
+import { canUseActionThisTurn, getAttackActionsPerTurn } from "../game/monsterActions";
 import type { DiceSymbol, PlacedMonster, Position } from "../types/GameTypes";
+
+interface UsableAttack {
+    index: number;
+    cost: number;
+}
+
+function getDefaultAttack(
+    attacks: readonly UsableAttack[],
+    availableSymbols: number,
+): UsableAttack | undefined {
+    if (attacks.length === 1) return attacks[0];
+    const totalCost = attacks.reduce((total, { cost }) => total + cost, 0);
+    if (availableSymbols >= totalCost) return undefined;
+    return [...attacks].sort((first, second) => first.cost - second.cost)[0];
+}
 
 export abstract class GameSceneCombatCore extends GameSceneAttackExecution {
     protected startAttack(): void {
@@ -19,14 +27,9 @@ export abstract class GameSceneCombatCore extends GameSceneAttackExecution {
 
     protected canStartFreeAttack(): boolean {
         return (
-            this.winner === null &&
-            this.hasRolled &&
-            !this.pendingCells &&
-            this.actionMode.type === "idle" &&
-            this.placedMonsters.some(
+            this.isReadyForAction() &&
+            this.getLivingMonsters(this.currentPlayer).some(
                 (monster) =>
-                    monster.owner === this.currentPlayer &&
-                    monster.currentHp > 0 &&
                     (monster.turnBuffs?.attackCostReduction ?? 0) > 0 &&
                     monster.monster.attacks.some((_, index) =>
                         this.canUseMonsterAttack(monster, index),
@@ -43,46 +46,19 @@ export abstract class GameSceneCombatCore extends GameSceneAttackExecution {
     }
 
     protected canStartMovement(): boolean {
-        if (
-            this.winner !== null ||
-            !this.hasRolled ||
-            this.pendingCells ||
-            this.actionMode.type !== "idle"
-        ) {
-            return false;
-        }
-
-        const movementCount = getAvailableSymbolCount(
-            "movement",
-            this.rolledDice,
-            this.diceReserves[this.currentPlayer],
-        );
-        return this.placedMonsters.some(
-            (monster) =>
-                monster.owner === this.currentPlayer &&
-                monster.currentHp > 0 &&
-                canUseActionThisTurn(
-                    monster.movementsUsedThisTurn,
-                    getMovementActionsPerTurn(monster.monster),
-                ) &&
-                getMovementCost(
-                    monster.monster,
-                    monster.turnBuffs?.movementCostReduction ?? 0,
-                ) <= movementCount,
-        );
+        return this.isReadyForAction() && this.hasAffordableMovement();
     }
 
     protected canStartSymbolAction(symbol: DiceSymbol): boolean {
+        return this.isReadyForAction() && this.getAvailableSymbols(symbol) > 0;
+    }
+
+    private isReadyForAction(): boolean {
         return (
             this.winner === null &&
             this.hasRolled &&
             !this.pendingCells &&
-            this.actionMode.type === "idle" &&
-            getAvailableSymbolCount(
-                symbol,
-                this.rolledDice,
-                this.diceReserves[this.currentPlayer],
-            ) > 0
+            this.actionMode.type === "idle"
         );
     }
 
@@ -123,47 +99,16 @@ export abstract class GameSceneCombatCore extends GameSceneAttackExecution {
         ) {
             return;
         }
-        const availableAttackSymbols = getAvailableSymbolCount(
-            "attack",
-            this.rolledDice,
-            this.diceReserves[this.currentPlayer],
-        );
-        const affordableAttacks = monster.monster.attacks
-            .map((attack, index) => ({ attack, index }))
+
+        const usableAttacks = monster.monster.attacks
+            .map((attack, index) => ({ index, cost: this.getMonsterAttackCost(monster, attack) }))
             .filter(({ index }) => this.canUseMonsterAttack(monster, index));
-        const cannotAffordSeveralAttacks =
-            availableAttackSymbols <
-            affordableAttacks.reduce(
-                (total, { attack }) =>
-                    total +
-                    getAttackCost(attack, monster.turnBuffs?.attackCostReduction ?? 0),
-                0,
-            );
-        let defaultAttack: (typeof affordableAttacks)[number] | undefined;
-        if (affordableAttacks.length === 1) {
-            defaultAttack = affordableAttacks[0];
-        } else if (cannotAffordSeveralAttacks) {
-            defaultAttack = affordableAttacks.reduce<
-                (typeof affordableAttacks)[number] | undefined
-            >((cheapest, candidate) => {
-                if (
-                    !cheapest ||
-                    getAttackCost(
-                        candidate.attack,
-                        monster.turnBuffs?.attackCostReduction ?? 0,
-                    ) <
-                        getAttackCost(
-                            cheapest.attack,
-                            monster.turnBuffs?.attackCostReduction ?? 0,
-                        )
-                ) {
-                    return candidate;
-                }
-                return cheapest;
-            }, undefined);
-        }
-        const attackIndex = defaultAttack?.index ?? null;
-        this.actionMode = { type: "attack", attackerId: monster.id, attackIndex };
+        this.actionMode = {
+            type: "attack",
+            attackerId: monster.id,
+            attackIndex:
+                getDefaultAttack(usableAttacks, this.getAvailableSymbols("attack"))?.index ?? null,
+        };
         this.render();
     }
 

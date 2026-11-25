@@ -1,366 +1,32 @@
-import { DICE } from "../data/dice";
 import { getDefaultBoard, type BoardDefinition } from "../game/boards";
-import { getDefaultGameConfiguration, type GameConfiguration } from "../game/gameConfiguration";
-import { getInvokedMonsterCount } from "../game/matchRules";
-import { getRollableDieFaces } from "../game/diceResources";
 import {
-    canUseActionThisTurn,
-    getMovementActionsPerTurn,
-    getMovementCost,
-} from "../game/monsterActions";
-import type { Monster, PlayerId } from "../types/GameTypes";
-import {
-    addEvent,
-    buildMatchBoard,
-    createStats,
-    deployMonsters,
-    hasAvailablePlacement,
-    type MatchState,
-} from "./matchState";
-import { beginTurn, finishPlayerTurn, getLegalAttackCosts, performAttacks } from "./combat";
-import { performMovements } from "./movement";
-import { chooseDeck } from "./strategies";
-import {
-    canDeployMonsterForProfile,
     chooseBotTactic,
-    chooseSymbolConversion,
     DEFAULT_BOT_STRATEGY_WEIGHTS,
     parseBotStrategyWeightMap,
-    scoreMonsterForProfile,
 } from "../game/botStrategy";
-import { convertReservedSymbols } from "../game/diceResources";
+import { createEmptyDiceReserve } from "../game/diceResources";
+import { getDefaultGameConfiguration, type GameConfiguration } from "../game/gameConfiguration";
+import { byPlayer, opposingPlayer } from "../game/matchRules";
 import { getMonsterSymbol, getUniqueMonsterSymbols } from "../game/monsterSymbols";
-import type { BotProfile, MatchResult, SimulationBatchResult, SimulationOptions } from "./types";
-import { BOT_PROFILES } from "./types";
-import { createTrainingFingerprint } from "./trainingVersioning";
+import { createSeededRandom } from "../game/random";
+import type { Monster, PlacedMonster, PlayerId } from "../types/GameTypes";
+import { beginTurn } from "./combat";
+import { buildMatchBoard } from "./finalBoard";
+import { createStats, type MatchState } from "./matchState";
+import { playPlayerTurn, type PlayerTurnContext } from "./playerTurn";
+import { chooseDeck } from "./strategies";
+import { createTrainingFingerprint } from "./training/versioning";
+import {
+    BOT_PROFILES,
+    type BotProfile,
+    type FinalMonster,
+    type MatchResult,
+    type SimulationBatchResult,
+    type SimulationOptions,
+} from "./types";
 
-function createRandom(seed: number): () => number {
-    let value = seed || 0x6d2b79f5;
-    return () => {
-        value ^= value << 13;
-        value ^= value >>> 17;
-        value ^= value << 5;
-        return (value >>> 0) / 0x1_0000_0000;
-    };
-}
-
-function createMatch(
-    id: number,
-    seed: number,
-    startingPlayer: PlayerId,
-    options: SimulationOptions,
-    configuration: GameConfiguration,
-    board: BoardDefinition,
-    monstersById: ReadonlyMap<string, Monster>,
-): MatchResult {
-    const random = createRandom(seed);
-    const profiles: Record<PlayerId, BotProfile> = {
-        1: options.profile1,
-        2: options.profile2,
-    };
-    const strategyWeights = {
-        1: options.strategyWeights?.[profiles[1]] ?? DEFAULT_BOT_STRATEGY_WEIGHTS,
-        2: options.strategyWeights?.[profiles[2]] ?? DEFAULT_BOT_STRATEGY_WEIGHTS,
-    };
-    const deckRandom: Record<PlayerId, () => number> = {
-        1: createRandom((seed ^ 0x9e3779b9) >>> 0),
-        2: createRandom((seed ^ 0x85ebca6b) >>> 0),
-    };
-    const actionRandom: Record<PlayerId, () => number> = {
-        1: createRandom((seed ^ 0xa5a5a5a5) >>> 0),
-        2: createRandom((seed ^ 0x5a5a5a5a) >>> 0),
-    };
-    const decks: Record<PlayerId, string[]> = {
-        1:
-            options.deck1 ??
-            chooseDeck(
-                configuration.monsters,
-                options.profile1,
-                configuration.deckSize,
-                deckRandom[1],
-                strategyWeights[1],
-            ),
-        2:
-            options.deck2 ??
-            chooseDeck(
-                configuration.monsters,
-                options.profile2,
-                configuration.deckSize,
-                deckRandom[2],
-                strategyWeights[2],
-            ),
-    };
-    const deckMonsters: Record<PlayerId, Monster[]> = {
-        1: resolveDeck(decks[1], monstersById),
-        2: resolveDeck(decks[2], monstersById),
-    };
-    const monsterSymbols = getUniqueMonsterSymbols(configuration.monsters);
-    const state: MatchState = {
-        turn: 1,
-        currentPlayer: startingPlayer,
-        debug: options.debug ?? false,
-        protectFirstDeployment: configuration.protectFirstDeployment,
-        ...(options.completeAttackPhases ? { completeAttackPhases: true } : {}),
-        ...(options.broaderAttackCandidates ? { broaderAttackCandidates: true } : {}),
-        ...(options.movementAttackCombos ? { movementAttackCombos: true } : {}),
-        ...(options.summonPlacementPairs ? { summonPlacementPairs: true } : {}),
-        ...(options.nextTurnDiceExpectation
-            ? {
-                  nextTurnDice: {
-                      count: configuration.diceCount,
-                      removeInvocationDiceWhenNoMonsters:
-                          configuration.removeInvocationDiceWhenNoMonsters,
-                      maxMonstersPerPlayer: configuration.maxMonstersPerPlayer,
-                  },
-              }
-            : {}),
-        strategyWeights,
-        ...(options.recordDecisionTraces ? { decisionTraces: [] } : {}),
-        profiles,
-        tactics: {
-            1: chooseBotTactic(profiles[1], profiles[2]).tactic,
-            2: chooseBotTactic(profiles[2], profiles[1]).tactic,
-        },
-        allowBaseAttackOnSummonTurn: configuration.allowBaseAttackOnSummonTurn,
-        winner: null,
-        finishReason: "turnLimit",
-        health: {
-            1: configuration.initialPlayerHealth,
-            2: configuration.initialPlayerHealth,
-        },
-        reserves: {
-            1: { invocation: 0, attack: 0, movement: 0 },
-            2: { invocation: 0, attack: 0, movement: 0 },
-        },
-        monsters: [],
-        movementStagnation: {},
-        history: [],
-        statistics: { 1: createStats(), 2: createStats() },
-        nextMonsterId: 1,
-        monstersKilledForVictory: configuration.monstersKilledForVictory,
-        actionRandom,
-    };
-    for (let turn = 1; turn <= options.maxTurns && state.winner === null; turn++) {
-        state.turn = turn;
-        const turnOrder: readonly [PlayerId, PlayerId] = startingPlayer === 1 ? [1, 2] : [2, 1];
-        for (const player of turnOrder) {
-            if (state.winner !== null) break;
-            if (turn > 1 || player !== startingPlayer) beginTurn(state, configuration, player);
-            else state.currentPlayer = player;
-            if (state.winner !== null) break;
-
-            const excludeInvocation =
-                configuration.removeInvocationDiceWhenNoMonsters &&
-                getInvokedMonsterCount(state.monsters, player) >=
-                    configuration.maxMonstersPerPlayer;
-            const rolled = DICE.slice(0, configuration.diceCount).map((die) => {
-                const faces = getRollableDieFaces(die, excludeInvocation);
-                return faces[Math.floor(random() * faces.length)]!;
-            });
-            for (const symbol of rolled) state.reserves[player][symbol]++;
-            addEvent(state, {
-                turn,
-                player,
-                type: "dice",
-                description: `Dés : ${rolled.join(", ")}. Ressources conservées en réserve.`,
-            });
-            addEvent(state, {
-                turn,
-                player,
-                type: "strategy",
-                description: `Profil « ${profiles[player]} » ; deck : ${decks[player].join(", ")}.`,
-            });
-            const decision = chooseBotTactic(profiles[player], profiles[player === 1 ? 2 : 1]);
-            state.tactics[player] = decision.tactic;
-            addEvent(state, {
-                turn,
-                player,
-                type: "strategy",
-                description: `Décision stratégique : ${decision.description}.`,
-            });
-
-            const deployedCosts = state.monsters
-                .filter((monster) => monster.owner === player)
-                .map((monster) => monster.monster.cost);
-            const canInvoke =
-                getInvokedMonsterCount(state.monsters, player) <
-                    configuration.maxMonstersPerPlayer &&
-                hasAvailablePlacement(state, board, player);
-            const invocableMonsters = canInvoke
-                ? deckMonsters[player].filter((monster) =>
-                      canDeployMonsterForProfile(monster, profiles[player], deployedCosts),
-                  )
-                : [];
-            if (
-                getInvokedMonsterCount(state.monsters, player) <
-                    configuration.maxMonstersPerPlayer &&
-                !canInvoke
-            ) {
-                state.statistics[player].noLegalPlacementTurns++;
-                if (
-                    deckMonsters[player].some(
-                        (monster) =>
-                            monster.cost <= state.reserves[player].invocation &&
-                            canDeployMonsterForProfile(monster, profiles[player], deployedCosts),
-                    )
-                ) {
-                    state.statistics[player].blockedInvocationAttempts++;
-                    state.statistics[player].actionsSkippedByReason.noLegalPlacement =
-                        (state.statistics[player].actionsSkippedByReason.noLegalPlacement ?? 0) + 1;
-                }
-            }
-
-            const attackCosts = getLegalAttackCosts(state, board);
-            for (;;) {
-                const reserve = state.reserves[player];
-                const affordableInvocationCosts = canInvoke
-                    ? invocableMonsters
-                          .filter((monster) => monster.cost <= reserve.invocation)
-                          .map((monster) => monster.cost)
-                    : [];
-                const affordableAttackCosts = attackCosts.filter((cost) => cost <= reserve.attack);
-                const protectedCounts = {
-                    invocation: affordableInvocationCosts.length
-                        ? Math.min(...affordableInvocationCosts)
-                        : 0,
-                    attack: affordableAttackCosts.length ? Math.min(...affordableAttackCosts) : 0,
-                    movement: 0,
-                };
-                for (const monster of state.monsters) {
-                    if (
-                        monster.owner !== player ||
-                        monster.currentHp <= 0 ||
-                        !canUseActionThisTurn(
-                            monster.movementsUsedThisTurn,
-                            getMovementActionsPerTurn(monster.monster),
-                        )
-                    ) {
-                        continue;
-                    }
-                    const cost = getMovementCost(
-                        monster.monster,
-                        monster.turnBuffs?.movementCostReduction ?? 0,
-                    );
-                    if (cost <= reserve.movement) {
-                        protectedCounts.movement =
-                            protectedCounts.movement === 0
-                                ? cost
-                                : Math.min(protectedCounts.movement, cost);
-                    }
-                }
-                const opportunities = {
-                    invocation: invocableMonsters.reduce((best, monster) => {
-                        return monster.cost > reserve.invocation
-                            ? Math.max(
-                                  best,
-                                  Math.max(
-                                      1,
-                                      scoreMonsterForProfile(
-                                          monster,
-                                          profiles[player],
-                                          strategyWeights[player],
-                                      ) + 1,
-                                  ) *
-                                      strategyWeights[player].invocationPriority +
-                                      (getInvokedMonsterCount(state.monsters, player) === 0
-                                          ? 2
-                                          : 0),
-                              )
-                            : best;
-                    }, 0),
-                    attack: attackCosts.reduce(
-                        (best, cost) => (cost > reserve.attack ? Math.max(best, 1) : best),
-                        0,
-                    ),
-                    movement: state.monsters.some((monster) => {
-                        if (
-                            monster.owner !== player ||
-                            monster.currentHp <= 0 ||
-                            !canUseActionThisTurn(
-                                monster.movementsUsedThisTurn,
-                                getMovementActionsPerTurn(monster.monster),
-                            )
-                        ) {
-                            return false;
-                        }
-                        const cost = getMovementCost(
-                            monster.monster,
-                            monster.turnBuffs?.movementCostReduction ?? 0,
-                        );
-                        return cost > reserve.movement;
-                    })
-                        ? 1
-                        : 0,
-                };
-                const choice = chooseSymbolConversion(reserve, opportunities, {
-                    ...protectedCounts,
-                });
-                if (!choice) break;
-                if (!convertReservedSymbols(reserve, choice.sourceSymbols, choice.targetSymbol))
-                    break;
-                state.statistics[player].conversionLosses++;
-                addEvent(state, {
-                    turn,
-                    player,
-                    type: "strategy",
-                    description: `Conversion tactique : ${choice.sourceSymbols.join(" + ")} vers ${choice.targetSymbol}.`,
-                });
-            }
-
-            const turnStartStats = state.statistics[player];
-            const summonsAtTurnStart = turnStartStats.summoned;
-            const attacksAtTurnStart = turnStartStats.attacks;
-            const movementsAtTurnStart = turnStartStats.movements;
-            deployMonsters(state, configuration, board, profiles[player], deckMonsters[player]);
-            performAttacks(state, board);
-            performMovements(state, board);
-            performAttacks(state, board);
-            const stats = state.statistics[player];
-            if (stats.summoned === summonsAtTurnStart) stats.turnsWithoutSummon++;
-            if (stats.attacks === attacksAtTurnStart) stats.turnsWithoutAttack++;
-            if (stats.movements === movementsAtTurnStart) stats.turnsWithoutMovement++;
-            if (
-                stats.summoned === summonsAtTurnStart &&
-                stats.attacks === attacksAtTurnStart &&
-                stats.movements === movementsAtTurnStart
-            ) {
-                stats.turnsWithoutUsefulAction++;
-            }
-            finishPlayerTurn(state, player);
-        }
-    }
-
-    return {
-        id,
-        seed,
-        startingPlayer,
-        profiles,
-        decks,
-        winner: state.winner,
-        finishReason: state.finishReason,
-        turns: state.turn,
-        playerHealth: state.health,
-        statistics: state.statistics,
-        finalBoard: buildMatchBoard(board, state, monsterSymbols, configuration.monsters),
-        finalMonsters: state.monsters.map((monster) => ({
-            id: monster.id,
-            monsterId: monster.monster.id,
-            name: monster.monster.name,
-            symbol: getMonsterSymbol(monsterSymbols, monster.monster.id),
-            owner: monster.owner,
-            hp: monster.currentHp,
-            maxHp: monster.monster.hp,
-            position: monster.position,
-            cells: monster.cells,
-            statusEffects: monster.statusEffects,
-            isCamouflaged: monster.isCamouflaged === true,
-            ...(monster.turnBuffs === undefined ? {} : { turnBuffs: monster.turnBuffs }),
-        })),
-        remainingResources: state.reserves,
-        history: state.history,
-        ...(state.decisionTraces === undefined ? {} : { decisionTraces: state.decisionTraces }),
-    };
-}
+const DECK_SEED_SALTS: Record<PlayerId, number> = { 1: 0x9e3779b9, 2: 0x85ebca6b };
+const ACTION_SEED_SALTS: Record<PlayerId, number> = { 1: 0xa5a5a5a5, 2: 0x5a5a5a5a };
 
 function resolveDeck(
     deck: readonly string[],
@@ -373,13 +39,144 @@ function resolveDeck(
     });
 }
 
-export function runSimulations(
+function createInitialState(
     options: SimulationOptions,
-    configuration = getDefaultGameConfiguration(),
-    board = getDefaultBoard(),
-    startIndex = 0,
-    onMatchComplete?: (completedMatches: number) => void,
-): SimulationBatchResult {
+    configuration: GameConfiguration,
+    startingPlayer: PlayerId,
+    strategyWeights: MatchState["strategyWeights"],
+    seed: number,
+): MatchState {
+    const profiles: Record<PlayerId, BotProfile> = { 1: options.profile1, 2: options.profile2 };
+    return {
+        turn: 1,
+        currentPlayer: startingPlayer,
+        debug: options.debug ?? false,
+        protectFirstDeployment: configuration.protectFirstDeployment,
+        completeAttackPhases: options.completeAttackPhases === true,
+        broaderAttackCandidates: options.broaderAttackCandidates === true,
+        movementAttackCombos: options.movementAttackCombos === true,
+        summonPlacementPairs: options.summonPlacementPairs === true,
+        nextTurnDice: options.nextTurnDiceExpectation
+            ? {
+                  count: configuration.diceCount,
+                  removeInvocationDiceWhenNoMonsters:
+                      configuration.removeInvocationDiceWhenNoMonsters,
+                  maxMonstersPerPlayer: configuration.maxMonstersPerPlayer,
+              }
+            : undefined,
+        strategyWeights,
+        decisionTraces: options.recordDecisionTraces ? [] : undefined,
+        profiles,
+        tactics: byPlayer(
+            (player) => chooseBotTactic(profiles[player], profiles[opposingPlayer(player)]).tactic,
+        ),
+        allowBaseAttackOnSummonTurn: configuration.allowBaseAttackOnSummonTurn,
+        winner: null,
+        finishReason: "turnLimit",
+        health: byPlayer(() => configuration.initialPlayerHealth),
+        reserves: byPlayer(() => createEmptyDiceReserve()),
+        monsters: [],
+        movementStagnation: {},
+        history: [],
+        statistics: byPlayer(() => createStats()),
+        nextMonsterId: 1,
+        monstersKilledForVictory: configuration.monstersKilledForVictory,
+        actionRandom: byPlayer((player) =>
+            createSeededRandom((seed ^ ACTION_SEED_SALTS[player]) >>> 0),
+        ),
+    };
+}
+
+function toFinalMonster(
+    monster: PlacedMonster,
+    monsterSymbols: ReadonlyMap<string, string>,
+): FinalMonster {
+    return {
+        id: monster.id,
+        monsterId: monster.monster.id,
+        name: monster.monster.name,
+        symbol: getMonsterSymbol(monsterSymbols, monster.monster.id),
+        owner: monster.owner,
+        hp: monster.currentHp,
+        maxHp: monster.monster.hp,
+        position: monster.position,
+        cells: monster.cells,
+        statusEffects: monster.statusEffects,
+        isCamouflaged: monster.isCamouflaged === true,
+        ...(monster.turnBuffs === undefined ? {} : { turnBuffs: monster.turnBuffs }),
+    };
+}
+
+function createMatch(
+    id: number,
+    seed: number,
+    startingPlayer: PlayerId,
+    options: SimulationOptions,
+    configuration: GameConfiguration,
+    board: BoardDefinition,
+    monstersById: ReadonlyMap<string, Monster>,
+): MatchResult {
+    const optionDecks = { 1: options.deck1, 2: options.deck2 };
+    const optionProfiles = { 1: options.profile1, 2: options.profile2 };
+    const strategyWeights = byPlayer(
+        (player) =>
+            options.strategyWeights?.[optionProfiles[player]] ?? DEFAULT_BOT_STRATEGY_WEIGHTS,
+    );
+    const decks = byPlayer(
+        (player) =>
+            optionDecks[player] ??
+            chooseDeck(
+                configuration.monsters,
+                optionProfiles[player],
+                configuration.deckSize,
+                createSeededRandom((seed ^ DECK_SEED_SALTS[player]) >>> 0),
+                strategyWeights[player],
+            ),
+    );
+    const state = createInitialState(options, configuration, startingPlayer, strategyWeights, seed);
+    const context: PlayerTurnContext = {
+        state,
+        configuration,
+        board,
+        random: createSeededRandom(seed),
+        decks,
+        deckMonsters: byPlayer((player) => resolveDeck(decks[player], monstersById)),
+        strategyWeights,
+    };
+    const turnOrder = [startingPlayer, opposingPlayer(startingPlayer)] as const;
+
+    for (let turn = 1; turn <= options.maxTurns && state.winner === null; turn++) {
+        state.turn = turn;
+        for (const player of turnOrder) {
+            if (state.winner !== null) break;
+            if (turn > 1 || player !== startingPlayer) beginTurn(state, configuration, player);
+            else state.currentPlayer = player;
+            if (state.winner !== null) break;
+            playPlayerTurn(context, player);
+        }
+    }
+
+    const monsterSymbols = getUniqueMonsterSymbols(configuration.monsters);
+    return {
+        id,
+        seed,
+        startingPlayer,
+        profiles: state.profiles,
+        decks,
+        winner: state.winner,
+        finishReason: state.finishReason,
+        turns: state.turn,
+        playerHealth: state.health,
+        statistics: state.statistics,
+        finalBoard: buildMatchBoard(board, state, monsterSymbols, configuration.monsters),
+        finalMonsters: state.monsters.map((monster) => toFinalMonster(monster, monsterSymbols)),
+        remainingResources: state.reserves,
+        history: state.history,
+        ...(state.decisionTraces === undefined ? {} : { decisionTraces: state.decisionTraces }),
+    };
+}
+
+function validateSimulationOptions(options: SimulationOptions, startIndex: number): void {
     if (!Number.isInteger(options.games) || options.games < 1) {
         throw new RangeError("Le nombre de matchs doit être un entier positif.");
     }
@@ -393,41 +190,20 @@ export function runSimulations(
         throw new RangeError("La seed doit être un entier non signé de 32 bits.");
     }
     if (
-        options.profilePairs !== undefined &&
-        (options.profilePairs.length === 0 ||
-            options.profilePairs.some(
-                ({ profile1, profile2 }) =>
-                    !BOT_PROFILES.includes(profile1) || !BOT_PROFILES.includes(profile2),
-            ))
+        options.profilePairs?.length === 0 ||
+        options.profilePairs?.some(
+            ({ profile1, profile2 }) =>
+                !BOT_PROFILES.includes(profile1) || !BOT_PROFILES.includes(profile2),
+        )
     ) {
         throw new RangeError("La liste des confrontations entre profils est invalide.");
     }
     if (!Number.isSafeInteger(startIndex) || startIndex < 0) {
         throw new RangeError("L’index de départ doit être un entier non négatif.");
     }
+}
 
-    const monstersById = new Map<string, Monster>();
-    for (const monster of configuration.monsters) {
-        if (!monstersById.has(monster.id)) monstersById.set(monster.id, monster);
-    }
-    const matches = Array.from({ length: options.games }, (_, index) => {
-        const matchIndex = startIndex + index;
-        const profilePairCount = options.profilePairs?.length ?? 1;
-        const pairIndex = matchIndex % profilePairCount;
-        const repetitionIndex = Math.floor(matchIndex / profilePairCount);
-        const profilePair = options.profilePairs?.[pairIndex];
-        const match = createMatch(
-            matchIndex + 1,
-            (options.seed + matchIndex) >>> 0,
-            (pairIndex + repetitionIndex) % 2 === 0 ? 1 : 2,
-            profilePair ? { ...options, ...profilePair } : options,
-            configuration,
-            board,
-            monstersById,
-        );
-        onMatchComplete?.(index + 1);
-        return match;
-    });
+function summarizeMatches(matches: readonly MatchResult[]): SimulationBatchResult["summary"] {
     const wins: Record<PlayerId, number> = { 1: 0, 2: 0 };
     const winsByStartingPlayer: Record<PlayerId, number> = { 1: 0, 2: 0 };
     const winsByProfile: Partial<Record<BotProfile, number>> = {};
@@ -444,6 +220,47 @@ export function runSimulations(
         const winnerProfile = match.profiles[match.winner];
         winsByProfile[winnerProfile] = (winsByProfile[winnerProfile] ?? 0) + 1;
     }
+    return {
+        matches: matches.length,
+        wins,
+        winsByStartingPlayer,
+        draws,
+        averageTurns: totalTurns / matches.length,
+        winsByProfile,
+    };
+}
+
+export function runSimulations(
+    options: SimulationOptions,
+    configuration = getDefaultGameConfiguration(),
+    board = getDefaultBoard(),
+    startIndex = 0,
+    onMatchComplete?: (completedMatches: number) => void,
+): SimulationBatchResult {
+    validateSimulationOptions(options, startIndex);
+
+    const monstersById = new Map<string, Monster>();
+    for (const monster of configuration.monsters) {
+        if (!monstersById.has(monster.id)) monstersById.set(monster.id, monster);
+    }
+    const profilePairCount = options.profilePairs?.length ?? 1;
+    const matches = Array.from({ length: options.games }, (_, index) => {
+        const matchIndex = startIndex + index;
+        const pairIndex = matchIndex % profilePairCount;
+        const repetitionIndex = Math.floor(matchIndex / profilePairCount);
+        const profilePair = options.profilePairs?.[pairIndex];
+        const match = createMatch(
+            matchIndex + 1,
+            (options.seed + matchIndex) >>> 0,
+            (pairIndex + repetitionIndex) % 2 === 0 ? 1 : 2,
+            profilePair ? { ...options, ...profilePair } : options,
+            configuration,
+            board,
+            monstersById,
+        );
+        onMatchComplete?.(index + 1);
+        return match;
+    });
 
     return {
         schemaVersion: 1,
@@ -452,14 +269,7 @@ export function runSimulations(
         options,
         configuration,
         board,
-        summary: {
-            matches: matches.length,
-            wins,
-            winsByStartingPlayer,
-            draws,
-            averageTurns: totalTurns / matches.length,
-            winsByProfile,
-        },
+        summary: summarizeMatches(matches),
         matches,
     };
 }

@@ -1,10 +1,10 @@
-import './style.css';
+import "./styles/index.css";
 
-import { createRoot } from 'react-dom/client';
+import { createRoot } from "react-dom/client";
 
-import { App } from './App';
+import { App } from "./App";
 
-const appElement = document.getElementById('app');
-if (!appElement) throw new Error('Élément racine de l’application manquant : #app');
+const appElement = document.getElementById("app");
+if (!appElement) throw new Error("Élément racine de l’application manquant : #app");
 
 createRoot(appElement).render(<App />);

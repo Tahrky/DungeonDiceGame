@@ -1,234 +1,22 @@
-import Phaser from "phaser";
+import { GameSceneData } from "./GameSceneData";
 import { isGameSnapshot } from "./GameSceneProtocol";
-import { GAME_CONFIG } from "../config";
-import {
-    addSymbolsToReserve,
-    convertReservedSymbols,
-    createEmptyDiceReserve,
-    spendSymbols,
-} from "../game/diceResources";
-import {
-    DEFAULT_PLAYER_LIFE,
-    getDefaultGameConfiguration,
-    parseGameConfiguration,
-    type GameConfiguration,
-} from "../game/gameConfiguration";
+import { addSymbolsToReserve, convertReservedSymbols } from "../game/diceResources";
 import {
     canUseActionThisTurn,
     getAttackActionsPerTurn,
     getMovementActionsPerTurn,
 } from "../game/monsterActions";
-import { getDefaultDeck, getPlayerDecks, parseDeck, type GameSetup } from "../game/decks";
-import type { BotProfile } from "../game/botStrategy";
-import { BoardView } from "./game/BoardView";
-import { GameHud } from "./game/GameHud";
-import { MonsterTooltip } from "./game/MonsterTooltip";
-import { MonsterSpriteView } from "./game/MonsterSpriteView";
-import {
-    getBoardOrigin,
-    getDefaultBoard,
-    getStartingPositions,
-    parseBoardDefinition,
-    resolveBoardSelection,
-    type BoardDefinition,
-} from "../game/boards";
+import { getBoardOrigin } from "../game/boards";
 import type { GameHudActions } from "./game/GameHud";
 import type { GameViewState } from "./game/GameViewState";
 import type {
-    BoardActionMode,
-    BoardObstacle,
-    DiceReserve,
     DiceSymbol,
-    GameActionLogEntry,
-    Monster,
-    PlayerId,
-    PlacedMonster,
-    Position,
-    RolledDie,
     GameSnapshot,
+    PlacedMonster,
     RemoteGameCommand,
 } from "../types/GameTypes";
 
-export abstract class GameSceneState extends Phaser.Scene {
-    protected boardGraphics!: Phaser.GameObjects.Graphics;
-
-    protected uiContainer!: Phaser.GameObjects.Container;
-
-    protected tooltipContainer!: Phaser.GameObjects.Container;
-
-    protected boardView!: BoardView;
-
-    protected gameHud!: GameHud;
-
-    protected monsterTooltip!: MonsterTooltip;
-
-    protected monsterSpriteView!: MonsterSpriteView;
-
-    protected currentPlayer: PlayerId = 1;
-
-    protected turnNumber = 1;
-
-    protected playerHealth: Record<PlayerId, number> = {
-        1: DEFAULT_PLAYER_LIFE,
-        2: DEFAULT_PLAYER_LIFE,
-    };
-
-    protected gameConfiguration: GameConfiguration = getDefaultGameConfiguration();
-
-    protected playerDecks: Record<PlayerId, string[]> = {
-        1: getDefaultDeck(),
-        2: getDefaultDeck(),
-    };
-
-    protected computerOpponent = false;
-
-    protected opponentProfile: BotProfile = "balanced";
-
-    protected mode: GameSetup["mode"] = "computer";
-
-    protected localPlayer: PlayerId = 1;
-
-    protected isHost = true;
-
-    protected computerTurnInProgress = false;
-
-    protected hasGameSetup = false;
-
-    protected assetsReady = false;
-
-    protected winner: PlayerId | null = null;
-
-    protected hasRolled = false;
-
-    protected rolledDice: RolledDie[] = [];
-
-    protected diceReserves: Record<PlayerId, DiceReserve> = {
-        1: createEmptyDiceReserve(),
-        2: createEmptyDiceReserve(),
-    };
-
-    protected actionMode: BoardActionMode = { type: "idle" };
-
-    protected selectedMonster: Monster | null = null;
-
-    protected selectedPattern = 0;
-
-    protected patternRotation = 0;
-
-    protected patternMirrored = false;
-
-    protected patternSelectorExpanded = true;
-
-    protected invocationMenuOpen = false;
-
-    protected pendingCells: Position[] | null = null;
-
-    protected placedMonsters: PlacedMonster[] = [];
-
-    protected obstacles: BoardObstacle[] = [];
-
-    protected actionHistory: GameActionLogEntry[] = [];
-
-    protected actionHistoryScrollOffset = 0;
-
-    protected hoveredCell: Position | null = null;
-
-    protected lockedPreviewCell: Position | null = null;
-
-    protected hasLeftLockedPreviewBoard = false;
-
-    protected hoveredInvocationMonster: Monster | null = null;
-
-    protected nextMonsterId = 1;
-
-    protected pendingResumeSnapshot: GameSnapshot | null = null;
-
-    protected board = getDefaultBoard();
-
-    protected startingPositions = getStartingPositions(this.board);
-
-    constructor() {
-        super("GameScene");
-    }
-
-    init(data?: Partial<GameSetup>): void {
-        this.hasGameSetup = data?.mode !== undefined;
-        this.pendingResumeSnapshot =
-            data?.resumeSnapshot && isGameSnapshot(data.resumeSnapshot)
-                ? data.resumeSnapshot
-                : null;
-        const configuration = data?.configuration
-            ? parseGameConfiguration(data.configuration)
-            : getDefaultGameConfiguration();
-        if (!configuration) throw new Error("La configuration de partie est invalide.");
-        this.gameConfiguration = configuration;
-        let board: BoardDefinition;
-        if (data?.board !== undefined) {
-            const parsedBoard = parseBoardDefinition(data.board);
-            if (!parsedBoard) throw new Error("La définition du plateau est invalide.");
-            board = parsedBoard;
-        } else if (data?.boardSelection) {
-            board = resolveBoardSelection(data.boardSelection);
-        } else {
-            board = getDefaultBoard();
-        }
-        this.board = board;
-        this.startingPositions = getStartingPositions(this.board);
-        this.currentPlayer = 1;
-        this.turnNumber = 1;
-        this.playerHealth = {
-            1: configuration.initialPlayerHealth,
-            2: configuration.initialPlayerHealth,
-        };
-        this.mode = data?.mode ?? "computer";
-        this.computerOpponent = data?.mode === "computer";
-        this.opponentProfile = data?.opponentProfile ?? "balanced";
-        this.localPlayer = data?.localPlayer ?? 1;
-        this.playerDecks = getPlayerDecks(
-            parseDeck(data?.playerDeck, configuration.deckSize) ??
-                getDefaultDeck(configuration.deckSize),
-            parseDeck(data?.opponentDeck, configuration.deckSize) ??
-                getDefaultDeck(configuration.deckSize),
-            this.localPlayer,
-        );
-        this.isHost = data?.isHost ?? true;
-        this.computerTurnInProgress = false;
-        this.assetsReady = false;
-        this.winner = null;
-        this.hasRolled = false;
-        this.rolledDice = [];
-        this.diceReserves = {
-            1: createEmptyDiceReserve(),
-            2: createEmptyDiceReserve(),
-        };
-        this.actionMode = { type: "idle" };
-        this.selectedMonster = null;
-        this.selectedPattern = 0;
-        this.patternRotation = 0;
-        this.patternMirrored = false;
-        this.patternSelectorExpanded = true;
-        this.invocationMenuOpen = false;
-        this.pendingCells = null;
-        this.placedMonsters = [];
-        this.obstacles = [];
-        this.actionHistory = [];
-        this.actionHistoryScrollOffset = 0;
-        this.hoveredCell = null;
-        this.lockedPreviewCell = null;
-        this.hasLeftLockedPreviewBoard = false;
-        this.hoveredInvocationMonster = null;
-        this.nextMonsterId = 1;
-    }
-
-    protected gridToScreen(position: Position): Position {
-        const { tileWidth, tileHeight } = GAME_CONFIG;
-        const origin = getBoardOrigin(this.board);
-        return {
-            x: origin.x + ((position.x - position.y) * tileWidth) / 2,
-            y: origin.y + ((position.x + position.y) * tileHeight) / 2,
-        };
-    }
-
+export abstract class GameSceneState extends GameSceneData {
     protected get viewState(): GameViewState {
         return {
             currentPlayer: this.currentPlayer,
@@ -281,38 +69,38 @@ export abstract class GameSceneState extends Phaser.Scene {
     }
 
     protected getGrayscaleMonsterIds(): ReadonlySet<string> {
-        const grayscaled = new Set<string>();
-        for (const monster of this.placedMonsters) {
-            if (monster.isCamouflaged) {
-                grayscaled.add(monster.id);
-            } else if (this.winner !== null) {
-                grayscaled.add(monster.id);
-            } else if (
-                monster.currentHp > 0 &&
-                monster.owner === this.currentPlayer &&
-                ((this.actionMode.type === "attack" &&
-                    !canUseActionThisTurn(
-                        monster.attacksUsedThisTurn,
-                        getAttackActionsPerTurn(monster.monster),
-                    )) ||
-                    (this.actionMode.type === "movement" &&
-                        !canUseActionThisTurn(
-                            monster.movementsUsedThisTurn,
-                            getMovementActionsPerTurn(monster.monster),
-                        )))
-            ) {
-                grayscaled.add(monster.id);
-            }
-        }
-        return grayscaled;
+        return this.getMonsterIds(
+            (monster) =>
+                monster.isCamouflaged ||
+                this.winner !== null ||
+                this.cannotActInCurrentMode(monster),
+        );
     }
 
     protected getCamouflagedMonsterIds(): ReadonlySet<string> {
-        return new Set(
-            this.placedMonsters
-                .filter((monster) => monster.isCamouflaged)
-                .map((monster) => monster.id),
-        );
+        return this.getMonsterIds((monster) => monster.isCamouflaged);
+    }
+
+    private getMonsterIds(predicate: (monster: PlacedMonster) => boolean): ReadonlySet<string> {
+        return new Set(this.placedMonsters.filter(predicate).map(({ id }) => id));
+    }
+
+    private cannotActInCurrentMode(monster: PlacedMonster): boolean {
+        if (monster.currentHp <= 0 || monster.owner !== this.currentPlayer) return false;
+        switch (this.actionMode.type) {
+            case "attack":
+                return !canUseActionThisTurn(
+                    monster.attacksUsedThisTurn,
+                    getAttackActionsPerTurn(monster.monster),
+                );
+            case "movement":
+                return !canUseActionThisTurn(
+                    monster.movementsUsedThisTurn,
+                    getMovementActionsPerTurn(monster.monster),
+                );
+            default:
+                return false;
+        }
     }
 
     protected runLocalCommand(command: RemoteGameCommand, action: () => void): void {
@@ -346,24 +134,20 @@ export abstract class GameSceneState extends Phaser.Scene {
             return;
         }
 
+        const reserve = this.diceReserves[this.currentPlayer];
         const selectedSymbols =
             this.actionMode.type === "convertSymbols" ? this.actionMode.selectedSymbols : [];
         if (this.actionMode.type !== "idle" && this.actionMode.type !== "convertSymbols") return;
         if (selectedSymbols.length >= 2) return;
         if (
             this.actionMode.type === "idle" &&
-            Object.values(this.diceReserves[this.currentPlayer]).reduce(
-                (total, count) => total + count,
-                0,
-            ) < 2
+            Object.values(reserve).reduce((total, count) => total + count, 0) < 2
         ) {
             return;
         }
 
-        const alreadySelected = selectedSymbols.filter(
-            (selectedSymbol) => selectedSymbol === symbol,
-        ).length;
-        if (this.diceReserves[this.currentPlayer][symbol] <= alreadySelected) return;
+        const alreadySelected = selectedSymbols.filter((selected) => selected === symbol).length;
+        if (reserve[symbol] <= alreadySelected) return;
 
         this.actionMode = {
             type: "convertSymbols",
@@ -450,11 +234,8 @@ export abstract class GameSceneState extends Phaser.Scene {
         this.diceReserves = value.diceReserves;
         this.actionMode = value.actionMode;
         this.selectedMonster =
-            value.selectedMonsterId === null
-                ? null
-                : (this.gameConfiguration.monsters.find(
-                      (monster) => monster.id === value.selectedMonsterId,
-                  ) ?? null);
+            this.gameConfiguration.monsters.find(({ id }) => id === value.selectedMonsterId) ??
+            null;
         this.selectedPattern = value.selectedPattern;
         this.patternRotation = value.patternRotation;
         this.patternMirrored = value.patternMirrored;
@@ -470,34 +251,6 @@ export abstract class GameSceneState extends Phaser.Scene {
         this.actionHistory = value.actionHistory;
         this.actionHistoryScrollOffset = value.actionHistoryScrollOffset;
         this.nextMonsterId = value.nextMonsterId;
-    }
-
-    protected getDeckMonsters(player: PlayerId): Monster[] {
-        return this.playerDecks[player]
-            .map((id) => this.gameConfiguration.monsters.find((monster) => monster.id === id))
-            .filter((monster): monster is Monster => monster !== undefined);
-    }
-
-    protected recordAction(entry: GameActionLogEntry): void {
-        this.actionHistory = [...this.actionHistory, entry];
-        this.actionHistoryScrollOffset = 0;
-    }
-
-    protected getLivingMonsterAt(position: Position): PlacedMonster | undefined {
-        return this.placedMonsters.find(
-            (placed) =>
-                placed.currentHp > 0 &&
-                placed.position.x === position.x &&
-                placed.position.y === position.y,
-        );
-    }
-
-    protected getLivingMonster(id: string): PlacedMonster | undefined {
-        return this.placedMonsters.find((placed) => placed.id === id && placed.currentHp > 0);
-    }
-
-    protected spendCurrentSymbol(symbol: DiceSymbol, amount = 1): boolean {
-        return spendSymbols(symbol, amount, this.rolledDice, this.diceReserves[this.currentPlayer]);
     }
 
     protected abstract drawBoard(): void;

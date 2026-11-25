@@ -1,226 +1,214 @@
-import { GameHudActionsPanel } from "./GameHudActions";
-import {
-    PATTERN_COLUMNS,
-    PATTERN_CARD_WIDTH,
-    PATTERN_CARD_HEIGHT,
-    PATTERN_COLUMN_GAP,
-    PATTERN_ROW_GAP,
-    PATTERN_GRID_HEIGHT,
-    getHudRightX,
-    getHudBottomY,
-    getPatternStartX,
-} from "./GameHudBase";
-import type { GameHudActions, IconButtonOptions } from "./GameHudBase";
 import Phaser from "phaser";
 import { PLACEMENT_PATTERNS } from "../../data/placementPatterns";
+import type { Position } from "../../types/GameTypes";
+import { GameHudActionsPanel } from "./GameHudActions";
 import type { GameViewState } from "./GameViewState";
+import {
+    PATTERN_CARD_HEIGHT,
+    PATTERN_CARD_WIDTH,
+    PATTERN_COLUMNS,
+    PATTERN_COLUMN_GAP,
+    PATTERN_GRID_HEIGHT,
+    PATTERN_ROW_GAP,
+    getHudBottomY,
+    getHudRightX,
+    getPatternStartX,
+} from "./hudLayout";
+import type { GameHudActions } from "./hudTypes";
+import { arialStyle, onPointerDown, setHoverFill } from "./uiStyle";
+
+interface IconButtonOptions {
+    icon: string;
+    tooltip: string;
+    x: number;
+    y: number;
+    enabled: boolean;
+    active: boolean;
+    callback: () => void;
+}
+
+const GOLD = "#f1cf65";
+const ICON_BUTTON_WIDTH = 60;
+const MIRROR_BUTTON_SLOT = 11;
+const MUTED_BORDER_COLOR = 0x667b8e;
+
+function getIconButtonFill(enabled: boolean, active: boolean): number {
+    if (active) return 0x51482d;
+    return enabled ? 0x354352 : 0x252e39;
+}
 
 export class GameHudPatterns extends GameHudActionsPanel {
     protected renderPatternSelector(state: GameViewState, actions: GameHudActions): void {
-        const patternBottomY = getHudBottomY(this.scene, 8);
-        const patternStartY = state.patternSelectorExpanded
-            ? patternBottomY - PATTERN_GRID_HEIGHT
-            : patternBottomY - PATTERN_CARD_HEIGHT;
-        const rightX = getHudRightX(this.scene);
-        const patternStartX = getPatternStartX(this.scene);
+        const expanded = state.patternSelectorExpanded;
+        const bottomY = getHudBottomY(this.scene, 8);
+        const startY = expanded ? bottomY - PATTERN_GRID_HEIGHT : bottomY - PATTERN_CARD_HEIGHT;
+        const startX = getPatternStartX(this.scene);
         this.addButton(
-            state.patternSelectorExpanded ? "PATRONS ▲" : "PATRONS ▼",
-            rightX,
-            patternStartY - 29,
+            expanded ? "PATRONS ▲" : "PATRONS ▼",
+            getHudRightX(this.scene),
+            startY - 29,
             actions.togglePatternSelector,
             { rightAligned: true },
         );
 
-        const visiblePatterns = state.patternSelectorExpanded
-            ? PLACEMENT_PATTERNS.map((pattern, index) => ({ pattern, index }))
-            : [
-                  {
-                      pattern: PLACEMENT_PATTERNS[state.selectedPattern],
-                      index: state.selectedPattern,
-                  },
-              ];
+        const visibleIndexes = expanded
+            ? PLACEMENT_PATTERNS.keys()
+            : [state.selectedPattern].values();
+        for (const index of visibleIndexes) {
+            const column = expanded ? index % PATTERN_COLUMNS : PATTERN_COLUMNS - 1;
+            const row = expanded ? Math.floor(index / PATTERN_COLUMNS) : 0;
+            this.renderPatternCard(
+                state,
+                actions,
+                index,
+                startX + column * PATTERN_COLUMN_GAP,
+                startY + row * PATTERN_ROW_GAP,
+            );
+        }
 
-        visiblePatterns.forEach(({ pattern, index }) => {
-            const column = state.patternSelectorExpanded
-                ? index % PATTERN_COLUMNS
-                : PATTERN_COLUMNS - 1;
-            const row = state.patternSelectorExpanded ? Math.floor(index / PATTERN_COLUMNS) : 0;
-            const x = patternStartX + column * PATTERN_COLUMN_GAP;
-            const y = patternStartY + row * PATTERN_ROW_GAP;
-            const selected = index === state.selectedPattern;
-            const background = this.scene.add
-                .rectangle(
-                    x,
-                    y,
-                    PATTERN_CARD_WIDTH,
-                    PATTERN_CARD_HEIGHT,
-                    selected ? 0x51482d : 0x2a3644,
-                    1,
-                )
-                .setOrigin(0);
+        if (expanded) this.renderPatternTools(state, actions, startX, startY);
+    }
 
-            background.setStrokeStyle(2, selected ? 0xf1cf65 : 0x667b8e);
-            if (!state.pendingCells && state.actionMode.type === "idle") {
-                background.setInteractive({ useHandCursor: true });
-                background.on(
-                    "pointerdown",
-                    (
-                        _pointer: Phaser.Input.Pointer,
-                        _localX: number,
-                        _localY: number,
-                        event: Phaser.Types.Input.EventData,
-                    ) => {
-                        event.stopPropagation();
-                        actions.selectPattern(index);
-                    },
-                );
-            }
-            this.container.add(background);
+    private renderPatternCard(
+        state: GameViewState,
+        actions: GameHudActions,
+        index: number,
+        x: number,
+        y: number,
+    ): void {
+        const selected = index === state.selectedPattern;
+        const background = this.addRect(
+            x,
+            y,
+            PATTERN_CARD_WIDTH,
+            PATTERN_CARD_HEIGHT,
+            selected ? 0x51482d : 0x2a3644,
+            1,
+            [2, selected ? 0xf1cf65 : MUTED_BORDER_COLOR],
+        );
+        if (!state.pendingCells && state.actionMode.type === "idle") {
+            background.setInteractive({ useHandCursor: true });
+            onPointerDown(background, () => actions.selectPattern(index));
+        }
 
-            const preview = this.scene.add.graphics();
-            const minX = Math.min(...pattern.map((cell) => cell.x));
-            const minY = Math.min(...pattern.map((cell) => cell.y));
-            preview.fillStyle(0xf1cf65, 1);
-            for (const cell of pattern) {
-                preview.fillRect(
-                    x + 10 + (cell.x - minX) * 10,
-                    y + 8 + (cell.y - minY) * 10,
-                    8,
-                    8,
-                );
-            }
-            this.container.add(preview);
+        this.addPatternPreview(PLACEMENT_PATTERNS[index], x, y);
+        this.addText(
+            `${index + 1}`,
+            x + PATTERN_CARD_WIDTH - 18,
+            y + PATTERN_CARD_HEIGHT / 2,
+            selected ? GOLD : "#ffffff",
+            17,
+        ).setOrigin(0.5);
+    }
 
-            const label = this.scene.add
-                .text(x + PATTERN_CARD_WIDTH - 18, y + PATTERN_CARD_HEIGHT / 2, `${index + 1}`, {
-                    fontFamily: "Arial",
-                    fontSize: "17px",
-                    color: selected ? "#f1cf65" : "#ffffff",
-                    fontStyle: "bold",
-                })
-                .setOrigin(0.5);
-            this.container.add(label);
-        });
+    private addPatternPreview(pattern: Position[], x: number, y: number): void {
+        const minX = Math.min(...pattern.map((cell) => cell.x));
+        const minY = Math.min(...pattern.map((cell) => cell.y));
+        const preview = this.scene.add.graphics().fillStyle(0xf1cf65, 1);
+        for (const cell of pattern) {
+            preview.fillRect(x + 10 + (cell.x - minX) * 10, y + 8 + (cell.y - minY) * 10, 8, 8);
+        }
+        this.container.add(preview);
+    }
 
-        if (!state.patternSelectorExpanded) return;
-
-        const mirrorColumn = 11 % PATTERN_COLUMNS;
-        const mirrorRow = Math.floor(11 / PATTERN_COLUMNS);
-        const mirrorX = patternStartX + mirrorColumn * PATTERN_COLUMN_GAP;
-        const mirrorY = patternStartY + mirrorRow * PATTERN_ROW_GAP;
-        const canMirror =
+    private renderPatternTools(
+        state: GameViewState,
+        actions: GameHudActions,
+        startX: number,
+        startY: number,
+    ): void {
+        const x = startX + (MIRROR_BUTTON_SLOT % PATTERN_COLUMNS) * PATTERN_COLUMN_GAP;
+        const y = startY + Math.floor(MIRROR_BUTTON_SLOT / PATTERN_COLUMNS) * PATTERN_ROW_GAP;
+        const enabled =
             state.selectedMonster !== null &&
             !state.pendingCells &&
             state.actionMode.type === "idle";
-        const iconButtonY = mirrorY;
         this.addIconButton({
             icon: "🪞",
             tooltip: "Miroir vertical",
-            x: mirrorX,
-            y: iconButtonY,
-            enabled: canMirror,
+            x,
+            y,
+            enabled,
             active: state.patternMirrored,
             callback: actions.mirrorPattern,
         });
         this.addIconButton({
             icon: "🔄",
             tooltip: `Pivoter le patron de 90° (orientation actuelle : ${state.patternRotation * 90}°)`,
-            x: mirrorX + 62,
-            y: iconButtonY,
-            enabled: canMirror,
+            x: x + 62,
+            y,
+            enabled,
             active: false,
             callback: actions.rotatePattern,
         });
     }
 
-    protected addIconButton(options: IconButtonOptions): void {
+    private addIconButton(options: IconButtonOptions): void {
         const { icon, tooltip, x, y, enabled, active, callback } = options;
-        const width = 60;
-        const height = PATTERN_CARD_HEIGHT;
-        let fillColor = 0x252e39;
-        if (active) {
-            fillColor = 0x51482d;
-        } else if (enabled) {
-            fillColor = 0x354352;
-        }
-        const borderColor = active ? 0xf1cf65 : 0x667b8e;
-        const iconColor = enabled || active ? "#f1cf65" : "#75808d";
-        const button = this.scene.add
-            .rectangle(x, y, width, height, fillColor, 1)
-            .setOrigin(0)
-            .setStrokeStyle(1, borderColor)
-            .setInteractive({ useHandCursor: enabled });
-        const iconText = this.scene.add
-            .text(x + width / 2, y + height / 2, icon, {
-                fontFamily: "Arial",
-                fontSize: "28px",
-                color: iconColor,
-            })
-            .setOrigin(0.5);
-        this.container.add([button, iconText]);
+        const fillColor = getIconButtonFill(enabled, active);
+        const button = this.addRect(x, y, ICON_BUTTON_WIDTH, PATTERN_CARD_HEIGHT, fillColor, 1, [
+            1,
+            active ? 0xf1cf65 : MUTED_BORDER_COLOR,
+        ]).setInteractive({ useHandCursor: enabled });
+        this.addStyledText(
+            x + ICON_BUTTON_WIDTH / 2,
+            y + PATTERN_CARD_HEIGHT / 2,
+            icon,
+            arialStyle(28, enabled || active ? GOLD : "#75808d"),
+        ).setOrigin(0.5);
 
-        let tooltipBackground: Phaser.GameObjects.Rectangle | undefined;
-        let tooltipText: Phaser.GameObjects.Text | undefined;
+        let tooltipObjects: Phaser.GameObjects.GameObject[] = [];
+        setHoverFill(button, fillColor, enabled ? 0x46596b : fillColor);
         button.on("pointerover", (pointer: Phaser.Input.Pointer) => {
-            button.setFillStyle(enabled ? 0x46596b : fillColor);
-            const camera = this.scene.cameras.main;
-            const pointerPosition = camera.getWorldPoint(pointer.x, pointer.y);
-            tooltipText = this.scene.add.text(pointerPosition.x + 8, pointerPosition.y - 22, tooltip, {
-                fontFamily: "Arial",
-                fontSize: "14px",
-                color: "#ffffff",
-                backgroundColor: "#151b25",
-                padding: { x: 6, y: 4 },
-            });
-            let tooltipX = pointerPosition.x + 8;
-            const view = camera.worldView;
-            if (tooltipX + tooltipText.width + 2 > view.x + view.width - 4) {
-                tooltipX = pointerPosition.x - tooltipText.width - 10;
-            }
-            const minX = view.x + 4;
-            const maxX = Math.max(minX, view.x + view.width - tooltipText.width - 6);
-            tooltipX = Phaser.Math.Clamp(tooltipX, minX, maxX);
-
-            let tooltipY = pointerPosition.y - tooltipText.height - 8;
-            if (tooltipY < view.y + 4) tooltipY = pointerPosition.y + 8;
-            const minY = view.y + 4;
-            const maxY = Math.max(minY, view.y + view.height - tooltipText.height - 6);
-            tooltipY = Phaser.Math.Clamp(tooltipY, minY, maxY);
-            tooltipText.setPosition(tooltipX, tooltipY);
-
-            tooltipBackground = this.scene.add
-                .rectangle(
-                    tooltipText.x - 1,
-                    tooltipText.y - 1,
-                    tooltipText.width + 2,
-                    tooltipText.height + 2,
-                    0x151b25,
-                    0.98,
-                )
-                .setOrigin(0)
-                .setStrokeStyle(1, 0x667b8e);
-            this.container.add([tooltipBackground, tooltipText]);
-            tooltipBackground.setDepth(button.depth + 1);
-            tooltipText.setDepth(button.depth + 2);
+            tooltipObjects = this.showTooltip(tooltip, pointer, button.depth);
         });
         button.on("pointerout", () => {
-            button.setFillStyle(fillColor);
-            tooltipBackground?.destroy();
-            tooltipText?.destroy();
-            tooltipBackground = undefined;
-            tooltipText = undefined;
+            tooltipObjects.forEach((object) => object.destroy());
+            tooltipObjects = [];
         });
-        button.on(
-            "pointerdown",
-            (
-                _pointer: Phaser.Input.Pointer,
-                _localX: number,
-                _localY: number,
-                event: Phaser.Types.Input.EventData,
-            ) => {
-                event.stopPropagation();
-                if (enabled) callback();
-            },
+        onPointerDown(button, () => {
+            if (enabled) callback();
+        });
+    }
+
+    private showTooltip(
+        label: string,
+        pointer: Phaser.Input.Pointer,
+        baseDepth: number,
+    ): Phaser.GameObjects.GameObject[] {
+        const camera = this.scene.cameras.main;
+        const view = camera.worldView;
+        const pointerPosition = camera.getWorldPoint(pointer.x, pointer.y);
+        const text = this.scene.add.text(
+            0,
+            0,
+            label,
+            arialStyle(14, "#ffffff", { backgroundColor: "#151b25", padding: { x: 6, y: 4 } }),
         );
+
+        let tooltipX = pointerPosition.x + 8;
+        if (tooltipX + text.width + 2 > view.x + view.width - 4) {
+            tooltipX = pointerPosition.x - text.width - 10;
+        }
+        const minX = view.x + 4;
+        const maxX = Math.max(minX, view.x + view.width - text.width - 6);
+
+        let tooltipY = pointerPosition.y - text.height - 8;
+        if (tooltipY < view.y + 4) tooltipY = pointerPosition.y + 8;
+        const minY = view.y + 4;
+        const maxY = Math.max(minY, view.y + view.height - text.height - 6);
+        text.setPosition(
+            Phaser.Math.Clamp(tooltipX, minX, maxX),
+            Phaser.Math.Clamp(tooltipY, minY, maxY),
+        );
+
+        const background = this.scene.add
+            .rectangle(text.x - 1, text.y - 1, text.width + 2, text.height + 2, 0x151b25, 0.98)
+            .setOrigin(0)
+            .setStrokeStyle(1, MUTED_BORDER_COLOR);
+        this.container.add([background, text]);
+        background.setDepth(baseDepth + 1);
+        text.setDepth(baseDepth + 2);
+        return [background, text];
     }
 }

@@ -9,7 +9,7 @@ import type {
 } from "../types/GameTypes";
 
 import type { BotProfile, BotStrategyWeightMap, TacticalAttackValue } from "../game/botStrategy";
-import type { TrainingFingerprint } from "./trainingVersioning";
+import type { TrainingFingerprint } from "./training/versioning";
 
 export { BOT_PROFILES } from "../game/botStrategy";
 export type { BotProfile, BotStrategyWeightMap } from "../game/botStrategy";

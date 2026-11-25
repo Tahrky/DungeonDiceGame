@@ -10,9 +10,9 @@ import {
     MAX_AVAILABLE_DECK_SIZE,
     MIN_DECK_SIZE,
     parseGameConfiguration,
-    parseMonsterConfiguration,
     serializeGameConfiguration,
 } from "../src/game/gameConfiguration";
+import { parseMonsterConfiguration } from "../src/game/monsterConfiguration";
 
 describe("configuration des règles de partie", () => {
     it("regroupe les options de l'IHM et utilise leurs valeurs par défaut", () => {
@@ -96,7 +96,9 @@ describe("configuration des règles de partie", () => {
         );
         legacyConfiguration.version = 5;
         delete legacyConfiguration.allowBaseAttackOnSummonTurn;
-        expect(parseGameConfiguration(legacyConfiguration)?.allowBaseAttackOnSummonTurn).toBe(false);
+        expect(parseGameConfiguration(legacyConfiguration)?.allowBaseAttackOnSummonTurn).toBe(
+            false,
+        );
         expect(
             parseGameConfiguration(legacyConfiguration)?.removeInvocationDiceWhenNoMonsters,
         ).toBe(false);
@@ -235,9 +237,7 @@ describe("configuration des règles de partie", () => {
 
     it("migre les capacités par défaut enregistrées du Prêtre Buffer", () => {
         const configuration = getDefaultGameConfiguration();
-        const priestBuffer = configuration.monsters.find(
-            (monster) => monster.id === "shaman",
-        );
+        const priestBuffer = configuration.monsters.find((monster) => monster.id === "shaman");
         expect(priestBuffer).toBeDefined();
         priestBuffer!.attacks = [
             {

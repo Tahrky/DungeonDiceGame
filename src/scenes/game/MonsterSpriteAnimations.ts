@@ -1,33 +1,62 @@
 import Phaser from "phaser";
 
 import {
+    GRID_FACING_TO_SPRITE_FACING,
     MONSTER_SPRITES,
     type MonsterSpriteAction,
     type MonsterSpriteAnimation,
+    type MonsterSpriteDefinition,
     type MonsterSpriteFacing,
 } from "../../data/monsterSprites";
-import type { Facing } from "../../types/GameTypes";
+import type { Facing, MonsterAttackAnimation } from "../../types/GameTypes";
 
-function textureKey(
+type SpriteFacing = Facing | MonsterSpriteFacing;
+
+const ONE_SHOT_ACTIONS: ReadonlySet<MonsterSpriteAction> = new Set([
+    "attack",
+    "alternativeAttack1",
+    "alternativeAttack2",
+    "backstab",
+    "hit",
+    "death",
+]);
+
+export function getMonsterSpriteTextureKey(
     monsterId: string,
     action: MonsterSpriteAction,
-    facing: Facing | MonsterSpriteFacing,
+    facing: SpriteFacing,
 ): string {
     return `monster-${monsterId}-${action}-${facing}`;
-}
-
-function spriteSheetTextureKey(monsterId: string, action: MonsterSpriteAction): string {
-    return `monster-${monsterId}-${action}-sheet`;
 }
 
 export function getMonsterSpriteFrameTextureKey(
     monsterId: string,
     action: MonsterSpriteAction,
-    facing: Facing | MonsterSpriteFacing,
+    facing: SpriteFacing,
     animation?: MonsterSpriteAnimation,
 ): string {
-    if (!animation || !("spriteSheet" in animation)) return textureKey(monsterId, action, facing);
-    return spriteSheetTextureKey(monsterId, action);
+    return animation && "spriteSheet" in animation
+        ? `monster-${monsterId}-${action}-sheet`
+        : getMonsterSpriteTextureKey(monsterId, action, facing);
+}
+
+function* listMonsterAnimations(
+    monsterIds: readonly string[],
+    actions: readonly MonsterSpriteAction[],
+): Generator<{
+    monsterId: string;
+    action: MonsterSpriteAction;
+    definition: MonsterSpriteDefinition;
+    animation: MonsterSpriteAnimation;
+}> {
+    for (const monsterId of new Set(monsterIds)) {
+        const definition = MONSTER_SPRITES[monsterId];
+        if (!definition) continue;
+        for (const action of actions) {
+            const animation = definition.animations[action];
+            if (animation) yield { monsterId, action, definition, animation };
+        }
+    }
 }
 
 export function preloadMonsterSprites(
@@ -36,45 +65,34 @@ export function preloadMonsterSprites(
     actions: readonly MonsterSpriteAction[],
 ): number {
     let queuedFiles = 0;
-    const queueSpriteSheet = (
-        key: string,
-        file: string,
-        frameWidth: number,
-        frameHeight: number,
-    ): void => {
-        if (scene.textures.exists(key)) return;
-        scene.load.spritesheet(key, file, { frameWidth, frameHeight });
-        queuedFiles++;
-    };
-
-    for (const monsterId of new Set(monsterIds)) {
-        const definition = MONSTER_SPRITES[monsterId];
-        if (!definition) continue;
-
-        for (const action of actions) {
-            const animation = definition.animations[action];
-            if (!animation) continue;
-            if ("spriteSheet" in animation) {
-                queueSpriteSheet(
-                    spriteSheetTextureKey(monsterId, action),
-                    animation.spriteSheet,
-                    definition.frameWidth,
-                    definition.frameHeight,
-                );
-                continue;
-            }
-
-            for (const [facing, file] of Object.entries(animation.files) as [Facing, string][]) {
-                queueSpriteSheet(
-                    textureKey(monsterId, action, facing),
-                    file,
-                    definition.frameWidth,
-                    definition.frameHeight,
-                );
-            }
+    for (const { monsterId, action, definition, animation } of listMonsterAnimations(
+        monsterIds,
+        actions,
+    )) {
+        // A sprite sheet holds every facing in a single texture, so it is queued once.
+        const filesByFacing: Partial<Record<SpriteFacing, string>> =
+            "spriteSheet" in animation ? { east: animation.spriteSheet } : animation.files;
+        for (const [facing, file] of Object.entries(filesByFacing) as [SpriteFacing, string][]) {
+            const key = getMonsterSpriteFrameTextureKey(monsterId, action, facing, animation);
+            if (scene.textures.exists(key)) continue;
+            scene.load.spritesheet(key, file, {
+                frameWidth: definition.frameWidth,
+                frameHeight: definition.frameHeight,
+            });
+            queuedFiles++;
         }
     }
     return queuedFiles;
+}
+
+function getFrameRange(
+    animation: MonsterSpriteAnimation,
+    facing: SpriteFacing,
+    frameCount: number,
+): { start: number; end: number } {
+    if (!("spriteSheet" in animation)) return { start: 0, end: frameCount - 1 };
+    const start = animation.rows[facing as MonsterSpriteFacing] * animation.framesPerRow;
+    return { start, end: start + animation.framesPerRow - 1 };
 }
 
 export function createMonsterSpriteAnimations(
@@ -82,70 +100,61 @@ export function createMonsterSpriteAnimations(
     monsterIds: readonly string[],
     actions: readonly MonsterSpriteAction[],
 ): void {
-    for (const monsterId of new Set(monsterIds)) {
-        const definition = MONSTER_SPRITES[monsterId];
-        if (!definition) continue;
-
-        for (const action of actions) {
-            const animation = definition.animations[action];
-            if (!animation) continue;
-            const facings =
-                "files" in animation
-                    ? (Object.keys(animation.files) as (Facing | MonsterSpriteFacing)[])
-                    : (Object.keys(animation.rows) as MonsterSpriteFacing[]);
-            for (const facing of facings) {
-                const key = textureKey(monsterId, action, facing);
-                if (scene.anims.exists(key)) continue;
-                const framesTextureKey =
-                    "spriteSheet" in animation
-                        ? getMonsterSpriteFrameTextureKey(monsterId, action, facing, animation)
-                        : key;
-                if (!scene.textures.exists(framesTextureKey)) continue;
-                const totalFrames = scene.textures.get(framesTextureKey).frameTotal - 1;
-                const start =
-                    "spriteSheet" in animation
-                        ? animation.rows[facing as MonsterSpriteFacing] *
-                              animation.framesPerRow +
-                          (animation.frameRange?.[0] ?? 0)
-                        : 0;
-                const end =
-                    "spriteSheet" in animation
-                        ? start +
-                          (animation.frameRange
-                              ? animation.frameRange[1] - animation.frameRange[0]
-                              : animation.framesPerRow - 1)
-                        : totalFrames - 1;
-                if (totalFrames <= end) {
-                    throw new Error(`Sprite sheet "${key}" does not contain animation frames.`);
-                }
-
-                scene.anims.create({
-                    key,
-                    frames: scene.anims.generateFrameNumbers(framesTextureKey, {
-                        start,
-                        end,
-                    }),
-                    frameRate: animation.frameRate,
-                    repeat:
-                        action === "attack" ||
-                        action === "alternativeAttack1" ||
-                        action === "alternativeAttack2" ||
-                        action === "backstab" ||
-                        action === "hit" ||
-                        action === "death"
-                            ? 0
-                            : -1,
-                });
+    for (const { monsterId, action, animation } of listMonsterAnimations(monsterIds, actions)) {
+        const facings = Object.keys(
+            "spriteSheet" in animation ? animation.rows : animation.files,
+        ) as SpriteFacing[];
+        for (const facing of facings) {
+            const key = getMonsterSpriteTextureKey(monsterId, action, facing);
+            if (scene.anims.exists(key)) continue;
+            const textureKey = getMonsterSpriteFrameTextureKey(
+                monsterId,
+                action,
+                facing,
+                animation,
+            );
+            if (!scene.textures.exists(textureKey)) continue;
+            const frameCount = scene.textures.get(textureKey).frameTotal - 1;
+            const { start, end } = getFrameRange(animation, facing, frameCount);
+            if (frameCount <= end) {
+                throw new Error(`Sprite sheet "${key}" does not contain animation frames.`);
             }
+
+            scene.anims.create({
+                key,
+                frames: scene.anims.generateFrameNumbers(textureKey, { start, end }),
+                frameRate: animation.frameRate,
+                repeat: ONE_SHOT_ACTIONS.has(action) ? 0 : -1,
+            });
         }
     }
 }
 
-export function getMonsterSpriteTextureKey(
-    monsterId: string,
-    action: MonsterSpriteAction,
-    facing: Facing | MonsterSpriteFacing,
-): string {
-    return textureKey(monsterId, action, facing);
+export function getFacingOffsetY(monsterId: string, facing: Facing): number {
+    return MONSTER_SPRITES[monsterId]?.facingOffsetY?.[facing] ?? 0;
 }
 
+export function getAnimationFacing(
+    animation: MonsterSpriteAnimation,
+    facing: Facing,
+): Facing | MonsterSpriteFacing {
+    if (!("files" in animation)) return GRID_FACING_TO_SPRITE_FACING[facing];
+    return animation.files[facing] ? facing : "south";
+}
+
+export function resolveAttackAction(
+    monsterId: string,
+    animation: MonsterAttackAnimation,
+    backstab: boolean,
+): MonsterSpriteAction | null {
+    const animations = MONSTER_SPRITES[monsterId]?.animations;
+    if (!animations) return null;
+
+    let action: MonsterSpriteAction = "attack";
+    if (backstab && animations.backstab) {
+        action = "backstab";
+    } else if (animation !== "backstab" && animations[animation]) {
+        action = animation;
+    }
+    return animations[action] ? action : null;
+}

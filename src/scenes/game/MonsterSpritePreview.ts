@@ -5,9 +5,13 @@ import {
     MONSTER_SPRITES,
     type MonsterSpriteFacing,
 } from "../../data/monsterSprites";
-import { getMonsterSpriteFrameTextureKey, getMonsterSpriteTextureKey } from "./MonsterSpriteAnimations";
+import {
+    getMonsterSpriteFrameTextureKey,
+    getMonsterSpriteTextureKey,
+} from "./MonsterSpriteAnimations";
 
 import type { Facing, Monster } from "../../types/GameTypes";
+import { arialStyle } from "./uiStyle";
 
 export function createMonsterPreview(
     scene: Phaser.Scene,
@@ -45,12 +49,7 @@ export function createMonsterPreview(
     const preview = scene.add.container(x, y);
     const token = scene.add.circle(0, 0, 18, monster.color);
     const symbol = scene.add
-        .text(0, 0, monster.symbol, {
-            fontFamily: "Arial",
-            fontSize: "18px",
-            color: "#ffffff",
-            fontStyle: "bold",
-        })
+        .text(0, 0, monster.symbol, arialStyle(18, "#ffffff", { fontStyle: "bold" }))
         .setOrigin(0.5);
     preview.add([token, symbol]);
     container.add(preview);

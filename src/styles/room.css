@@ -1,0 +1,57 @@
+.room-code-card {
+    display: grid;
+    justify-items: center;
+    gap: 14px;
+    margin: 24px 0;
+    border: 1px solid #4d5e6f;
+    border-radius: 8px;
+    padding: 24px;
+    background: #19232d;
+}
+
+.room-code-card span {
+    color: #aab5c2;
+    font-size: 11px;
+    letter-spacing: 2px;
+}
+
+.room-code-card strong {
+    color: var(--accent-gold);
+    font-family: Consolas, monospace;
+    font-size: clamp(30px, 7vw, 42px);
+    letter-spacing: 8px;
+}
+
+.room-join {
+    display: grid;
+    gap: 10px;
+}
+
+.room-join-row {
+    display: flex;
+    gap: 10px;
+}
+
+.room-join input {
+    flex: 1;
+    min-width: 0;
+    border: 1px solid #3d4b5a;
+    border-radius: 6px;
+    padding: 10px 12px;
+    color: #fff;
+    background: #151e28;
+    font:
+        15px Consolas,
+        monospace;
+    text-transform: uppercase;
+}
+
+.room-disclaimer {
+    margin: 22px 0 0;
+    border-left: 3px solid #a87b38;
+    padding: 10px 12px;
+    color: #b7c1cc;
+    background: #302b22;
+    font-size: 12px;
+    line-height: 1.6;
+}

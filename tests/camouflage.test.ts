@@ -7,7 +7,7 @@ import {
     isAreaAttack,
 } from "../src/game/monsterActions";
 import { MONSTERS } from "../src/data/monsters";
-import { cloneMatchState } from "../src/simulation/combat";
+import { cloneMatchState } from "../src/simulation/matchState";
 import type { PlacedMonster } from "../src/types/GameTypes";
 
 function createThief(isCamouflaged = false): PlacedMonster {
@@ -36,12 +36,22 @@ describe("camouflage du Voleur", () => {
         const adjacent = thief.monster.attacks[0];
 
         expect(canDirectlyTargetMonster(adjacent, thief)).toBe(false);
-        expect(canDirectlyTargetMonster({
-            pattern: { type: "radius", range: 4 },
-        }, thief)).toBe(true);
-        expect(canDirectlyTargetMonster({
-            pattern: { type: "line", range: 4, length: 3 },
-        }, thief)).toBe(true);
+        expect(
+            canDirectlyTargetMonster(
+                {
+                    pattern: { type: "radius", range: 4 },
+                },
+                thief,
+            ),
+        ).toBe(true);
+        expect(
+            canDirectlyTargetMonster(
+                {
+                    pattern: { type: "line", range: 4, length: 3 },
+                },
+                thief,
+            ),
+        ).toBe(true);
     });
 
     it("retire le camouflage à la première action", () => {
@@ -55,7 +65,11 @@ describe("camouflage du Voleur", () => {
         expect(clearCamouflageForMovement(thief, [{ x: 2, y: 2 }])).toBe(false);
         expect(thief.isCamouflaged).toBe(true);
 
-        const path = [{ x: 2, y: 2 }, { x: 3, y: 2 }, { x: 4, y: 2 }];
+        const path = [
+            { x: 2, y: 2 },
+            { x: 3, y: 2 },
+            { x: 4, y: 2 },
+        ];
         expect(clearCamouflageForMovement(thief, path)).toBe(true);
         expect(thief.isCamouflaged).toBe(false);
         expect(clearCamouflageForMovement(thief, path)).toBe(false);

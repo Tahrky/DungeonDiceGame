@@ -2,27 +2,30 @@ import { GameSceneState } from "./GameSceneState";
 import Phaser from "phaser";
 import { DICE } from "../data/dice";
 import { PLACEMENT_PATTERNS } from "../data/placementPatterns";
-import {
-    getAvailableSymbolCount,
-    getRollableDieFaces,
-    spendSymbols,
-    storeRemainingDice,
-    storeRolledDie,
-} from "../game/diceResources";
-import { getInitialAttackCooldowns, getInitialAttackUses } from "../game/monsterActions";
+import { getRollableDieFaces, storeRemainingDice, storeRolledDie } from "../game/diceResources";
 import {
     canPlaceCells,
     createInitialDeploymentProtection,
     getPatternCells,
 } from "../game/placement";
 import { isBoardCell } from "../game/boards";
-import type { BoardCellHeight, BoardHeightChange, Position } from "../types/GameTypes";
-import { getInvokedMonsterCount } from "../game/matchRules";
+import { isSamePosition } from "../game/geometry";
+import { getInvokedMonsterCount, opposingPlayer } from "../game/matchRules";
+import type {
+    BoardCellHeight,
+    BoardHeightChange,
+    BoardObstacle,
+    Monster,
+    PlayerId,
+    Position,
+} from "../types/GameTypes";
+
+type DeploymentProtection = (cells: readonly Position[]) => boolean;
 
 export abstract class GameSceneInvocation extends GameSceneState {
     private firstDeploymentProtectionCache: {
         key: string;
-        protection: ((cells: readonly Position[]) => boolean) | null;
+        protection: DeploymentProtection | null;
     } | null = null;
 
     protected rollDice(computerInitiated = false): void {
@@ -38,8 +41,7 @@ export abstract class GameSceneInvocation extends GameSceneState {
 
         const excludeInvocation =
             this.gameConfiguration.removeInvocationDiceWhenNoMonsters &&
-            getInvokedMonsterCount(this.placedMonsters, this.currentPlayer) >=
-                this.gameConfiguration.maxMonstersPerPlayer;
+            this.hasReachedMonsterLimit();
         this.rolledDice = DICE.slice(0, this.gameConfiguration.diceCount).map((die) => {
             const faces = getRollableDieFaces(die, excludeInvocation);
             return {
@@ -50,10 +52,7 @@ export abstract class GameSceneInvocation extends GameSceneState {
         });
         storeRemainingDice(this.rolledDice, this.diceReserves[this.currentPlayer]);
         this.hasRolled = true;
-        this.selectedMonster = null;
-        this.pendingCells = null;
-        this.lockedPreviewCell = null;
-        this.hasLeftLockedPreviewBoard = false;
+        this.clearInvocationSelection();
         this.actionMode = { type: "idle" };
         this.invocationMenuOpen = false;
         this.render();
@@ -65,14 +64,9 @@ export abstract class GameSceneInvocation extends GameSceneState {
         );
         if (
             !monster ||
-            getInvokedMonsterCount(this.placedMonsters, this.currentPlayer) >=
-                this.gameConfiguration.maxMonstersPerPlayer ||
+            this.hasReachedMonsterLimit() ||
             this.actionMode.type !== "idle" ||
-            getAvailableSymbolCount(
-                "invocation",
-                this.rolledDice,
-                this.diceReserves[this.currentPlayer],
-            ) < monster.cost
+            this.getAvailableSymbols("invocation") < monster.cost
         ) {
             return;
         }
@@ -140,33 +134,24 @@ export abstract class GameSceneInvocation extends GameSceneState {
 
     protected canPlaceMonster(origin: Position, player = this.currentPlayer): boolean {
         const cells = this.getMonsterCells(origin);
-        const occupiedCells = [
-            ...Object.values(this.startingPositions),
-            ...this.placedMonsters.flatMap((placed) => placed.cells),
-        ];
-        const ownedPathCells = this.placedMonsters
-            .filter((placed) => placed.owner === player)
-            .flatMap((placed) => placed.cells);
-        const connectedCells = [this.startingPositions[player], ...ownedPathCells];
+        const ownedPathCells = this.getOwnedCells(player);
 
         return (
             canPlaceCells(
                 cells,
                 this.board.width,
-                occupiedCells,
-                connectedCells,
+                this.getOccupiedCells(),
+                [this.startingPositions[player], ...ownedPathCells],
                 ownedPathCells,
                 this.board.height,
-                [...this.board.blockedCells, ...this.obstacles.map(({ position }) => position)],
+                this.getBlockedCells(),
             ) && this.preservesOpponentFirstDeployment(player, cells)
         );
     }
 
-    protected getOpponentFirstDeploymentProtection(
-        player: 1 | 2,
-    ): ((cells: readonly Position[]) => boolean) | null {
+    protected getOpponentFirstDeploymentProtection(player: PlayerId): DeploymentProtection | null {
         if (!this.gameConfiguration.protectFirstDeployment) return null;
-        const opponent = player === 1 ? 2 : 1;
+        const opponent = opposingPlayer(player);
         if (getInvokedMonsterCount(this.placedMonsters, opponent) > 0) return null;
 
         const key = JSON.stringify({
@@ -185,22 +170,16 @@ export abstract class GameSceneInvocation extends GameSceneState {
             boardWidth: this.board.width,
             boardHeight: this.board.height,
             start: this.startingPositions[opponent],
-            occupiedCells: [
-                ...Object.values(this.startingPositions),
-                ...this.placedMonsters.flatMap((placed) => placed.cells),
-            ],
+            occupiedCells: this.getOccupiedCells(),
             connectedCells: [this.startingPositions[opponent]],
-            blockedCells: [
-                ...this.board.blockedCells,
-                ...this.obstacles.map(({ position }) => position),
-            ],
+            blockedCells: this.getBlockedCells(),
         });
         this.firstDeploymentProtectionCache = { key, protection };
         return protection;
     }
 
     protected preservesOpponentFirstDeployment(
-        player: 1 | 2,
+        player: PlayerId,
         candidateCells: readonly Position[],
     ): boolean {
         return this.getOpponentFirstDeploymentProtection(player)?.(candidateCells) ?? true;
@@ -209,18 +188,14 @@ export abstract class GameSceneInvocation extends GameSceneState {
     protected changeCellHeight(delta: BoardHeightChange, position: Position): void {
         if (this.winner !== null || !isBoardCell(this.board, position)) return;
 
-        const currentHeight =
-            this.obstacles.find(
-                (obstacle) =>
-                    obstacle.position.x === position.x && obstacle.position.y === position.y,
-            )?.height ?? 0;
+        const isAtPosition = (obstacle: BoardObstacle) =>
+            isSamePosition(obstacle.position, position);
+        const currentHeight = this.obstacles.find(isAtPosition)?.height ?? 0;
         const nextHeight: BoardCellHeight =
             delta > 0 ? (currentHeight === -1 ? 0 : 1) : currentHeight === 1 ? 0 : -1;
         if (nextHeight === currentHeight) return;
 
-        this.obstacles = this.obstacles.filter(
-            (obstacle) => obstacle.position.x !== position.x || obstacle.position.y !== position.y,
-        );
+        this.obstacles = this.obstacles.filter((obstacle) => !isAtPosition(obstacle));
         if (nextHeight !== 0) {
             this.obstacles.push({ height: nextHeight, position: { ...position } });
         }
@@ -233,79 +208,42 @@ export abstract class GameSceneInvocation extends GameSceneState {
             this.handleBoardAction(position);
             return;
         }
-        if (
-            !this.selectedMonster ||
-            getInvokedMonsterCount(this.placedMonsters, this.currentPlayer) >=
-                this.gameConfiguration.maxMonstersPerPlayer
-        ) {
-            return;
-        }
+        if (!this.selectedMonster || this.hasReachedMonsterLimit()) return;
 
         if (this.pendingCells) {
-            const isOnDie = this.pendingCells.some(
-                (cell) => cell.x === position.x && cell.y === position.y,
-            );
-            const isOccupied = this.getLivingMonsterAt(position) !== undefined;
-            const isStartingCell = Object.values(this.startingPositions).some(
-                (start) => start.x === position.x && start.y === position.y,
-            );
-            const isBlocked = this.pendingCells.some((cell) =>
-                this.obstacles.some(
-                    (obstacle) => obstacle.position.x === cell.x && obstacle.position.y === cell.y,
-                ),
-            );
-            if (!isOnDie || isOccupied || isStartingCell || isBlocked) return;
-
-            const didPay = spendSymbols(
-                "invocation",
-                this.selectedMonster.cost,
-                this.rolledDice,
-                this.diceReserves[this.currentPlayer],
-            );
-            if (!didPay) return;
-
-            this.placedMonsters.push({
-                id: `monster-${this.nextMonsterId++}`,
-                monster: this.selectedMonster,
-                owner: this.currentPlayer,
-                position: { ...position },
-                facing: this.currentPlayer === 1 ? "east" : "west",
-                currentHp: this.selectedMonster.hp,
-                cells: this.pendingCells,
-                summonedOnTurn: this.turnNumber,
-                attacksUsedThisTurn: 0,
-                attackUsesThisTurn: getInitialAttackUses(this.selectedMonster),
-                movementsUsedThisTurn: 0,
-                attackCooldowns: getInitialAttackCooldowns(this.selectedMonster),
-                statusEffects: [],
-                isCamouflaged: false,
-            });
-            this.recordAction({
-                type: "invocation",
-                player: this.currentPlayer,
-                monsterName: this.selectedMonster.name,
-                cost: this.selectedMonster.cost,
-            });
-            this.selectedMonster = null;
-            this.pendingCells = null;
-            this.lockedPreviewCell = null;
-            this.hasLeftLockedPreviewBoard = false;
-            if (
-                getAvailableSymbolCount(
-                    "invocation",
-                    this.rolledDice,
-                    this.diceReserves[this.currentPlayer],
-                ) === 0
-            ) {
-                this.invocationMenuOpen = false;
-            }
-            this.render();
+            this.confirmPlacement(this.selectedMonster, this.pendingCells, position);
             return;
         }
 
         if (!this.canPlaceMonster(position)) return;
 
         this.pendingCells = this.getMonsterCells(position);
+        this.render();
+    }
+
+    private confirmPlacement(monster: Monster, cells: Position[], position: Position): void {
+        const isValidPosition =
+            cells.some((cell) => isSamePosition(cell, position)) &&
+            !this.getLivingMonsterAt(position) &&
+            !Object.values(this.startingPositions).some((start) =>
+                isSamePosition(start, position),
+            ) &&
+            !cells.some((cell) =>
+                this.obstacles.some((obstacle) => isSamePosition(obstacle.position, cell)),
+            );
+        if (!isValidPosition || !this.spendCurrentSymbol("invocation", monster.cost)) return;
+
+        this.placedMonsters.push(
+            this.createPlacedMonster(monster, this.currentPlayer, position, cells),
+        );
+        this.recordAction({
+            type: "invocation",
+            player: this.currentPlayer,
+            monsterName: monster.name,
+            cost: monster.cost,
+        });
+        this.clearInvocationSelection();
+        if (this.getAvailableSymbols("invocation") === 0) this.invocationMenuOpen = false;
         this.render();
     }
 

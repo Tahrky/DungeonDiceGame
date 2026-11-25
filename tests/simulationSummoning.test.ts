@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import { getStartingPositions, createCustomBoard } from "../src/game/boards";
 import { getDefaultGameConfiguration } from "../src/game/gameConfiguration";
 import { getInitialAttackCooldowns, getInitialAttackUses } from "../src/game/monsterActions";
-import { createStats, deployMonsters, type MatchState } from "../src/simulation/matchState";
+import { deployMonsters } from "../src/simulation/deployment";
+import { createStats, type MatchState } from "../src/simulation/matchState";
+import { createFormationScorer } from "../src/simulation/formation";
+import { findPlacement } from "../src/simulation/summonPlacement";
 
 function createMatchState(summonPlacementPairs: boolean): MatchState {
     const configuration = getDefaultGameConfiguration();
@@ -51,6 +54,51 @@ function createMatchState(summonPlacementPairs: boolean): MatchState {
 }
 
 describe("invocations tactiques de simulation", () => {
+    it("compare une entrée défendable à la percée offensive, des deux côtés du plateau", () => {
+        const board = createCustomBoard(19, 15);
+        for (const player of [1, 2] as const) {
+            const state = createMatchState(false);
+            state.monsters = [];
+            state.tactics[player] = "defense";
+            const base = getStartingPositions(board)[player];
+            const defensive = findPlacement(state, board, player)!;
+            const distance = (p: { x: number; y: number }) =>
+                Math.abs(p.x - base.x) + Math.abs(p.y - base.y);
+            expect(defensive.cells.filter((cell) => distance(cell) === 1)).toEqual([
+                defensive.position,
+            ]);
+            state.tactics[player] = "offense";
+            const offensive = findPlacement(state, board, player)!;
+            expect(Math.abs(offensive.position.x - base.x)).toBeGreaterThan(
+                Math.abs(defensive.position.x - base.x),
+            );
+        }
+    });
+
+    it("évite de paver le dos d’un allié face à un bonus de dos, quelle que soit la couleur du chemin", () => {
+        const board = createCustomBoard(9, 9);
+        const state = createMatchState(false);
+        const enemy = state.monsters[0]!;
+        enemy.monster = { ...enemy.monster, movementRange: 3, bonusDamageFromBehind: 3 };
+        enemy.position = { x: 3, y: 2 };
+        const position = { x: 3, y: 4 };
+        const ally = {
+            ...enemy,
+            owner: 1 as const,
+            facing: "east" as const,
+            position,
+            cells: [position],
+        };
+        const rear = { x: 2, y: 4 };
+        const score = () => createFormationScorer(board, [ally, enemy], 1, { x: 0, y: 4 });
+        expect(score().spawn(position, [position])).toBeGreaterThan(
+            score().spawn(position, [position, rear]),
+        );
+        expect(score().flankRisk(ally, position)).toBe(0);
+        enemy.cells = [rear, enemy.position];
+        expect(score().flankRisk(ally, position)).toBeGreaterThan(0);
+        expect(score().spawn(position, [position])).toBe(score().spawn(position, [position, rear]));
+    });
     it("préserve le choix historique sans option et compare les paires avec l’option", () => {
         const configuration = getDefaultGameConfiguration();
         configuration.maxMonstersPerPlayer = 1;

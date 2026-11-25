@@ -1,78 +1,14 @@
 import { GameSceneComputerConversion } from "./GameSceneComputerConversion";
-import { PLACEMENT_PATTERNS } from "../data/placementPatterns";
-import { getAvailableSymbolCount, spendSymbols } from "../game/diceResources";
+import type { ComputerAttackChoice } from "./GameSceneComputerBase";
 import {
-    canAttackMonster,
-    canTargetMonsterOwner,
-    getAttackCost,
-    getAttackDamage,
-    getInitialAttackCooldowns,
-    getInitialAttackUses,
-    isAreaAttack,
-    isBehind,
-} from "../game/monsterActions";
-import { findValidPlacement } from "../game/placement";
-import type { PlacedMonster, Position } from "../types/GameTypes";
-import { getInvokedMonsterCount } from "../game/matchRules";
-import {
-    canDeployMonsterForProfile,
     chooseBotObjective,
-    createTerritoryExpansionScorer,
-    createDefensivePlacementScorer,
-    createPathBlockadeScorer,
     findObjectiveMovement,
     scoreMonsterForProfile,
-    scoreTacticalAttack,
-    type TacticalAttackValue,
 } from "../game/botStrategy";
-import {
-    assignMonsterRoles,
-    createStrategicCellScorer,
-    createThreatScores,
-    type RoleAssignment,
-    type StrategicSnapshot,
-} from "../game/ai";
-
-interface ComputerAttackChoice {
-    attacker: PlacedMonster;
-    attackIndex: number;
-    target: Position;
-    score: number;
-}
-
-function createTacticalValue(): TacticalAttackValue {
-    return {
-        damage: 0,
-        kills: 0,
-        statusDamage: 0,
-        baseDamage: 0,
-        healing: 0,
-        clearedEffects: 0,
-        buffs: 0,
-        cooldownsReduced: 0,
-        friendlyDamage: 0,
-    };
-}
+import { assignMonsterRoles, createThreatScores } from "../game/ai";
+import type { PlacedMonster } from "../types/GameTypes";
 
 export abstract class GameSceneComputer extends GameSceneComputerConversion {
-    private createComputerStrategicSnapshot(tactic = this.getComputerTactic()): StrategicSnapshot {
-        return {
-            board: this.board,
-            blockedCells: this.obstacles.map(({ position }) => position),
-            health: { ...this.playerHealth },
-            initialHealth: this.gameConfiguration.initialPlayerHealth,
-            monsters: this.placedMonsters,
-            reserves: {
-                1: { ...this.diceReserves[1] },
-                2: { ...this.diceReserves[2] },
-            },
-            profile: this.opponentProfile,
-            tactics: { 1: "balanced", 2: tactic },
-            currentPlayer: 2,
-            turn: this.turnNumber,
-        };
-    }
-
     protected playComputerTurn(): void {
         if (this.currentPlayer !== 2 || this.winner !== null) {
             this.computerTurnInProgress = false;
@@ -90,245 +26,67 @@ export abstract class GameSceneComputer extends GameSceneComputerConversion {
         this.finishTurn();
     }
 
-    protected deployComputerMonsters(): void {
+    private deployComputerMonsters(): void {
         let deployments = 0;
-        while (
-            deployments < this.playerDecks[2].length &&
-            getInvokedMonsterCount(this.placedMonsters, 2) <
-                this.gameConfiguration.maxMonstersPerPlayer
-        ) {
+        while (deployments < this.playerDecks[2].length && !this.hasReachedMonsterLimit(2)) {
             deployments++;
-            const availableInvocation = getAvailableSymbolCount(
-                "invocation",
-                this.rolledDice,
-                this.diceReserves[2],
-            );
-            const deploymentCounts = new Map<string, number>();
-            for (const placed of this.placedMonsters) {
-                if (placed.owner !== 2) continue;
-                deploymentCounts.set(
-                    placed.monster.id,
-                    (deploymentCounts.get(placed.monster.id) ?? 0) + 1,
-                );
-            }
-            const deployedCosts = this.placedMonsters
-                .filter((placed) => placed.owner === 2)
-                .map((placed) => placed.monster.cost);
-            const candidates = this.getDeckMonsters(2)
-                .filter((monster) => monster.cost <= availableInvocation)
-                .filter((monster) =>
-                    canDeployMonsterForProfile(monster, this.opponentProfile, deployedCosts),
-                )
-                .sort(
-                    (first, second) => {
-                        return (
-                            (deploymentCounts.get(first.id) ?? 0) -
-                            (deploymentCounts.get(second.id) ?? 0) ||
-                            scoreMonsterForProfile(second, this.opponentProfile) -
-                            scoreMonsterForProfile(first, this.opponentProfile)
-                        );
-                    },
-                );
-            let deployed = false;
-
-            for (const monster of candidates) {
-                const placement = this.findComputerPlacement();
-                if (
-                    !placement ||
-                    !spendSymbols("invocation", monster.cost, this.rolledDice, this.diceReserves[2])
-                ) {
-                    continue;
-                }
-
-                this.placedMonsters.push({
-                    id: `monster-${this.nextMonsterId++}`,
-                    monster,
-                    owner: 2,
-                    position: placement.position,
-                    facing: "west",
-                    currentHp: monster.hp,
-                    cells: placement.cells,
-                    summonedOnTurn: this.turnNumber,
-                    attacksUsedThisTurn: 0,
-                    attackUsesThisTurn: getInitialAttackUses(monster),
-                    movementsUsedThisTurn: 0,
-                    attackCooldowns: getInitialAttackCooldowns(monster),
-                    statusEffects: [],
-                    isCamouflaged: false,
-                });
-                this.recordAction({
-                    type: "invocation",
-                    player: 2,
-                    monsterName: monster.name,
-                    cost: monster.cost,
-                });
-                deployed = true;
-                break;
-            }
-
-            if (!deployed) break;
+            if (!this.deployComputerMonster()) break;
         }
     }
 
-    protected findComputerPlacement(): { position: Position; cells: Position[] } | null {
-        const occupiedCells = [
-            ...Object.values(this.startingPositions),
-            ...this.placedMonsters.flatMap((placed) => placed.cells),
-        ];
-        const computerPathCells = this.placedMonsters
-            .filter((placed) => placed.owner === 2)
-            .flatMap((placed) => placed.cells);
-        const computerTerritory = [this.startingPositions[2], ...computerPathCells];
-        const opponentTerritoryKeys = new Set(
-            [
-                this.startingPositions[1],
-                ...this.placedMonsters
-                    .filter((placed) => placed.owner === 1)
-                    .flatMap((placed) => placed.cells),
-            ].map((cell) => `${cell.x},${cell.y}`),
+    private deployComputerMonster(): boolean {
+        const deploymentCounts = new Map<string, number>();
+        for (const { owner, monster } of this.placedMonsters) {
+            if (owner === 2)
+                deploymentCounts.set(monster.id, (deploymentCounts.get(monster.id) ?? 0) + 1);
+        }
+        const [monster] = this.getDeployableMonsters().sort(
+            (first, second) =>
+                (deploymentCounts.get(first.id) ?? 0) - (deploymentCounts.get(second.id) ?? 0) ||
+                scoreMonsterForProfile(second, this.opponentProfile) -
+                    scoreMonsterForProfile(first, this.opponentProfile),
         );
-        const enemyPositions = this.placedMonsters
-            .filter((placed) => placed.owner === 1 && placed.currentHp > 0)
-            .map((placed) => placed.position);
-        const tactic = this.getComputerTactic();
-        const expansionObjective =
-            tactic === "hunt"
-                ? this.startingPositions[2]
-                : chooseBotObjective(
-                      tactic,
-                      this.startingPositions[2],
-                      this.startingPositions[1],
-                      enemyPositions,
-                      this.startingPositions[2],
-                  );
-        const territoryExpansionScore = createTerritoryExpansionScorer(
-            2,
-            computerPathCells,
-            this.startingPositions[2],
-            expansionObjective,
+        const placement = monster ? this.findComputerPlacement() : null;
+        if (!monster || !placement || !this.spendCurrentSymbol("invocation", monster.cost)) {
+            return false;
+        }
+
+        this.placedMonsters.push(
+            this.createPlacedMonster(monster, 2, placement.position, placement.cells),
         );
-        const blockingCells = [
-            ...this.board.blockedCells,
-            ...this.obstacles.map(({ position }) => position),
-            ...this.placedMonsters
-                .filter((placed) => placed.currentHp > 0)
-                .map((placed) => placed.position),
-        ];
-        const defensivePlacementScore = createDefensivePlacementScorer(
-            this.startingPositions[2],
-            enemyPositions,
-            blockingCells,
-        );
-        const blockedCells = [
-            ...this.board.blockedCells,
-            ...this.obstacles.map(({ position }) => position),
-        ];
-        const pathBlockadeScore =
-            tactic === "defense" || tactic === "hunt"
-                ? createPathBlockadeScorer(
-                      this.board.width,
-                      this.board.height,
-                      this.startingPositions[2],
-                      this.startingPositions[1],
-                      computerPathCells,
-                      blockedCells,
-                  )
-                : () => 0;
-        const livingMonsterKeys = new Set(
-            this.placedMonsters
-                .filter((monster) => monster.currentHp > 0)
-                .map(({ position }) => `${position.x},${position.y}`),
-        );
-        const strategicSnapshot = this.createComputerStrategicSnapshot(tactic);
-        const strategicCellScore = createStrategicCellScorer(strategicSnapshot, 2);
-        const preservesFirstDeployment = this.getOpponentFirstDeploymentProtection(2);
-        return findValidPlacement({
-            patterns: PLACEMENT_PATTERNS,
-            boardWidth: this.board.width,
-            boardHeight: this.board.height,
-            start: this.startingPositions[2],
-            occupiedCells,
-            connectedCells: computerTerritory,
-            overlappingCells: computerPathCells,
-            blockedCells,
-            isPlacementAllowed: (position, cells) => {
-                const positionKey = `${position.x},${position.y}`;
-                const isStartingCell = opponentTerritoryKeys.has(positionKey);
-                const isMonsterOccupied = livingMonsterKeys.has(positionKey);
-                const crossesEnemyTerritory = cells.some((cell) =>
-                    opponentTerritoryKeys.has(`${cell.x},${cell.y}`),
-                );
-                return (
-                    !isStartingCell &&
-                    !isMonsterOccupied &&
-                    !crossesEnemyTerritory &&
-                    (!preservesFirstDeployment || preservesFirstDeployment(cells))
-                );
-            },
-            scorePlacement: (position, cells) =>
-                territoryExpansionScore(cells) +
-                (tactic === "defense" || tactic === "hunt" ? defensivePlacementScore(position) : 0) +
-                pathBlockadeScore(cells) +
-                strategicCellScore(position) * 0.5,
+        this.recordAction({
+            type: "invocation",
+            player: 2,
+            monsterName: monster.name,
+            cost: monster.cost,
         });
+        return true;
     }
 
-    protected playComputerAttacks(): void {
-        while (this.hasComputerAttackResource()) {
-            if (!this.performComputerAttack()) break;
+    private playComputerAttacks(): void {
+        let attacked = true;
+        while (attacked && this.hasComputerAttackResource()) {
+            attacked = this.performComputerAttack();
         }
     }
 
-    protected hasComputerAttackResource(): boolean {
-        return (
-            this.winner === null &&
-            this.placedMonsters.some(
-                (monster) =>
-                    monster.owner === 2 &&
-                    monster.currentHp > 0 &&
-                    monster.monster.attacks.some((_, index) =>
-                        this.canUseMonsterAttack(monster, index),
-                    ),
-            )
-        );
+    private hasComputerAttackResource(): boolean {
+        return this.winner === null && this.getComputerAttackOptions().length > 0;
     }
 
-    protected performComputerAttack(): boolean {
-        const attackers = this.placedMonsters.filter(
-            (monster) => monster.owner === 2 && monster.currentHp > 0,
-        );
-        const tactic = this.getComputerTactic();
-        const strategicSnapshot = this.createComputerStrategicSnapshot(tactic);
+    private performComputerAttack(): boolean {
         const roles = new Map(
-            assignMonsterRoles(strategicSnapshot, 2).map((role) => [role.monsterId, role]),
+            assignMonsterRoles(this.createComputerStrategicSnapshot(), 2).map((role) => [
+                role.monsterId,
+                role,
+            ]),
         );
-        let best: ComputerAttackChoice | null = null;
-        for (const attacker of attackers) {
-            for (const attackIndex of attacker.monster.attacks.keys()) {
-                if (!this.canUseMonsterAttack(attacker, attackIndex)) continue;
-                const attack = attacker.monster.attacks[attackIndex];
-                if (!attack) continue;
-                const cost = getAttackCost(
-                    attack,
-                    attacker.turnBuffs?.attackCostReduction ?? 0,
-                );
-                for (const target of this.getAttackCandidateCells(attacker.id, attackIndex)) {
-                    if (!this.canAttackTarget(attacker.id, attackIndex, target)) continue;
-                    const score = this.scoreComputerAttack(
-                        attacker,
-                        attackIndex,
-                        target,
-                        this.getAttackPreviewCells(attacker.id, attackIndex, target),
-                        cost,
-                        roles.get(attacker.id),
-                    );
-                    if (score > (best?.score ?? 0)) {
-                        best = { attacker, attackIndex, target, score };
-                    }
-                }
-            }
+        let best: ComputerAttackChoice | undefined;
+        for (const choice of this.getComputerAttackChoices(roles)) {
+            if (choice.score > (best?.score ?? 0)) best = choice;
         }
         if (!best) return false;
+
         this.executeAttack(
             best.attacker,
             best.attackIndex,
@@ -338,162 +96,51 @@ export abstract class GameSceneComputer extends GameSceneComputerConversion {
         return true;
     }
 
-    protected scoreComputerAttack(
-        attacker: PlacedMonster,
-        attackIndex: number,
-        target: Position,
-        cells: readonly Position[],
-        cost: number,
-        role?: RoleAssignment,
-    ): number {
-        const attack = attacker.monster.attacks[attackIndex];
-        if (!attack) return 0;
-        const value = createTacticalValue();
-        const targetMonster = this.getLivingMonsterAt(target);
-
-        if (attack.targetsAlliesOnly) {
-            if (targetMonster?.owner !== 2) return 0;
-            value.healing = Math.min(
-                attack.healAmount ?? 0,
-                targetMonster.monster.hp - targetMonster.currentHp,
-            );
-            value.clearedEffects = attack.clearsStatusEffects
-                ? targetMonster.statusEffects.length
-                : 0;
-            value.cooldownsReduced = attack.cooldownReduction
-                ? targetMonster.attackCooldowns.filter((cooldown) => cooldown > 0).length
-                : 0;
-            value.buffs =
-                (attack.movementRangeBonus ?? 0) +
-                (attack.movementCostReduction ?? 0) +
-                (attack.attackDamageBonus ?? 0) * 2 +
-                (attack.attackCostReduction ?? 0);
-        } else {
-            const affectedCells = isAreaAttack(attack) ? cells : [target];
-            for (const cell of affectedCells) {
-                if (
-                    cell.x === this.startingPositions[1].x &&
-                    cell.y === this.startingPositions[1].y
-                ) {
-                    value.baseDamage = 1;
-                    continue;
-                }
-                const victim = this.getLivingMonsterAt(cell);
-                if (
-                    !victim ||
-                    victim.id === attacker.id ||
-                    (victim.owner === 2 && !attack.hitsAllies) ||
-                    !canTargetMonsterOwner(attack, victim.owner, 2) ||
-                    !canAttackMonster(attacker.monster, attack, victim.monster)
-                ) {
-                    continue;
-                }
-                const damage =
-                    getAttackDamage(attack, attacker.turnBuffs?.attackDamageBonus ?? 0) +
-                    (!isAreaAttack(attack) &&
-                    cell.x === target.x &&
-                    cell.y === target.y &&
-                    victim.owner === 1 &&
-                    (attacker.monster.bonusDamageFromBehind ?? 0) > 0 &&
-                    isBehind(victim.position, attacker.position, victim.facing)
-                        ? attacker.monster.bonusDamageFromBehind ?? 0
-                        : 0);
-                const effectiveDamage = Math.min(victim.currentHp, damage);
-                if (victim.owner === 2) {
-                    value.friendlyDamage += effectiveDamage;
-                } else {
-                    value.damage += effectiveDamage;
-                    if (damage >= victim.currentHp) value.kills++;
-                    if (
-                        attack.statusEffect &&
-                        !victim.statusEffects.some(
-                            (effect) => effect.type === attack.statusEffect?.type,
-                        )
-                    ) {
-                        value.statusDamage +=
-                            attack.statusEffect.damagePerTurn *
-                            Math.min(
-                                2,
-                                typeof attack.statusEffect.duration === "number"
-                                    ? attack.statusEffect.duration
-                                    : 2,
-                            );
-                    }
-                }
-            }
-        }
-
-        const tacticalScore = scoreTacticalAttack(
-            value,
-            cost,
-            this.getComputerTactic(),
-            this.playerHealth[1],
-        );
-        const roleBonus =
-            role?.role === "advance"
-                ? value.baseDamage * 8
-                : role?.role === "intercept"
-                  ? value.kills * 6
-                  : role?.role === "support"
-                    ? (value.healing + value.buffs) * 6
-                    : value.damage;
-        return tacticalScore * 10 + roleBonus;
-    }
-
-    protected playComputerMovements(): void {
+    private playComputerMovements(): void {
         for (const monster of this.placedMonsters) {
             if (this.winner !== null) return;
             if (monster.owner !== 2 || monster.currentHp <= 0) continue;
 
-            while (this.canAffordMovement(monster)) {
-                const options = this.getMovementOptions(monster, monster.position);
-                const ownedCells = this.placedMonsters
-                    .filter((placed) => placed.owner === 2)
-                    .flatMap((placed) => placed.cells);
-                const enemyPositions = this.placedMonsters
-                    .filter((placed) => placed.owner === 1 && placed.currentHp > 0)
-                    .map((placed) => placed.position);
-                const tactic = this.getComputerTactic();
-                const strategicSnapshot = this.createComputerStrategicSnapshot(tactic);
-                const role = assignMonsterRoles(strategicSnapshot, 2).find(
-                    (assignment) => assignment.monsterId === monster.id,
-                );
-                const objective =
-                    role?.target ??
-                    chooseBotObjective(
-                        tactic,
-                        monster.position,
-                        this.startingPositions[1],
-                        enemyPositions,
-                        this.startingPositions[2],
-                    );
-                const movement = findObjectiveMovement(
-                    options,
-                    ownedCells,
-                    objective,
-                    enemyPositions,
-                    tactic,
-                    createThreatScores(
-                        {
-                            ...this.board,
-                            blockedCells: [
-                                ...this.board.blockedCells,
-                                ...this.obstacles.map(({ position }) => position),
-                            ],
-                        },
-                        this.placedMonsters,
-                        monster.id,
-                        true,
-                    ),
-                );
-                if (!movement) break;
-
-                const movementsUsed = monster.movementsUsedThisTurn;
-                this.actionMode = { type: "movement", monsterId: monster.id };
-                this.handleMovementAction(movement.position, monster.id);
-                this.actionMode = { type: "idle" };
-                if (monster.movementsUsedThisTurn === movementsUsed) break;
+            let moved = true;
+            while (moved && this.canAffordMovement(monster)) {
+                moved = this.moveComputerMonster(monster);
             }
         }
+    }
+
+    private moveComputerMonster(monster: PlacedMonster): boolean {
+        const tactic = this.getComputerTactic();
+        const enemyPositions = this.getEnemyPositions();
+        const role = assignMonsterRoles(this.createComputerStrategicSnapshot(tactic), 2).find(
+            (assignment) => assignment.monsterId === monster.id,
+        );
+        const objective =
+            role?.target ??
+            chooseBotObjective(
+                tactic,
+                monster.position,
+                this.startingPositions[1],
+                enemyPositions,
+                this.startingPositions[2],
+            );
+        const movement = findObjectiveMovement(
+            this.getMovementOptions(monster, monster.position),
+            objective,
+            enemyPositions,
+            tactic,
+            createThreatScores(
+                { ...this.board, blockedCells: this.getBlockedCells() },
+                this.placedMonsters,
+                monster.id,
+                true,
+            ),
+        );
+        if (!movement) return false;
+
+        const movementsUsed = monster.movementsUsedThisTurn;
+        this.actionMode = { type: "movement", monsterId: monster.id };
+        this.handleMovementAction(movement.position, monster.id);
+        this.actionMode = { type: "idle" };
+        return monster.movementsUsedThisTurn !== movementsUsed;
     }
 }

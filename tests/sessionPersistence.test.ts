@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseSimulationOptions } from "../src/sessionPersistence";
+import { parseSimulationOptions } from "../src/persistence/simulationRun";
 
 describe("reprise des options de simulation", () => {
     it("ignore les paramètres de modes supprimés dans les sauvegardes existantes", () => {

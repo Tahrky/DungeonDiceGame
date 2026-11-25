@@ -1,27 +1,43 @@
 import { GameSceneInvocation } from "./GameSceneInvocation";
-import { isBoardCell } from "../game/boards";
 import {
-    canAttackBaseThisTurn,
-    canAttackMonster,
-    canDirectlyTargetMonster,
-    canTargetMonsterOwner,
+    canAttackEnemyBase,
+    getJumpLanding,
+    isAttackCellInRange,
+    isAttackZoneUsable,
+    type AttackContext,
+} from "../game/attackRules";
+import { isBoardCell } from "../game/boards";
+import { hasLineOfSight, isSamePosition } from "../game/geometry";
+import { opposingPlayer } from "../game/matchRules";
+import {
     canUseActionThisTurn,
     canUseMonsterAttackThisTurn,
-    getAttackCost,
     getAttackActionsPerTurn,
     getAttackZoneOptions,
-    getGridDistance,
-    hasLineOfSight,
+    type AttackZoneOption,
 } from "../game/monsterActions";
-import type { Monster, PlacedMonster, Position } from "../types/GameTypes";
-import { getAvailableSymbolCount } from "../game/diceResources";
+import type { MonsterAttack, PlacedMonster, Position } from "../types/GameTypes";
+
+interface UsableAttack {
+    attacker: PlacedMonster;
+    attack: MonsterAttack;
+}
 
 export abstract class GameSceneAttackTargeting extends GameSceneInvocation {
+    protected get attackContext(): AttackContext {
+        return {
+            board: this.board,
+            startingPositions: this.startingPositions,
+            monsters: this.placedMonsters,
+            currentPlayer: this.currentPlayer,
+            turn: this.turnNumber,
+            allowBaseAttackOnSummonTurn: this.gameConfiguration.allowBaseAttackOnSummonTurn,
+        };
+    }
+
     protected selectAttack(attackIndex: number): void {
         if (this.actionMode.type !== "attack" || !this.actionMode.attackerId) return;
-        const attacker = this.getLivingMonster(this.actionMode.attackerId);
-        const attack = attacker?.monster.attacks[attackIndex];
-        if (!attacker || !attack || !this.canUseMonsterAttack(attacker, attackIndex)) return;
+        if (!this.getUsableAttack(this.actionMode.attackerId, attackIndex)) return;
 
         this.actionMode = { ...this.actionMode, attackIndex };
         this.render();
@@ -32,55 +48,31 @@ export abstract class GameSceneAttackTargeting extends GameSceneInvocation {
         attackIndex: number,
         targetPosition: Position,
     ): boolean {
-        const attacker = this.getLivingMonster(attackerId);
-        const attack = attacker?.monster.attacks[attackIndex];
-        if (!attacker || !attack || !this.canUseMonsterAttack(attacker, attackIndex)) {
-            return false;
-        }
-        if (this.isOpponentStartingPosition(targetPosition) && !this.canAttackBase(attacker)) {
-            return false;
-        }
-
-        const zone = this.getAttackZoneForTarget(attacker, attack, targetPosition);
-        if (!zone) return false;
-        return this.isAttackZoneUsable(attacker, attack, zone.cells);
+        return this.findTargetedZone(attackerId, attackIndex, targetPosition) !== undefined;
     }
 
     protected getAttackRangeCells(attackerId: string, attackIndex: number): Position[] {
-        const attacker = this.getLivingMonster(attackerId);
-        const attack = attacker?.monster.attacks[attackIndex];
-        if (!attacker || !attack || !this.canUseMonsterAttack(attacker, attackIndex)) return [];
-
-        const validZones = getAttackZoneOptions(
-            attacker.position,
-            attacker.facing,
-            attack.pattern,
-            attack.targetsSelf,
-        ).filter(
-            (option) =>
-                (this.canAttackBase(attacker) || !this.isOpponentStartingPosition(option.target)) &&
-                this.isAttackZoneUsable(attacker, attack, option.cells) &&
-                this.canSeeAttackTarget(attacker, attack, option.target),
-        );
-        return validZones.map((option) => option.target);
+        const usable = this.getUsableAttack(attackerId, attackIndex);
+        if (!usable) return [];
+        const { attacker, attack } = usable;
+        return this.getAttackOptions(attacker, attack)
+            .filter(
+                (option) =>
+                    this.isBaseTargetAllowed(attacker, option.target) &&
+                    this.isReachableZone(attacker, attack, option),
+            )
+            .map(({ target }) => target);
     }
 
     protected getAttackCandidateCells(attackerId: string, attackIndex: number): Position[] {
-        const attacker = this.getLivingMonster(attackerId);
-        const attack = attacker?.monster.attacks[attackIndex];
-        if (!attacker || !attack || !this.canUseMonsterAttack(attacker, attackIndex)) return [];
-
-        return getAttackZoneOptions(
-            attacker.position,
-            attacker.facing,
-            attack.pattern,
-            attack.targetsSelf,
-        )
-            .map((option) => option.target)
+        const usable = this.getUsableAttack(attackerId, attackIndex);
+        if (!usable) return [];
+        return this.getAttackOptions(usable.attacker, usable.attack)
+            .map(({ target }) => target)
             .filter(
                 (cell) =>
                     isBoardCell(this.board, cell) &&
-                    (this.canAttackBase(attacker) || !this.isOpponentStartingPosition(cell)),
+                    this.isBaseTargetAllowed(usable.attacker, cell),
             );
     }
 
@@ -89,28 +81,13 @@ export abstract class GameSceneAttackTargeting extends GameSceneInvocation {
         attackIndex: number,
         targetPosition: Position,
     ): Position[] {
-        if (!this.canAttackTarget(attackerId, attackIndex, targetPosition)) return [];
-        const attacker = this.getLivingMonster(attackerId);
-        const attack = attacker?.monster.attacks[attackIndex];
-        if (!attacker || !attack) return [];
-        const zone = this.getAttackZoneForTarget(attacker, attack, targetPosition)?.cells ?? [];
-        return zone.filter(
+        const targeted = this.findTargetedZone(attackerId, attackIndex, targetPosition);
+        if (!targeted) return [];
+        const { attacker, attack, cells } = targeted;
+        return cells.filter(
             (cell) =>
-                this.isAttackCellInRange(attacker.position, attack, cell) &&
-                (this.canAttackBase(attacker) || !this.isOpponentStartingPosition(cell)),
-        );
-    }
-
-    protected canAffordAttack(
-        attacker: PlacedMonster,
-        attack: Monster["attacks"][number],
-    ): boolean {
-        return (
-            getAvailableSymbolCount(
-                "attack",
-                this.rolledDice,
-                this.diceReserves[this.currentPlayer],
-            ) >= getAttackCost(attack, attacker.turnBuffs?.attackCostReduction ?? 0)
+                isAttackCellInRange(attacker.position, attack, cell) &&
+                this.isBaseTargetAllowed(attacker, cell),
         );
     }
 
@@ -126,90 +103,88 @@ export abstract class GameSceneAttackTargeting extends GameSceneInvocation {
             ) &&
             (attacker.attackCooldowns[attackIndex] ?? 0) === 0 &&
             canUseMonsterAttackThisTurn(attack, attacker.attackUsesThisTurn[attackIndex] ?? 0) &&
-            this.canAffordAttack(attacker, attack)
+            this.getAvailableSymbols("attack") >= this.getMonsterAttackCost(attacker, attack)
         );
-    }
-
-    protected isAttackZoneUsable(
-        attacker: PlacedMonster,
-        attack: Monster["attacks"][number],
-        zone: readonly Position[],
-    ): boolean {
-        if (attack.movesToZone && !this.getSlimeLanding(attacker, attack, zone)) return false;
-        return zone.some((cell) => {
-            if (!isBoardCell(this.board, cell)) return false;
-            if (!this.isAttackCellInRange(attacker.position, attack, cell)) return false;
-            if (this.isOpponentStartingPosition(cell)) {
-                return !attack.targetsAlliesOnly && this.canAttackBase(attacker);
-            }
-            const target = this.getLivingMonsterAt(cell);
-            if (!target || (target.id === attacker.id && !attack.targetsSelf)) return false;
-            if (!canDirectlyTargetMonster(attack, target)) return false;
-            if (!canTargetMonsterOwner(attack, target.owner, this.currentPlayer)) return false;
-            if (
-                attack.healAmount !== undefined &&
-                target.currentHp >= target.monster.hp &&
-                (!attack.clearsStatusEffects || target.statusEffects.length === 0)
-            ) {
-                return false;
-            }
-            if (
-                attack.cooldownReduction !== undefined &&
-                !target.attackCooldowns.some((cooldown) => cooldown > 0)
-            ) {
-                return false;
-            }
-            return canAttackMonster(attacker.monster, attack, target.monster);
-        });
     }
 
     protected canAttackBase(attacker: PlacedMonster): boolean {
-        return canAttackBaseThisTurn(
-            attacker.summonedOnTurn,
-            this.turnNumber,
-            this.gameConfiguration.allowBaseAttackOnSummonTurn,
-        );
+        return canAttackEnemyBase(this.attackContext, attacker);
     }
 
     protected isOpponentStartingPosition(position: Position): boolean {
-        const opponent: 1 | 2 = this.currentPlayer === 1 ? 2 : 1;
-        const startingPosition = this.startingPositions[opponent];
-        return position.x === startingPosition.x && position.y === startingPosition.y;
-    }
-
-    protected isAttackCellInRange(
-        attackerPosition: Position,
-        attack: Monster["attacks"][number],
-        cell: Position,
-    ): boolean {
-        return (
-            attack.pattern.type !== "jumpArea" ||
-            getGridDistance(attackerPosition, cell) <= attack.pattern.range
-        );
+        return isSamePosition(position, this.startingPositions[opposingPlayer(this.currentPlayer)]);
     }
 
     protected getAttackZoneForTarget(
         attacker: PlacedMonster,
-        attack: Monster["attacks"][number],
+        attack: MonsterAttack,
         target: Position,
-    ): { target: Position; cells: Position[] } | undefined {
+    ): AttackZoneOption | undefined {
+        return this.getAttackOptions(attacker, attack).find(
+            (option) =>
+                isSamePosition(option.target, target) &&
+                this.isReachableZone(attacker, attack, option),
+        );
+    }
+
+    // In the scene, only jump-area attacks can move the attacker into their zone.
+    protected getSlimeLanding(
+        attacker: PlacedMonster,
+        attack: MonsterAttack,
+        zone: readonly Position[],
+    ): Position | undefined {
+        return attack.pattern.type === "jumpArea"
+            ? getJumpLanding(this.attackContext, attacker, zone)
+            : undefined;
+    }
+
+    private getUsableAttack(attackerId: string, attackIndex: number): UsableAttack | undefined {
+        const attacker = this.getLivingMonster(attackerId);
+        const attack = attacker?.monster.attacks[attackIndex];
+        return attacker && attack && this.canUseMonsterAttack(attacker, attackIndex)
+            ? { attacker, attack }
+            : undefined;
+    }
+
+    private findTargetedZone(
+        attackerId: string,
+        attackIndex: number,
+        target: Position,
+    ): (UsableAttack & { cells: Position[] }) | undefined {
+        const usable = this.getUsableAttack(attackerId, attackIndex);
+        if (!usable || !this.isBaseTargetAllowed(usable.attacker, target)) return undefined;
+        const zone = this.getAttackZoneForTarget(usable.attacker, usable.attack, target);
+        return zone && { ...usable, cells: zone.cells };
+    }
+
+    private getAttackOptions(attacker: PlacedMonster, attack: MonsterAttack): AttackZoneOption[] {
         return getAttackZoneOptions(
             attacker.position,
             attacker.facing,
             attack.pattern,
             attack.targetsSelf,
-        ).find(
-            (option) =>
-                option.target.x === target.x &&
-                option.target.y === target.y &&
-                this.isAttackZoneUsable(attacker, attack, option.cells) &&
-                this.canSeeAttackTarget(attacker, attack, option.target),
         );
     }
 
-    protected canSeeAttackTarget(
+    private isBaseTargetAllowed(attacker: PlacedMonster, cell: Position): boolean {
+        return this.canAttackBase(attacker) || !this.isOpponentStartingPosition(cell);
+    }
+
+    private isReachableZone(
         attacker: PlacedMonster,
-        attack: Monster["attacks"][number],
+        attack: MonsterAttack,
+        { target, cells }: AttackZoneOption,
+    ): boolean {
+        return (
+            (!attack.movesToZone || attack.pattern.type === "jumpArea") &&
+            isAttackZoneUsable(this.attackContext, attacker, attack, cells) &&
+            this.canSeeAttackTarget(attacker, attack, target)
+        );
+    }
+
+    private canSeeAttackTarget(
+        attacker: PlacedMonster,
+        attack: MonsterAttack,
         target: Position,
     ): boolean {
         if (
@@ -225,42 +200,11 @@ export abstract class GameSceneAttackTargeting extends GameSceneInvocation {
             ...this.obstacles
                 .filter((obstacle) => obstacle.height === 1)
                 .map(({ position }) => position),
-            ...this.placedMonsters
-                .filter((monster) => monster.currentHp > 0 && monster.id !== attacker.id)
+            ...this.getLivingMonsters()
+                .filter((monster) => monster.id !== attacker.id)
                 .map(({ position }) => position),
         ];
         return hasLineOfSight(attacker.position, target, blockingCells);
-    }
-
-    protected getSlimeLanding(
-        attacker: PlacedMonster,
-        attack: Monster["attacks"][number],
-        zone: readonly Position[],
-    ): Position | undefined {
-        if (attack.pattern.type !== "jumpArea") return undefined;
-        const deployedCells = this.placedMonsters.flatMap((placed) => placed.cells);
-        const occupiedCells = this.placedMonsters
-            .filter((placed) => placed.currentHp > 0 && placed.id !== attacker.id)
-            .map((placed) => placed.position);
-        const startingCells = Object.values(this.startingPositions);
-        return zone
-            .filter((cell) => {
-                const isDeployed = deployedCells.some(
-                    (deployed) => deployed.x === cell.x && deployed.y === cell.y,
-                );
-                const isOccupied = occupiedCells.some(
-                    (occupied) => occupied.x === cell.x && occupied.y === cell.y,
-                );
-                const isStartingCell = startingCells.some(
-                    (starting) => starting.x === cell.x && starting.y === cell.y,
-                );
-                return isDeployed && !isOccupied && !isStartingCell;
-            })
-            .sort(
-                (first, second) =>
-                    getGridDistance(attacker.position, first) -
-                    getGridDistance(attacker.position, second),
-            )[0];
     }
 
     protected abstract canAffordMovement(monster: PlacedMonster): boolean;

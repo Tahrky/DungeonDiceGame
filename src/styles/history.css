@@ -1,0 +1,27 @@
+.simulation-history {
+    max-height: 520px;
+    overflow: auto;
+    margin-top: 18px;
+}
+
+.simulation-history .simulation-table {
+    min-width: 680px;
+}
+
+.simulation-empty {
+    border: 1px dashed #526170;
+    border-radius: 8px;
+    padding: 22px;
+    color: #aab5c2;
+    text-align: center;
+}
+
+footer {
+    padding: 15px;
+    color: #778497;
+    font-size: 12px;
+}
+
+[hidden] {
+    display: none !important;
+}

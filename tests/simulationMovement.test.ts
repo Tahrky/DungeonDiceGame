@@ -82,6 +82,24 @@ function createMatchState(
 }
 
 describe("déplacement tactique de simulation", () => {
+    it("garde une entrée menacée sans consommer le dé du coéquipier", () => {
+        const board = createCustomBoard(9, 9);
+        const state = createMatchState(false);
+        state.profiles[1] = "defensive";
+        state.tactics[1] = "defense";
+        const guard = state.monsters[0]!;
+        guard.position = { x: 1, y: 4 };
+        guard.cells = [guard.position, { x: 2, y: 4 }, { x: 3, y: 4 }];
+        const enemy = state.monsters[1]!;
+        enemy.position = { x: 4, y: 4 };
+        enemy.cells = [enemy.position];
+        const ally = { ...guard, id: "ally", position: { x: 2, y: 4 }, cells: [{ x: 2, y: 4 }] };
+        state.monsters.push(ally);
+        performMovements(state, board);
+        expect(guard.position).toEqual({ x: 1, y: 4 });
+        expect(ally.position).toEqual({ x: 3, y: 4 });
+        expect(state.statistics[1].stagnantMonsterTurns).toBe(0);
+    });
     it("crée un combo déplacement-attaque seulement quand l’option est activée", () => {
         const board = createCustomBoard(9, 9);
         const regular = createMatchState(false);

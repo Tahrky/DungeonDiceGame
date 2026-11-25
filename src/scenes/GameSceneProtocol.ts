@@ -1,4 +1,4 @@
-import type { GameSnapshot, RemoteGameCommand } from "../types/GameTypes";
+import type { DiceSymbol, GameSnapshot, RemoteGameCommand } from "../types/GameTypes";
 
 export function isRemoteGameCommand(value: unknown): value is RemoteGameCommand {
     if (typeof value !== "object" || value === null || !("type" in value)) return false;
@@ -38,21 +38,13 @@ export function isRemoteGameCommand(value: unknown): value is RemoteGameCommand 
                   ? Number.isInteger(value.attackIndex)
                   : "dieIndex" in value && Number.isInteger(value.dieIndex);
         case "boardClick":
-            return (
-                "position" in value &&
-                typeof value.position === "object" &&
-                value.position !== null &&
-                "x" in value.position &&
-                "y" in value.position &&
-                Number.isInteger(value.position.x) &&
-                Number.isInteger(value.position.y)
-            );
+            return "position" in value && isPosition(value.position);
         default:
             return false;
     }
 }
 
-function isDiceSymbol(value: unknown): value is "invocation" | "attack" | "movement" {
+function isDiceSymbol(value: unknown): value is DiceSymbol {
     return value === "invocation" || value === "attack" || value === "movement";
 }
 

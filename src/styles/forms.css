@@ -1,0 +1,90 @@
+.settings-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 14px;
+    margin-bottom: 28px;
+}
+
+.settings-field {
+    display: grid;
+    gap: 8px;
+    color: #e6edf5;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.settings-field input:not([type="checkbox"]),
+.settings-field select {
+    width: 100%;
+    min-height: 40px;
+    border: 1px solid #3d4b5a;
+    border-radius: 6px;
+    padding: 9px 11px;
+    color: #fff;
+    background: #151e28;
+}
+
+.settings-field input:not([type="checkbox"]):focus,
+.settings-field select:focus,
+.settings-monster textarea:focus {
+    border-color: var(--accent-gold);
+    outline: 2px solid rgb(var(--accent-gold-rgb) / 20%);
+}
+
+.settings-toggle {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: #e6edf5;
+    font-size: 14px;
+}
+
+.settings-toggle input {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--accent-gold);
+}
+
+.settings-monster {
+    display: grid;
+    gap: 14px;
+    border-top: 1px solid #3d4b5a;
+    padding-top: 20px;
+    margin-bottom: 22px;
+}
+
+.settings-monster h3 {
+    margin: 0;
+    color: var(--accent-gold);
+    font-family: Georgia, serif;
+    font-size: 20px;
+    font-weight: 500;
+}
+
+.settings-monster textarea {
+    width: 100%;
+    min-height: 300px;
+    resize: vertical;
+    border: 1px solid #3d4b5a;
+    border-radius: 6px;
+    padding: 12px;
+    color: #d9e3ed;
+    background: #151e28;
+    font:
+        13px/1.5 Consolas,
+        monospace;
+}
+
+.settings-monster small {
+    color: #94a1af;
+    line-height: 1.5;
+}
+
+.back-button {
+    margin: -10px 0 25px;
+    border: 0;
+    padding: 6px 0;
+    color: var(--accent-gold);
+    background: none;
+    cursor: pointer;
+}

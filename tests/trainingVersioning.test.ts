@@ -4,7 +4,7 @@ import { getDefaultGameConfiguration } from "../src/game/gameConfiguration";
 import {
     compareTrainingCompatibility,
     createTrainingFingerprint,
-} from "../src/simulation/trainingVersioning";
+} from "../src/simulation/training/versioning";
 
 describe("empreintes et compatibilité des entraînements", () => {
     it("ignore les changements cosmétiques et identifiants de plateau", () => {

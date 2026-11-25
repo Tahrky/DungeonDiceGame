@@ -2,10 +2,9 @@ import { GameSceneInitialization } from "./GameSceneInitialization";
 import { isRemoteGameCommand } from "./GameSceneProtocol";
 import Phaser from "phaser";
 import type { GameHudActions } from "./game/GameHud";
-import type { BoardHeightChange } from "../types/GameTypes";
+import type { BoardHeightChange, Monster, RemoteGameCommand } from "../types/GameTypes";
 
 export class GameScene extends GameSceneInitialization {
-
     protected bindInput(): void {
         const handleKeyDown = (event: KeyboardEvent) => this.handleKeyDown(event);
         window.addEventListener("keydown", handleKeyDown, true);
@@ -17,13 +16,7 @@ export class GameScene extends GameSceneInitialization {
             const worldPosition = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
             this.updatePlacementPreviewLock(worldPosition);
             this.hoveredCell = this.boardView.worldToGrid(worldPosition);
-            this.monsterTooltip.update(
-                pointer,
-                this.placedMonsters,
-                this.hoveredInvocationMonster,
-                this.currentPlayer,
-                !this.selectedMonster && !this.pendingCells,
-            );
+            this.updateTooltip(pointer, this.hoveredInvocationMonster);
             this.drawBoard();
         });
 
@@ -33,10 +26,18 @@ export class GameScene extends GameSceneInitialization {
             const worldPosition = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
             const cell = this.boardView.worldToGrid(worldPosition);
             if (!this.boardView.isInsideBoard(cell)) return;
-            this.runLocalCommand({ type: "boardClick", position: cell }, () =>
-                this.tryPlaceMonster(cell),
-            );
+            this.dispatch({ type: "boardClick", position: cell });
         });
+    }
+
+    private updateTooltip(pointer: Phaser.Input.Pointer, invocationMonster: Monster | null): void {
+        this.monsterTooltip.update(
+            pointer,
+            this.placedMonsters,
+            invocationMonster,
+            this.currentPlayer,
+            !this.selectedMonster && !this.pendingCells,
+        );
     }
 
     private handleKeyDown(event: KeyboardEvent): void {
@@ -54,31 +55,13 @@ export class GameScene extends GameSceneInitialization {
                 }
                 break;
             case "KeyW":
-                if (this.actionMode.type === "attack") {
-                    this.hudActions.cancelBoardAction();
-                } else if (
-                    this.actionMode.type === "idle" &&
-                    !this.pendingCells &&
-                    !this.invocationMenuOpen
-                ) {
-                    this.hudActions.startAttack();
-                }
+                this.toggleBoardAction("attack", () => this.hudActions.startAttack());
                 break;
             case "KeyE":
-                if (this.actionMode.type === "movement") {
-                    this.hudActions.cancelBoardAction();
-                } else if (
-                    this.actionMode.type === "idle" &&
-                    !this.pendingCells &&
-                    !this.invocationMenuOpen
-                ) {
-                    this.hudActions.startMovement();
-                }
+                this.toggleBoardAction("movement", () => this.hudActions.startMovement());
                 break;
             case "KeyP":
-                if (this.gameConfiguration.testBoard) {
-                    this.runLocalCommand({ type: "debugAddSymbols" }, () => this.addDebugSymbols());
-                }
+                if (this.gameConfiguration.testBoard) this.dispatch({ type: "debugAddSymbols" });
                 break;
             case "KeyL":
                 this.changeCellHeightAtHoveredCell(1);
@@ -96,12 +79,21 @@ export class GameScene extends GameSceneInitialization {
         }
     }
 
+    private toggleBoardAction(type: "attack" | "movement", start: () => void): void {
+        if (this.actionMode.type === type) {
+            this.hudActions.cancelBoardAction();
+        } else if (
+            this.actionMode.type === "idle" &&
+            !this.pendingCells &&
+            !this.invocationMenuOpen
+        ) {
+            start();
+        }
+    }
+
     private changeCellHeightAtHoveredCell(delta: BoardHeightChange): void {
         if (!this.hoveredCell) return;
-        const position = { ...this.hoveredCell };
-        this.runLocalCommand({ type: "changeCellHeight", delta, position }, () =>
-            this.changeCellHeight(delta, position),
-        );
+        this.dispatch({ type: "changeCellHeight", delta, position: { ...this.hoveredCell } });
     }
 
     private cancelCurrentAction(): void {
@@ -155,62 +147,33 @@ export class GameScene extends GameSceneInitialization {
         }
     }
 
+    private dispatch(command: RemoteGameCommand): void {
+        this.runLocalCommand(command, () => this.executeCommand(command));
+    }
+
     protected get hudActions(): GameHudActions {
         return {
-            rollDice: () => this.runLocalCommand({ type: "rollDice" }, () => this.rollDice()),
-            selectMonster: (monsterId) =>
-                this.runLocalCommand({ type: "selectMonster", monsterId }, () =>
-                    this.selectMonster(monsterId),
-                ),
-            selectPattern: (index) =>
-                this.runLocalCommand({ type: "selectPattern", index }, () =>
-                    this.selectPattern(index),
-                ),
-            rotatePattern: () =>
-                this.runLocalCommand({ type: "rotatePattern" }, () => this.rotatePattern()),
-            mirrorPattern: () =>
-                this.runLocalCommand({ type: "mirrorPattern" }, () => this.mirrorPattern()),
-            togglePatternSelector: () =>
-                this.runLocalCommand({ type: "togglePatternSelector" }, () =>
-                    this.togglePatternSelector(),
-                ),
-            toggleInvocationMenu: () =>
-                this.runLocalCommand({ type: "toggleInvocationMenu" }, () =>
-                    this.toggleInvocationMenu(),
-                ),
+            rollDice: () => this.dispatch({ type: "rollDice" }),
+            selectMonster: (monsterId) => this.dispatch({ type: "selectMonster", monsterId }),
+            selectPattern: (index) => this.dispatch({ type: "selectPattern", index }),
+            rotatePattern: () => this.dispatch({ type: "rotatePattern" }),
+            mirrorPattern: () => this.dispatch({ type: "mirrorPattern" }),
+            togglePatternSelector: () => this.dispatch({ type: "togglePatternSelector" }),
+            toggleInvocationMenu: () => this.dispatch({ type: "toggleInvocationMenu" }),
             hoverInvocationMonster: (monster, pointer) => {
                 this.hoveredInvocationMonster = monster;
-                this.monsterTooltip.update(
-                    pointer,
-                    this.placedMonsters,
-                    monster,
-                    this.currentPlayer,
-                    !this.selectedMonster && !this.pendingCells,
-                );
+                this.updateTooltip(pointer, monster);
             },
-            storeDie: (dieIndex) =>
-                this.runLocalCommand({ type: "storeDie", dieIndex }, () => this.storeDie(dieIndex)),
-            selectReserveSymbol: (symbol) =>
-                this.runLocalCommand({ type: "selectReserveSymbol", symbol }, () =>
-                    this.selectReserveSymbol(symbol),
-                ),
+            storeDie: (dieIndex) => this.dispatch({ type: "storeDie", dieIndex }),
+            selectReserveSymbol: (symbol) => this.dispatch({ type: "selectReserveSymbol", symbol }),
             chooseReserveConversionTarget: (targetSymbol) =>
-                this.runLocalCommand({ type: "convertReserveSymbols", targetSymbol }, () =>
-                    this.chooseReserveConversionTarget(targetSymbol),
-                ),
-            startAttack: () =>
-                this.runLocalCommand({ type: "startAttack" }, () => this.startAttack()),
-            selectAttack: (attackIndex) =>
-                this.runLocalCommand({ type: "selectAttack", attackIndex }, () =>
-                    this.selectAttack(attackIndex),
-                ),
-            startMovement: () =>
-                this.runLocalCommand({ type: "startMovement" }, () => this.startMovement()),
-            cancelBoardAction: () =>
-                this.runLocalCommand({ type: "cancelBoardAction" }, () => this.cancelBoardAction()),
-            cancelInvocation: () =>
-                this.runLocalCommand({ type: "cancelInvocation" }, () => this.cancelInvocation()),
-            finishTurn: () => this.runLocalCommand({ type: "finishTurn" }, () => this.finishTurn()),
+                this.dispatch({ type: "convertReserveSymbols", targetSymbol }),
+            startAttack: () => this.dispatch({ type: "startAttack" }),
+            selectAttack: (attackIndex) => this.dispatch({ type: "selectAttack", attackIndex }),
+            startMovement: () => this.dispatch({ type: "startMovement" }),
+            cancelBoardAction: () => this.dispatch({ type: "cancelBoardAction" }),
+            cancelInvocation: () => this.dispatch({ type: "cancelInvocation" }),
+            finishTurn: () => this.dispatch({ type: "finishTurn" }),
             leaveGame: () => this.game.events.emit("leave-game"),
             scrollActionHistory: (offset) => this.scrollActionHistory(offset),
         };
@@ -227,15 +190,19 @@ export class GameScene extends GameSceneInitialization {
             return;
         }
 
-        switch (value.type) {
+        this.executeCommand(value);
+    }
+
+    private executeCommand(command: RemoteGameCommand): void {
+        switch (command.type) {
             case "rollDice":
                 this.rollDice();
                 break;
             case "selectMonster":
-                this.selectMonster(value.monsterId);
+                this.selectMonster(command.monsterId);
                 break;
             case "selectPattern":
-                this.selectPattern(value.index);
+                this.selectPattern(command.index);
                 break;
             case "rotatePattern":
                 this.rotatePattern();
@@ -253,19 +220,19 @@ export class GameScene extends GameSceneInitialization {
                 this.cancelInvocation();
                 break;
             case "storeDie":
-                this.storeDie(value.dieIndex);
+                this.storeDie(command.dieIndex);
                 break;
             case "selectReserveSymbol":
-                this.selectReserveSymbol(value.symbol);
+                this.selectReserveSymbol(command.symbol);
                 break;
             case "convertReserveSymbols":
-                this.chooseReserveConversionTarget(value.targetSymbol);
+                this.chooseReserveConversionTarget(command.targetSymbol);
                 break;
             case "startAttack":
                 this.startAttack();
                 break;
             case "selectAttack":
-                this.selectAttack(value.attackIndex);
+                this.selectAttack(command.attackIndex);
                 break;
             case "startMovement":
                 this.startMovement();
@@ -280,10 +247,10 @@ export class GameScene extends GameSceneInitialization {
                 this.addDebugSymbols();
                 break;
             case "changeCellHeight":
-                this.changeCellHeight(value.delta, value.position);
+                this.changeCellHeight(command.delta, command.position);
                 break;
             case "boardClick":
-                this.tryPlaceMonster(value.position);
+                this.tryPlaceMonster(command.position);
                 break;
         }
     }

@@ -4,9 +4,9 @@ import { getDefaultGameConfiguration } from "../src/game/gameConfiguration";
 import { getInitialAttackCooldowns, getInitialAttackUses } from "../src/game/monsterActions";
 import {
     assignMonsterRoles,
+    createStrategicCellScorer,
     createThreatScores,
     evaluateStrategicState,
-    getStrategicCellScore,
 } from "../src/game/ai";
 import { runCrossProfileTournament, runSimulations } from "../src/simulation/simulator";
 import { createStats, type MatchState } from "../src/simulation/matchState";
@@ -128,9 +128,7 @@ describe("noyau de décision tactique", () => {
         };
         const board = createCustomBoard(7, 7);
 
-        expect(createThreatScores(board, [defender, attacker], defender.id).has("4,3")).toBe(
-            false,
-        );
+        expect(createThreatScores(board, [defender, attacker], defender.id).has("4,3")).toBe(false);
         expect(
             createThreatScores(board, [defender, attacker], defender.id, true).get("4,3"),
         ).toBeGreaterThan(0);
@@ -147,9 +145,8 @@ describe("noyau de décision tactique", () => {
         const starts = getStartingPositions(snapshot.board);
         const perimeter = { x: starts[1].x + 3, y: starts[1].y };
         const farCorner = { x: snapshot.board.width - 1, y: snapshot.board.height - 1 };
-        expect(getStrategicCellScore(snapshot, 1, perimeter)).toBeGreaterThan(
-            getStrategicCellScore(snapshot, 1, farCorner),
-        );
+        const scoreCell = createStrategicCellScorer(snapshot, 1);
+        expect(scoreCell(perimeter)).toBeGreaterThan(scoreCell(farCorner));
     });
 
     it("fait avancer les défenseurs lorsque leur base n’est pas menacée", () => {

@@ -1,6 +1,6 @@
 import { GameSceneCombat } from "./GameSceneCombat";
 import Phaser from "phaser";
-import { getAvailableSymbolCount, storeRemainingDice } from "../game/diceResources";
+import { storeRemainingDice } from "../game/diceResources";
 import { isBoardCell } from "../game/boards";
 import {
     advanceAttackCooldowns,
@@ -15,61 +15,42 @@ import {
     getMonsterMovementPath,
     getMovementRange,
     getMovementActionsPerTurn,
-    getMovementCost,
     type MovementOptions,
 } from "../game/monsterActions";
-import { ACTION_LOG_VISIBLE_COUNT } from "./game/GameHudBase";
+import { ACTION_LOG_VISIBLE_COUNT } from "./game/hudLayout";
 import type { PlacedMonster, Position } from "../types/GameTypes";
 import { applyStatusEffectsAtTurnStart } from "../game/statusEffects";
-import { getMonsterEliminationWinner } from "../game/matchRules";
+import { getMonsterEliminationWinner, opposingPlayer } from "../game/matchRules";
 
 export abstract class GameSceneMovement extends GameSceneCombat {
     protected handleMovementAction(position: Position, monsterId: string | null): void {
         const clickedMonster = this.getLivingMonsterAt(position);
-        if (!monsterId) {
-            if (
-                clickedMonster?.owner === this.currentPlayer &&
-                this.canAffordMovement(clickedMonster)
-            ) {
-                this.actionMode = { type: "movement", monsterId: clickedMonster.id };
-                this.render();
-            }
-            return;
-        }
-
-        const monster = this.getLivingMonster(monsterId);
-        if (!monster || this.monsterSpriteView.isMoving(monster.id)) return;
+        const monster = monsterId ? this.getLivingMonster(monsterId) : undefined;
+        if (monsterId && (!monster || this.monsterSpriteView.isMoving(monster.id))) return;
 
         if (
             clickedMonster?.owner === this.currentPlayer &&
-            clickedMonster.id !== monster.id &&
+            clickedMonster.id !== monster?.id &&
             this.canAffordMovement(clickedMonster)
         ) {
             this.actionMode = { type: "movement", monsterId: clickedMonster.id };
             this.render();
-            return;
+        } else if (monster) {
+            this.moveMonster(monster, position);
         }
+    }
 
-        if (!this.canMoveTo(monster, position)) return;
+    private moveMonster(monster: PlacedMonster, position: Position): void {
+        if (!this.canAffordMovement(monster)) return;
         const path = getMonsterMovementPath(this.getMovementOptions(monster, position));
         if (path.length < 2) return;
-        if (
-            !this.spendCurrentSymbol(
-                "movement",
-                getMovementCost(
-                    monster.monster,
-                    monster.turnBuffs?.movementCostReduction ?? 0,
-                ),
-            )
-        ) {
-            return;
-        }
-        consumeMovementTurnBuff(monster);
-        const camouflageRemoved = clearCamouflageForMovement(monster, path);
-        if (camouflageRemoved) this.monsterSpriteView.clearCamouflage(monster.id);
-        monster.movementsUsedThisTurn++;
+        if (!this.spendCurrentSymbol("movement", this.getMonsterMovementCost(monster))) return;
 
-        const distance = path.length - 1;
+        consumeMovementTurnBuff(monster);
+        if (clearCamouflageForMovement(monster, path)) {
+            this.monsterSpriteView.clearCamouflage(monster.id);
+        }
+        monster.movementsUsedThisTurn++;
         monster.facing = getFacingFromMovement(monster.position, position, monster.facing);
         monster.position = { ...position };
         this.monsterSpriteView.moveMonster(monster.id, path.slice(1), monster.facing, () =>
@@ -79,7 +60,7 @@ export abstract class GameSceneMovement extends GameSceneCombat {
             type: "movement",
             player: this.currentPlayer,
             monsterName: monster.monster.name,
-            distance,
+            distance: path.length - 1,
         });
         if (!this.hasAffordableMovement()) {
             this.actionMode = { type: "idle" };
@@ -88,8 +69,10 @@ export abstract class GameSceneMovement extends GameSceneCombat {
     }
 
     protected canMoveTo(monster: PlacedMonster, destination: Position): boolean {
-        if (!this.canAffordMovement(monster)) return false;
-        return getMonsterMovementPath(this.getMovementOptions(monster, destination)).length > 1;
+        return (
+            this.canAffordMovement(monster) &&
+            getMonsterMovementPath(this.getMovementOptions(monster, destination)).length > 1
+        );
     }
 
     protected canAffordMovement(monster: PlacedMonster): boolean {
@@ -100,15 +83,7 @@ export abstract class GameSceneMovement extends GameSceneCombat {
                 monster.movementsUsedThisTurn,
                 getMovementActionsPerTurn(monster.monster),
             ) &&
-            getMovementCost(
-                monster.monster,
-                monster.turnBuffs?.movementCostReduction ?? 0,
-            ) <=
-                getAvailableSymbolCount(
-                    "movement",
-                    this.rolledDice,
-                    this.diceReserves[this.currentPlayer],
-                )
+            this.getMonsterMovementCost(monster) <= this.getAvailableSymbols("movement")
         );
     }
 
@@ -117,35 +92,18 @@ export abstract class GameSceneMovement extends GameSceneCombat {
     }
 
     protected getMovementOptions(monster: PlacedMonster, destination: Position): MovementOptions {
-        const deployedCells = this.placedMonsters.flatMap((placed) => placed.cells);
-        const occupiedCells = this.placedMonsters
-            .filter((placed) => placed.currentHp > 0 && placed.id !== monster.id)
-            .map((placed) => placed.position);
-        const hostileCells = this.placedMonsters
-            .filter(
-                (placed) =>
-                    placed.currentHp > 0 &&
-                    placed.owner !== monster.owner &&
-                    placed.id !== monster.id,
-            )
-            .map((placed) => placed.position);
-        const startingCells = Object.values(this.startingPositions);
+        const otherLivingMonsters = this.getLivingMonsters().filter(({ id }) => id !== monster.id);
 
         return {
             source: monster.position,
             destination,
-            deployedCells,
-            occupiedCells,
-            blockedCells: [
-                ...startingCells,
-                ...this.board.blockedCells,
-                ...this.obstacles.map(({ position }) => position),
-            ],
-            range: getMovementRange(
-                monster.monster,
-                monster.turnBuffs?.movementRangeBonus ?? 0,
-            ),
-            hostileCells,
+            deployedCells: this.placedMonsters.flatMap((placed) => placed.cells),
+            occupiedCells: otherLivingMonsters.map((placed) => placed.position),
+            blockedCells: [...Object.values(this.startingPositions), ...this.getBlockedCells()],
+            range: this.getMonsterMovementRange(monster),
+            hostileCells: otherLivingMonsters
+                .filter((placed) => placed.owner !== monster.owner)
+                .map((placed) => placed.position),
             canPassHostiles: canPassHostileMonsters(monster.monster),
             canPassUndeployedCells: monster.monster.flying === true,
             boardWidth: this.board.width,
@@ -157,23 +115,21 @@ export abstract class GameSceneMovement extends GameSceneCombat {
         const monster = this.getLivingMonster(monsterId);
         if (!monster) return [];
 
+        const range = this.getMonsterMovementRange(monster);
         const candidates: Position[] = [];
         for (let y = 0; y < this.board.height; y++) {
             for (let x = 0; x < this.board.width; x++) {
-                if (!isBoardCell(this.board, { x, y })) continue;
-                if (
-                    getGridDistance(monster.position, { x, y }) > 0 &&
-                    getGridDistance(monster.position, { x, y }) <=
-                        getMovementRange(
-                            monster.monster,
-                            monster.turnBuffs?.movementRangeBonus ?? 0,
-                        )
-                ) {
+                const distance = getGridDistance(monster.position, { x, y });
+                if (distance > 0 && distance <= range && isBoardCell(this.board, { x, y })) {
                     candidates.push({ x, y });
                 }
             }
         }
         return candidates;
+    }
+
+    private getMonsterMovementRange({ monster, turnBuffs }: PlacedMonster): number {
+        return getMovementRange(monster, turnBuffs?.movementRangeBonus ?? 0);
     }
 
     protected cancelBoardAction(): void {
@@ -198,7 +154,7 @@ export abstract class GameSceneMovement extends GameSceneCombat {
 
     protected endTurn(): void {
         const previousPlayer = this.currentPlayer;
-        this.currentPlayer = previousPlayer === 1 ? 2 : 1;
+        this.currentPlayer = opposingPlayer(previousPlayer);
         this.lockedPreviewCell = null;
         this.hasLeftLockedPreviewBoard = false;
         if (previousPlayer === 2) this.turnNumber++;
