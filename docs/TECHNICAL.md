@@ -245,8 +245,24 @@ rend un ancien rapport incompatible pour le transfert d’entraînement sans aut
 
 Tous les modes d’exécution partagent `TACTICAL_SEARCH_CONFIGURATION` dans
 `src/simulation/combat.ts` : profondeur 2, largeur 5 et budget de 250 nœuds. La profondeur 1 évalue
-l’action immédiate et la réponse adverse; la profondeur 2 ajoute la phase complète suivante. La
-largeur borne les actions conservées à chaque niveau et le budget borne les nœuds évalués.
+l’action immédiate et une attaque de réponse gloutonne; la profondeur 2 ajoute une attaque de la
+phase future et une réponse. `--complete-attack-phases` poursuit gloutonnement les attaques restantes
+des deux côtés dans chaque phase simulée. `--broader-attack-candidates` ajoute au top glouton le
+meilleur candidat de chaque attaquant, un candidat de kill et celui dont l’état résultant est le
+meilleur. Ces options sont désactivées par défaut. `--movement-attack-combos` permet au simulateur
+de préférer un déplacement qui améliore le meilleur score d’attaque immédiatement disponible pour
+le monstre déplacé; l’attaque est résolue aussitôt après ce déplacement, avant les déplacements
+restants. La largeur borne les actions gloutonnes conservées à chaque niveau et le budget borne les
+nœuds évalués. `--next-turn-dice-expectation` remplace la réponse fixe d’une attaque par
+l’espérance sur les résultats possibles des dés de la réponse du prochain tour; leur distribution
+tient compte de la suppression des dés d’invocation lorsque l’armée est complète. Pour borner le
+coût, les phases plus éloignées conservent le modèle d’une attaque. Cette option est désactivée par
+défaut. `--summon-placement-pairs` évalue les monstres admissibles avec leurs placements possibles
+parmi les trois placements les mieux classés par l’heuristique existante, à l’aide de l’évaluation
+stratégique de l’état résultant, puis retient la paire la mieux notée; sans cette option, le choix
+actuel d’invocation et de placement reste inchangé. La shortlist borne le coût de cette expérience.
+Les attaques de score égal sont départagées par identifiant de monstre, index d’attaque, puis
+coordonnées de cible (y, x), pour éviter que le résultat dépende de l’ordre des collections.
 
 Sur 420 matchs reproductibles (seed `731`, profils `balanced` et `defensive`, plateau et
 configuration par défaut), le réglage 5/2/250 a pris 236,8 s contre 283,0 s pour 8/2/600 et
@@ -261,17 +277,19 @@ Le CLI et l’évaluation des stratégies utilisent un pool réutilisable de qua
 maximum, limité au nombre de cœurs disponibles moins un. Les lots couvrent des indices de matchs
 contigus; leurs résultats sont fusionnés dans l’ordre global afin de préserver les identifiants,
 les seeds et les statistiques. `--cross-profile --games N` répartit **N matchs au total** entre
-les 42 confrontations orientées; par exemple, 420 matchs en exécutent 10 par confrontation.
+les `BOT_PROFILES.length * (BOT_PROFILES.length - 1)` confrontations orientées (110 avec les
+11 profils actuels); par exemple, 420 matchs en exécutent 3 ou 4 par confrontation. Le joueur qui
+commence alterne selon la paire et la répétition du match.
 
 Mesure comparative sur Node 21.7.1, Windows, seed `4286584113`, 420 matchs, 30 tours maximum,
 plateau `wide-arena`, configuration historique migrée en v8, historique complet et traces de
 décisions activées; le réglage historique 3/1/120 était utilisé. Le temps affiché exclut la
 sérialisation et l’écriture du JSON.
 
-| Version | Temps des exécutions | Médiane | Gain |
-| --- | --- | --- | --- |
-| Avant optimisation, séquentielle | 554,0 s / 551,1 s / 553,2 s (3 exécutions) | 553,2 s | — |
-| Après optimisation, workers | 211 s / 224 s (2 exécutions) | 217,5 s | 2,54× |
+| Version                          | Temps des exécutions                       | Médiane | Gain  |
+| -------------------------------- | ------------------------------------------ | ------- | ----- |
+| Avant optimisation, séquentielle | 554,0 s / 551,1 s / 553,2 s (3 exécutions) | 553,2 s | —     |
+| Après optimisation, workers      | 211 s / 224 s (2 exécutions)               | 217,5 s | 2,54× |
 
 Les deux exécutions optimisées ont produit les mêmes résultats : 214 victoires J1, 199 victoires
 J2, 7 nulles et 14,65 tours en moyenne. Le JSON complet, avec historique et traces, pesait 69,1 MB.

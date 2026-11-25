@@ -1,3 +1,5 @@
+import { DICE } from "../data/dice";
+import { getRollableDieFaces } from "../game/diceResources";
 import {
     applyMonsterTurnBuff,
     canAttackBaseThisTurn,
@@ -22,7 +24,7 @@ import {
 } from "../game/monsterActions";
 import { getStartingPositions, isBoardCell, type BoardDefinition } from "../game/boards";
 import { evaluateStrategicState, type StrategicSnapshot } from "../game/ai";
-import { getMonsterEliminationWinner } from "../game/matchRules";
+import { getInvokedMonsterCount, getMonsterEliminationWinner } from "../game/matchRules";
 import {
     applyStatusEffectsAtTurnStart,
     clearStatusEffects,
@@ -56,8 +58,47 @@ interface AttackChoice {
     target: Position;
     cells: Position[];
     score: number;
-    features?: TacticalAttackValue;
+    features: TacticalAttackValue;
     isDefaultCandidate: boolean;
+}
+
+export function getAttackDiceCountDistribution(
+    diceCount: number,
+    excludeInvocation: boolean,
+): Array<{ attackDice: number; probability: number }> {
+    if (!Number.isInteger(diceCount) || diceCount < 0 || diceCount > DICE.length) {
+        throw new RangeError(`Le nombre de dés doit être compris entre 0 et ${DICE.length}.`);
+    }
+
+    let probabilities = [1];
+    for (const die of DICE.slice(0, diceCount)) {
+        const faces = getRollableDieFaces(die, excludeInvocation);
+        if (faces.length === 0) throw new Error(`Le dé ${die.id} n’a aucune face disponible.`);
+        const attackProbability = faces.filter((face) => face === "attack").length / faces.length;
+        const nextProbabilities = Array.from({ length: probabilities.length + 1 }, () => 0);
+        for (const [attacks, probability] of probabilities.entries()) {
+            nextProbabilities[attacks]! += probability * (1 - attackProbability);
+            nextProbabilities[attacks + 1]! += probability * attackProbability;
+        }
+        probabilities = nextProbabilities;
+    }
+
+    return probabilities.flatMap((probability, attackDice) =>
+        probability > 0 ? [{ attackDice, probability }] : [],
+    );
+}
+
+function getExpectedAttackDiceOutcomes(
+    state: MatchState,
+    player: PlayerId,
+    includeExpectation = true,
+): Array<{ attackDice: number; probability: number }> {
+    const configuration = state.nextTurnDice;
+    if (!includeExpectation || !configuration) return [{ attackDice: 1, probability: 1 }];
+    const excludeInvocation =
+        configuration.removeInvocationDiceWhenNoMonsters &&
+        getInvokedMonsterCount(state.monsters, player) >= configuration.maxMonstersPerPlayer;
+    return getAttackDiceCountDistribution(configuration.count, excludeInvocation);
 }
 
 function hasJumpLanding(
@@ -196,7 +237,16 @@ function evaluateAttack(
         if (!canDirectlyTargetMonster(attack, victim)) continue;
         if (!canTargetMonsterOwner(attack, victim.owner, state.currentPlayer)) continue;
         if (!canAttackMonster(attacker.monster, attack, victim.monster)) continue;
-        const damage = getAttackDamage(attack, attacker.turnBuffs?.attackDamageBonus ?? 0);
+        const backstab =
+            !isAreaAttack(attack) &&
+            cell.x === target.x &&
+            cell.y === target.y &&
+            victim.owner !== state.currentPlayer &&
+            (attacker.monster.bonusDamageFromBehind ?? 0) > 0 &&
+            isBehind(victim.position, attacker.position, victim.facing);
+        const damage =
+            getAttackDamage(attack, attacker.turnBuffs?.attackDamageBonus ?? 0) +
+            (backstab ? (attacker.monster.bonusDamageFromBehind ?? 0) : 0);
         const effectiveDamage = Math.min(victim.currentHp, damage);
         if (victim.owner === state.currentPlayer) {
             if (attack.hitsAllies) value.friendlyDamage += effectiveDamage;
@@ -260,7 +310,7 @@ function getAttackChoices(
                 attacker,
                 attackIndex,
                 ...option,
-                ...(state.decisionTraces ? { features } : {}),
+                features,
                 isDefaultCandidate: defaultScore > 0,
                 score,
             };
@@ -306,9 +356,15 @@ function getLegalAttackOptions(
     });
 }
 
-function getAvailableAttackChoices(state: MatchState, board: BoardDefinition): AttackChoice[] {
+function getAvailableAttackChoices(
+    state: MatchState,
+    board: BoardDefinition,
+    attackerId?: string,
+    recordStatistics = true,
+): AttackChoice[] {
     const choices: AttackChoice[] = [];
     for (const attacker of getPlayerMonsters(state, state.currentPlayer)) {
+        if (attackerId !== undefined && attacker.id !== attackerId) continue;
         if (
             !canUseActionThisTurn(
                 attacker.attacksUsedThisTurn,
@@ -329,10 +385,31 @@ function getAvailableAttackChoices(state: MatchState, board: BoardDefinition): A
             choices.push(...getAttackChoices(state, board, attacker, attackIndex));
         }
     }
-    state.statistics[state.currentPlayer].positionsExplored += choices.length;
-    state.statistics[state.currentPlayer].branchesExplored += choices.length;
-    choices.sort((first, second) => second.score - first.score);
+    if (recordStatistics) {
+        state.statistics[state.currentPlayer].positionsExplored += choices.length;
+        state.statistics[state.currentPlayer].branchesExplored += choices.length;
+    }
+    choices.sort(
+        (first, second) =>
+            second.score - first.score ||
+            (first.attacker.id < second.attacker.id
+                ? -1
+                : first.attacker.id > second.attacker.id
+                  ? 1
+                  : 0) ||
+            first.attackIndex - second.attackIndex ||
+            first.target.y - second.target.y ||
+            first.target.x - second.target.x,
+    );
     return choices;
+}
+
+export function getBestAvailableAttackScore(
+    state: MatchState,
+    board: BoardDefinition,
+    attackerId: string,
+): number {
+    return getAvailableAttackChoices(state, board, attackerId, false)[0]?.score ?? 0;
 }
 
 export function getLegalAttackCosts(state: MatchState, board: BoardDefinition): number[] {
@@ -417,13 +494,88 @@ function createStrategicSnapshot(
     };
 }
 
+function getTacticalSearchCandidates(
+    state: MatchState,
+    board: BoardDefinition,
+    rootPlayer: PlayerId,
+    choices: readonly AttackChoice[],
+    branchWidth: number,
+): AttackChoice[] {
+    if (!state.broaderAttackCandidates) return choices.slice(0, branchWidth);
+
+    const candidates: AttackChoice[] = [];
+    const included = new Set<string>();
+    const addCandidate = (choice: AttackChoice | undefined) => {
+        if (!choice) return;
+        const key = [
+            choice.attacker.id,
+            choice.attackIndex,
+            choice.target.x,
+            choice.target.y,
+            choice.cells.map(({ x, y }) => `${x},${y}`).join(";"),
+        ].join(":");
+        if (included.has(key)) return;
+        included.add(key);
+        candidates.push(choice);
+    };
+
+    choices.slice(0, branchWidth).forEach(addCandidate);
+    const bestByAttacker = new Map<string, AttackChoice>();
+    for (const choice of choices) {
+        if (!bestByAttacker.has(choice.attacker.id)) {
+            bestByAttacker.set(choice.attacker.id, choice);
+        }
+    }
+    for (const choice of bestByAttacker.values()) addCandidate(choice);
+
+    const bestKill = choices.reduce<AttackChoice | undefined>((best, choice) => {
+        if (choice.features.kills === 0) return best;
+        return !best ||
+            choice.features.kills > best.features.kills ||
+            (choice.features.kills === best.features.kills && choice.score > best.score)
+            ? choice
+            : best;
+    }, undefined);
+    addCandidate(bestKill);
+
+    let bestStrategicChoice: AttackChoice | undefined;
+    let bestStrategicScore = Number.NEGATIVE_INFINITY;
+    for (const choice of choices) {
+        const branch = cloneMatchState(state);
+        const attacker = branch.monsters.find((monster) => monster.id === choice.attacker.id);
+        if (!attacker) continue;
+        executeAttack(branch, board, {
+            ...choice,
+            attacker,
+            target: { ...choice.target },
+            cells: choice.cells.map((cell) => ({ ...cell })),
+        });
+        const score =
+            branch.winner === rootPlayer
+                ? 100_000
+                : evaluateStrategicState(createStrategicSnapshot(branch, board, rootPlayer));
+        if (score > bestStrategicScore) {
+            bestStrategicChoice = choice;
+            bestStrategicScore = score;
+        }
+    }
+    addCandidate(bestStrategicChoice);
+    return candidates;
+}
+
 interface TacticalSearchState {
     nodes: number;
     maxDepth: number;
     cache: Map<string, number>;
 }
 
-function createSearchCacheKey(state: MatchState, player: PlayerId): string {
+function createSearchCacheKey(
+    state: MatchState,
+    player: PlayerId,
+    phasesRemaining: number,
+    currentDepth: number,
+    branchWidth: number,
+): string {
     const monsters = state.monsters
         .map((monster) =>
             [
@@ -455,6 +607,9 @@ function createSearchCacheKey(state: MatchState, player: PlayerId): string {
         state.health[2],
         state.reserves[1].attack,
         state.reserves[2].attack,
+        phasesRemaining,
+        currentDepth,
+        branchWidth,
         monsters,
     ].join(":");
 }
@@ -475,13 +630,25 @@ function searchFutureAttackPhases(
     }
     searchState.maxDepth = Math.max(searchState.maxDepth, currentDepth);
 
-    const cacheKey = createSearchCacheKey(state, rootPlayer);
+    const cacheKey = createSearchCacheKey(
+        state,
+        rootPlayer,
+        phasesRemaining,
+        currentDepth,
+        branchWidth,
+    );
     const cached = searchState.cache.get(cacheKey);
     if (cached !== undefined) return cached;
 
     const player = state.currentPlayer;
     const opponent = opposingPlayer(player);
-    const choices = getAvailableAttackChoices(state, board).slice(0, branchWidth);
+    const choices = getTacticalSearchCandidates(
+        state,
+        board,
+        rootPlayer,
+        getAvailableAttackChoices(state, board),
+        branchWidth,
+    );
     if (choices.length === 0) {
         const score =
             evaluateStrategicState(createStrategicSnapshot(state, board, rootPlayer)) - baseline;
@@ -490,8 +657,12 @@ function searchFutureAttackPhases(
     }
 
     let best = Number.NEGATIVE_INFINITY;
+    let budgetExhausted = false;
     for (const candidate of choices) {
-        if (searchState.nodes >= nodeBudget) break;
+        if (searchState.nodes >= nodeBudget) {
+            budgetExhausted = true;
+            break;
+        }
         searchState.nodes++;
         state.statistics[player].searchNodes++;
         const branch = cloneMatchState(state);
@@ -503,6 +674,9 @@ function searchFutureAttackPhases(
             target: { ...candidate.target },
             cells: candidate.cells.map((cell) => ({ ...cell })),
         });
+        if (branch.winner === null && state.completeAttackPhases) {
+            continueGreedyAttackPhase(branch, board);
+        }
         if (branch.winner === rootPlayer) {
             best = Math.max(best, 100_000);
             continue;
@@ -512,50 +686,53 @@ function searchFutureAttackPhases(
             continue;
         }
 
-        prepareOpponentReply(branch, opponent);
-        const reply = chooseAttackWithoutSearch(branch, board);
-        if (reply) executeAttack(branch, board, reply);
-        if (branch.winner === rootPlayer) {
-            best = Math.max(best, 100_000);
-            continue;
-        }
-        if (branch.winner === opposingPlayer(rootPlayer)) {
-            best = Math.max(best, -100_000);
-            continue;
-        }
+        let expectedScore = 0;
+        for (const opponentOutcome of getExpectedAttackDiceOutcomes(branch, opponent, false)) {
+            const reply = cloneMatchState(branch);
+            prepareOpponentReply(reply, opponent, opponentOutcome.attackDice);
+            simulateOpponentAttackPhase(reply, board);
 
-        let score =
-            evaluateStrategicState(createStrategicSnapshot(branch, board, rootPlayer)) -
-            baseline +
-            candidate.score * 0.05;
-        if (phasesRemaining > 1) {
-            prepareOpponentReply(branch, player);
-            score = searchFutureAttackPhases(
-                branch,
-                board,
-                rootPlayer,
-                phasesRemaining - 1,
-                currentDepth + 1,
-                branchWidth,
-                nodeBudget,
-                searchState,
-                baseline,
-            );
+            let outcomeScore: number;
+            if (reply.winner === rootPlayer) {
+                outcomeScore = 100_000;
+            } else if (reply.winner === opposingPlayer(rootPlayer)) {
+                outcomeScore = -100_000;
+            } else if (phasesRemaining > 1) {
+                const nextPhase = cloneMatchState(reply);
+                prepareOpponentReply(nextPhase, player);
+                outcomeScore = searchFutureAttackPhases(
+                    nextPhase,
+                    board,
+                    rootPlayer,
+                    phasesRemaining - 1,
+                    currentDepth + 1,
+                    branchWidth,
+                    nodeBudget,
+                    searchState,
+                    baseline,
+                );
+            } else {
+                outcomeScore =
+                    evaluateStrategicState(createStrategicSnapshot(reply, board, rootPlayer)) -
+                    baseline +
+                    candidate.score * 0.05;
+            }
+            expectedScore += opponentOutcome.probability * outcomeScore;
         }
-        best = Math.max(best, score);
+        best = Math.max(best, expectedScore);
     }
 
     const result =
         best === Number.NEGATIVE_INFINITY
             ? evaluateStrategicState(createStrategicSnapshot(state, board, rootPlayer)) - baseline
             : best;
-    searchState.cache.set(cacheKey, result);
+    if (!budgetExhausted) searchState.cache.set(cacheKey, result);
     return result;
 }
 
-function prepareOpponentReply(state: MatchState, player: PlayerId): void {
+function prepareOpponentReply(state: MatchState, player: PlayerId, attackDice: number = 1): void {
     state.currentPlayer = player;
-    state.reserves[player].attack++;
+    state.reserves[player].attack += attackDice;
     for (const monster of state.monsters) {
         if (monster.owner !== player || monster.currentHp <= 0) continue;
         monster.attacksUsedThisTurn = 0;
@@ -573,10 +750,7 @@ function chooseAttack(state: MatchState, board: BoardDefinition): AttackChoice |
     if (choices.length === 1) return recordAttackDecision(state, choices, bestChoice);
 
     const player = state.currentPlayer;
-    if (
-        state.profiles[player] === "random" ||
-        state.profiles[player] === "random-strategy"
-    ) {
+    if (state.profiles[player] === "random" || state.profiles[player] === "random-strategy") {
         const random = state.actionRandom?.[player]?.() ?? 0;
         const index = Math.min(
             choices.length - 1,
@@ -598,7 +772,7 @@ function chooseAttack(state: MatchState, board: BoardDefinition): AttackChoice |
         );
     };
     const baseline = evaluateStrategicState(createStrategicSnapshot(state, board, player));
-    const candidates = choices.slice(0, branchWidth);
+    const candidates = getTacticalSearchCandidates(state, board, player, choices, branchWidth);
     state.statistics[player].positionsExplored += candidates.length;
     state.statistics[player].searchDecisions++;
     state.statistics[player].branchesExplored += candidates.length;
@@ -619,6 +793,9 @@ function chooseAttack(state: MatchState, board: BoardDefinition): AttackChoice |
             target: { ...candidate.target },
             cells: candidate.cells.map((cell) => ({ ...cell })),
         });
+        if (branch.winner === null && state.completeAttackPhases) {
+            continueGreedyAttackPhase(branch, board);
+        }
         if (branch.winner === player) {
             recordSearchStatistics();
             if (
@@ -630,45 +807,42 @@ function chooseAttack(state: MatchState, board: BoardDefinition): AttackChoice |
             return recordAttackDecision(state, choices, candidate);
         }
 
-        if (branch.winner === null) {
-            prepareOpponentReply(branch, opponent);
-            const exploredBeforeReply = branch.statistics[opponent].positionsExplored;
-            const reply = chooseAttackWithoutSearch(branch, board);
+        let score = 0;
+        for (const opponentOutcome of getExpectedAttackDiceOutcomes(branch, opponent)) {
+            const reply = cloneMatchState(branch);
+            prepareOpponentReply(reply, opponent, opponentOutcome.attackDice);
+            const exploredBeforeReply = reply.statistics[opponent].positionsExplored;
+            simulateOpponentAttackPhase(reply, board);
             const replyPositionsExplored =
-                branch.statistics[opponent].positionsExplored - exploredBeforeReply;
+                reply.statistics[opponent].positionsExplored - exploredBeforeReply;
             state.statistics[player].positionsExplored += replyPositionsExplored;
             state.statistics[player].branchesExplored += replyPositionsExplored;
-            if (reply) executeAttack(branch, board, reply);
-        }
-        if (branch.winner === player) {
-            recordSearchStatistics();
-            if (
-                candidate.attacker.id !== bestChoice.attacker.id ||
-                candidate.attackIndex !== bestChoice.attackIndex
-            ) {
-                state.statistics[player].decisionsChangedBySearch++;
-            }
-            return recordAttackDecision(state, choices, candidate);
-        }
-        if (branch.winner === opponent) continue;
 
-        let score =
-            evaluateStrategicState(createStrategicSnapshot(branch, board, player)) -
-            baseline +
-            candidate.score * 0.1;
-        if (searchDepth > 1) {
-            prepareOpponentReply(branch, player);
-            score = searchFutureAttackPhases(
-                branch,
-                board,
-                player,
-                searchDepth - 1,
-                2,
-                branchWidth,
-                nodeBudget,
-                searchState,
-                baseline,
-            );
+            let outcomeScore: number;
+            if (reply.winner === player) {
+                outcomeScore = 100_000;
+            } else if (reply.winner === opponent) {
+                outcomeScore = -100_000;
+            } else if (searchDepth > 1) {
+                prepareOpponentReply(reply, player);
+                outcomeScore = searchFutureAttackPhases(
+                    reply,
+                    board,
+                    player,
+                    searchDepth - 1,
+                    2,
+                    branchWidth,
+                    nodeBudget,
+                    searchState,
+                    baseline,
+                );
+            } else {
+                outcomeScore =
+                    evaluateStrategicState(createStrategicSnapshot(reply, board, player)) -
+                    baseline +
+                    candidate.score * 0.1;
+            }
+            score += opponentOutcome.probability * outcomeScore;
         }
         if (score > selectedScore) {
             selected = candidate;
@@ -696,9 +870,6 @@ function recordAttackDecision(
 ): AttackChoice {
     if (state.decisionTraces) {
         const candidates = choices.map((choice) => {
-            if (!choice.features) {
-                throw new Error("Caractéristiques de décision absentes pendant l’enregistrement.");
-            }
             return {
                 attackerMonsterId: choice.attacker.monster.id,
                 attackIndex: choice.attackIndex,
@@ -720,6 +891,23 @@ function recordAttackDecision(
 
 function chooseAttackWithoutSearch(state: MatchState, board: BoardDefinition): AttackChoice | null {
     return getAvailableAttackChoices(state, board)[0] ?? null;
+}
+
+function continueGreedyAttackPhase(state: MatchState, board: BoardDefinition): void {
+    while (state.winner === null) {
+        const choice = chooseAttackWithoutSearch(state, board);
+        if (!choice) return;
+        executeAttack(state, board, choice);
+    }
+}
+
+function simulateOpponentAttackPhase(state: MatchState, board: BoardDefinition): void {
+    if (state.completeAttackPhases) {
+        continueGreedyAttackPhase(state, board);
+        return;
+    }
+    const reply = chooseAttackWithoutSearch(state, board);
+    if (reply) executeAttack(state, board, reply);
 }
 
 function applyStatusEffect(
@@ -927,9 +1115,7 @@ function executeAttack(state: MatchState, board: BoardDefinition, choice: Attack
             (attacker.monster.bonusDamageFromBehind ?? 0) > 0 &&
             isBehind(targetMonster.position, attacker.position, targetMonster.facing);
         criticalDamageBonus = backstab ? (attacker.monster.bonusDamageFromBehind ?? 0) : 0;
-        const damage =
-            getAttackDamage(attack, attackDamageBonus) +
-            criticalDamageBonus;
+        const damage = getAttackDamage(attack, attackDamageBonus) + criticalDamageBonus;
         const damageBeforeHit = targetMonster.currentHp;
         if (targetMonster.isCamouflaged) {
             targetMonster.isCamouflaged = false;

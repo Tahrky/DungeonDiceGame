@@ -100,6 +100,20 @@ function createMatch(
         currentPlayer: startingPlayer,
         debug: options.debug ?? false,
         protectFirstDeployment: configuration.protectFirstDeployment,
+        ...(options.completeAttackPhases ? { completeAttackPhases: true } : {}),
+        ...(options.broaderAttackCandidates ? { broaderAttackCandidates: true } : {}),
+        ...(options.movementAttackCombos ? { movementAttackCombos: true } : {}),
+        ...(options.summonPlacementPairs ? { summonPlacementPairs: true } : {}),
+        ...(options.nextTurnDiceExpectation
+            ? {
+                  nextTurnDice: {
+                      count: configuration.diceCount,
+                      removeInvocationDiceWhenNoMonsters:
+                          configuration.removeInvocationDiceWhenNoMonsters,
+                      maxMonstersPerPlayer: configuration.maxMonstersPerPlayer,
+                  },
+              }
+            : {}),
         strategyWeights,
         ...(options.recordDecisionTraces ? { decisionTraces: [] } : {}),
         profiles,

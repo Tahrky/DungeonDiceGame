@@ -3,6 +3,7 @@ import { getStartingPositions, createCustomBoard } from "../src/game/boards";
 import { getDefaultGameConfiguration } from "../src/game/gameConfiguration";
 import { getInitialAttackCooldowns, getInitialAttackUses } from "../src/game/monsterActions";
 import {
+    getAttackDiceCountDistribution,
     performAttacks,
     TACTICAL_SEARCH_CONFIGURATION,
 } from "../src/simulation/combat";
@@ -55,6 +56,22 @@ function createMatchState(allowBaseAttackOnSummonTurn: boolean): MatchState {
 }
 
 describe("combat de simulation", () => {
+    it("pondère les comptes de dés d’attaque selon les faces réellement disponibles", () => {
+        const standardDice = getAttackDiceCountDistribution(6, false);
+        const invocationExcludedDice = getAttackDiceCountDistribution(6, true);
+        const expectedAttacks = (outcomes: typeof standardDice): number =>
+            outcomes.reduce(
+                (total, outcome) => total + outcome.attackDice * outcome.probability,
+                0,
+            );
+
+        expect(expectedAttacks(standardDice)).toBeCloseTo(2);
+        expect(expectedAttacks(invocationExcludedDice)).toBeCloseTo(4);
+        expect(standardDice[0]?.probability).toBeCloseTo((2 / 3) ** 6);
+        expect(invocationExcludedDice[0]?.probability).toBeCloseTo((1 / 3) ** 6);
+        expect(standardDice.reduce((sum, outcome) => sum + outcome.probability, 0)).toBeCloseTo(1);
+    });
+
     it("autorise ou bloque l’attaque de la base au tour d’apparition selon la configuration", () => {
         const board = createCustomBoard(7, 7);
         const allowed = createMatchState(true);
@@ -152,5 +169,221 @@ describe("combat de simulation", () => {
             TACTICAL_SEARCH_CONFIGURATION.depth,
         );
         expect(TACTICAL_SEARCH_CONFIGURATION.branchWidth).toBeGreaterThan(3);
+    });
+
+    it("reconnaît le kill d’une attaque dans le dos dans les caractéristiques évaluées", () => {
+        const board = createCustomBoard(7, 7);
+        const state = createMatchState(true);
+        const configuration = getDefaultGameConfiguration();
+        const thief = configuration.monsters.find((monster) => monster.id === "thief");
+        const ghost = state.monsters[0]!;
+        if (!thief) throw new Error("Voleur de test introuvable.");
+
+        const attackerPosition = { x: 3, y: 3 };
+        const targetPosition = { x: 4, y: 3 };
+        state.monsters[0] = {
+            ...ghost,
+            monster: thief,
+            position: attackerPosition,
+            facing: "east",
+            cells: [attackerPosition],
+        };
+        state.monsters.push({
+            ...ghost,
+            id: "durable-enemy",
+            owner: 2,
+            monster: { ...ghost.monster, hp: 6 },
+            position: targetPosition,
+            facing: "east",
+            currentHp: 6,
+            cells: [targetPosition],
+        });
+        state.reserves[1].attack = 1;
+        state.decisionTraces = [];
+
+        performAttacks(state, board);
+
+        expect(state.monsters[1]?.currentHp).toBeLessThanOrEqual(0);
+        expect(state.decisionTraces[0]?.candidates[0]?.features.kills).toBe(1);
+        expect(state.history.find((event) => event.type === "attack")?.criticalDamageBonus).toBe(3);
+    });
+
+    it("achève une cible avec deux attaques disponibles dans la même phase", () => {
+        const board = createCustomBoard(7, 7);
+        const state = createMatchState(true);
+        const attacker = state.monsters[0]!;
+        const position = { x: 3, y: 3 };
+        const comboMonster = {
+            ...attacker.monster,
+            hp: 6,
+            attackActionsPerTurn: 2,
+            attacks: [
+                {
+                    name: "Première frappe",
+                    damage: 3,
+                    cost: 1,
+                    pattern: { type: "adjacent" as const },
+                },
+                {
+                    name: "Seconde frappe",
+                    damage: 3,
+                    cost: 1,
+                    pattern: { type: "adjacent" as const },
+                },
+            ],
+        };
+        const targetPosition = { x: 4, y: 3 };
+        state.monsters[0] = {
+            ...attacker,
+            monster: comboMonster,
+            position,
+            cells: [position],
+            attackUsesThisTurn: [0, 0],
+            attackCooldowns: [0, 0],
+        };
+        state.monsters.push({
+            ...attacker,
+            id: "combo-target",
+            owner: 2,
+            monster: { ...attacker.monster, hp: 6 },
+            position: targetPosition,
+            facing: "west",
+            currentHp: 6,
+            cells: [targetPosition],
+        });
+        state.reserves[1].attack = 2;
+        state.completeAttackPhases = true;
+
+        performAttacks(state, board);
+
+        expect(state.monsters[1]?.currentHp).toBeLessThanOrEqual(0);
+        expect(state.statistics[1].attacks).toBe(2);
+        expect(state.statistics[1].monstersKilled).toBe(1);
+    });
+
+    it("préfère une attaque de valeur égale qui n’expose pas son attaquant", () => {
+        const board = createCustomBoard(7, 7);
+        const state = createMatchState(true);
+        const attacker = state.monsters[0]!;
+        const position = { x: 3, y: 3 };
+        const sturdyGhost = { ...attacker.monster, hp: 8 };
+        state.monsters[0] = {
+            ...attacker,
+            monster: sturdyGhost,
+            position,
+            currentHp: 8,
+            cells: [position],
+        };
+
+        for (const [id, target] of [
+            ["north-target", { x: 3, y: 2 }],
+            ["east-target", { x: 4, y: 3 }],
+        ] as const) {
+            state.monsters.push({
+                ...attacker,
+                id,
+                owner: 2,
+                monster: sturdyGhost,
+                position: target,
+                currentHp: 8,
+                cells: [target],
+            });
+        }
+
+        const threatMonster = {
+            ...sturdyGhost,
+            highAltitude: true,
+            bonusDamageFromBehind: 3,
+            attacks: [
+                {
+                    name: "Frappe arrière",
+                    damage: 2,
+                    cost: 1,
+                    pattern: { type: "adjacent" as const },
+                },
+            ],
+        };
+        const adjacentThreatPosition = { x: 3, y: 4 };
+        state.monsters.push({
+            ...attacker,
+            id: "rear-threat",
+            owner: 2,
+            monster: threatMonster,
+            position: adjacentThreatPosition,
+            facing: "north",
+            currentHp: 8,
+            cells: [adjacentThreatPosition],
+        });
+        state.reserves[1].attack = 2;
+        state.reserves[2].attack = 1;
+        state.decisionTraces = [];
+
+        performAttacks(state, board);
+
+        const firstDecision = state.decisionTraces[0];
+        const selected = firstDecision?.candidates[firstDecision.selectedIndex];
+        expect(selected?.target).toEqual({ x: 4, y: 3 });
+    });
+
+    it("ajoute le meilleur candidat de chaque attaquant quand l’élargissement est activé", () => {
+        const board = createCustomBoard(9, 9);
+        const positions = [
+            { x: 1, y: 1 },
+            { x: 2, y: 1 },
+            { x: 1, y: 2 },
+            { x: 7, y: 7 },
+            { x: 6, y: 7 },
+            { x: 7, y: 6 },
+            { x: 4, y: 1 },
+        ];
+        const createState = (broaderAttackCandidates: boolean): MatchState => {
+            const state = createMatchState(true);
+            const template = state.monsters[0]!;
+            const rangedMonster = {
+                ...template.monster,
+                attacks: [
+                    {
+                        ...template.monster.attacks[0]!,
+                        damage: 2,
+                        cost: 1,
+                        pattern: { type: "radius" as const, range: 5 },
+                    },
+                ],
+            };
+            const targetPosition = { x: 4, y: 4 };
+            state.monsters = [
+                ...positions.map((position, index) => ({
+                    ...template,
+                    id: `ranged-${index}`,
+                    monster: rangedMonster,
+                    position,
+                    facing: "east" as const,
+                    cells: [position],
+                    attackUsesThisTurn: [0],
+                    attackCooldowns: [0],
+                })),
+                {
+                    ...template,
+                    id: "shared-target",
+                    owner: 2 as const,
+                    monster: { ...template.monster, hp: 8 },
+                    position: targetPosition,
+                    currentHp: 8,
+                    cells: [targetPosition],
+                },
+            ];
+            state.reserves[1].attack = 1;
+            state.broaderAttackCandidates = broaderAttackCandidates;
+            return state;
+        };
+        const topFiveState = createState(false);
+        const broaderState = createState(true);
+
+        performAttacks(topFiveState, board);
+        performAttacks(broaderState, board);
+
+        expect(broaderState.statistics[1].searchNodes).toBeGreaterThan(
+            topFiveState.statistics[1].searchNodes,
+        );
     });
 });

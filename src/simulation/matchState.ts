@@ -6,6 +6,7 @@ import { getInvokedMonsterCount } from "../game/matchRules";
 import {
     createInitialDeploymentProtection,
     findValidPlacement,
+    findValidPlacements,
     hasValidPlacement,
     type PlacementSearchOptions,
 } from "../game/placement";
@@ -31,13 +32,26 @@ import type {
     SimulationEvent,
     TacticalDecisionTrace,
 } from "./types";
-import { createStrategicCellScorer, type StrategicSnapshot } from "../game/ai";
+import {
+    createStrategicCellScorer,
+    evaluateStrategicState,
+    type StrategicSnapshot,
+} from "../game/ai";
 
 export interface MatchState {
     turn: number;
     currentPlayer: PlayerId;
     debug?: boolean;
     protectFirstDeployment?: boolean;
+    completeAttackPhases?: boolean;
+    broaderAttackCandidates?: boolean;
+    movementAttackCombos?: boolean;
+    summonPlacementPairs?: boolean;
+    nextTurnDice?: {
+        count: number;
+        removeInvocationDiceWhenNoMonsters: boolean;
+        maxMonstersPerPlayer: number;
+    };
     strategyWeights?: Record<PlayerId, Readonly<BotStrategyWeights>>;
     decisionTraces?: TacticalDecisionTrace[];
     profiles: Record<PlayerId, BotProfile>;
@@ -59,6 +73,8 @@ export interface MatchState {
     monstersKilledForVictory: number;
     actionRandom?: Record<PlayerId, () => number>;
 }
+
+const SUMMON_PAIR_PLACEMENT_CANDIDATES = 3;
 
 export function createStats(): PlayerSimulationStats {
     return {
@@ -218,9 +234,7 @@ function createPlacementSearchContext(
             board.width,
             board.height,
             opponent,
-            ...board.blockedCells
-                .map(({ x, y }) => `${x},${y}`)
-                .sort(),
+            ...board.blockedCells.map(({ x, y }) => `${x},${y}`).sort(),
             "|",
             ...occupiedCells.map(({ x, y }) => `${x},${y}`).sort(),
         ].join(";");
@@ -243,8 +257,7 @@ function createPlacementSearchContext(
                 delete state.placementProtectionCache;
             }
         }
-        const preservesFirstDeployment =
-            state.placementProtectionCache?.preservesFirstDeployment;
+        const preservesFirstDeployment = state.placementProtectionCache?.preservesFirstDeployment;
         if (preservesFirstDeployment) {
             isPlacementAllowed = (position, cells) =>
                 (baseOptions.isPlacementAllowed?.(position, cells) ?? true) &&
@@ -260,16 +273,95 @@ function createPlacementSearchContext(
     };
 }
 
+function createStrategicSnapshot(
+    state: MatchState,
+    board: BoardDefinition,
+    player: PlayerId,
+): StrategicSnapshot {
+    return {
+        board,
+        health: { ...state.health },
+        initialHealth: Math.max(state.health[1], state.health[2], 1),
+        monsters: state.monsters,
+        reserves: {
+            1: { ...state.reserves[1] },
+            2: { ...state.reserves[2] },
+        },
+        profile: state.profiles[player],
+        tactics: { ...state.tactics },
+        currentPlayer: player,
+        turn: state.turn,
+    };
+}
+
+function createSummonedMonsterCandidate(
+    state: MatchState,
+    player: PlayerId,
+    monster: Monster,
+    placement: { position: Position; cells: readonly Position[] },
+): PlacedMonster {
+    return {
+        id: `m${state.nextMonsterId}`,
+        monster,
+        owner: player,
+        position: placement.position,
+        facing: player === 1 ? "east" : "west",
+        currentHp: monster.hp,
+        cells: [...placement.cells],
+        summonedOnTurn: state.turn,
+        attacksUsedThisTurn: 0,
+        attackUsesThisTurn: getInitialAttackUses(monster),
+        movementsUsedThisTurn: 0,
+        attackCooldowns: getInitialAttackCooldowns(monster),
+        statusEffects: [],
+        isCamouflaged: false,
+    };
+}
+
+function evaluateSummonPlacement(
+    state: MatchState,
+    player: PlayerId,
+    monster: Monster,
+    placement: { position: Position; cells: readonly Position[] },
+    snapshot: StrategicSnapshot,
+): number {
+    const reserves = {
+        1: { ...state.reserves[1] },
+        2: { ...state.reserves[2] },
+    };
+    reserves[player].invocation -= monster.cost;
+    return evaluateStrategicState({
+        ...snapshot,
+        monsters: [
+            ...state.monsters,
+            createSummonedMonsterCandidate(state, player, monster, placement),
+        ],
+        reserves,
+    });
+}
+
 function findPlacement(
     state: MatchState,
     board: BoardDefinition,
     player: PlayerId,
 ): { position: Position; cells: Position[] } | null {
-    const { starts, ownCells, enemyPositions, options } = createPlacementSearchContext(
+    const context = createPlacementSearchContext(state, board, player);
+    const scorePlacement = createPlacementScorer(state, board, player, context);
+    const { options } = context;
+    return findValidPlacement({ ...options, scorePlacement });
+}
+
+function createPlacementScorer(
+    state: MatchState,
+    board: BoardDefinition,
+    player: PlayerId,
+    context: ReturnType<typeof createPlacementSearchContext> = createPlacementSearchContext(
         state,
         board,
         player,
-    );
+    ),
+): NonNullable<PlacementSearchOptions["scorePlacement"]> {
+    const { starts, ownCells, enemyPositions } = context;
     const opponent = opposingPlayer(player);
     const expansionObjective = chooseBotObjective(
         state.tactics[player],
@@ -308,34 +400,55 @@ function findPlacement(
                   weights,
               )
             : () => 0;
-    const snapshot: StrategicSnapshot = {
-        board,
-        health: { ...state.health },
-        initialHealth: Math.max(state.health[1], state.health[2], 1),
-        monsters: state.monsters,
-        reserves: {
-            1: { ...state.reserves[1] },
-            2: { ...state.reserves[2] },
-        },
-        profile: state.profiles[player],
-        tactics: { ...state.tactics },
-        currentPlayer: player,
-        turn: state.turn,
-    };
+    const snapshot = createStrategicSnapshot(state, board, player);
     const strategicCellScore = createStrategicCellScorer(snapshot, player);
-    return findValidPlacement({
-        ...options,
-        scorePlacement: (position, cells) => {
-            return (
-                territoryExpansionScore(cells) * weights.territoryExpansion +
-                (state.tactics[player] === "defense" || state.tactics[player] === "hunt"
-                    ? defensivePlacementScore(position) * weights.defensivePlacement
-                    : 0) +
-                pathBlockadeScore(cells) * weights.pathBlockade +
-                strategicCellScore(position) * 0.5 * weights.strategicPlacement
-            );
-        },
-    });
+    return (position, cells) =>
+        territoryExpansionScore(cells) * weights.territoryExpansion +
+        (state.tactics[player] === "defense" || state.tactics[player] === "hunt"
+            ? defensivePlacementScore(position) * weights.defensivePlacement
+            : 0) +
+        pathBlockadeScore(cells) * weights.pathBlockade +
+        strategicCellScore(position) * 0.5 * weights.strategicPlacement;
+}
+
+function findBestSummonPlacementPair(
+    state: MatchState,
+    board: BoardDefinition,
+    player: PlayerId,
+    monsters: readonly Monster[],
+): { monster: Monster; placement: { position: Position; cells: Position[] } } | null {
+    const context = createPlacementSearchContext(state, board, player);
+    const scorePlacement = createPlacementScorer(state, board, player, context);
+    const { options } = context;
+    const placements = findValidPlacements(options)
+        .map((placement) => ({
+            ...placement,
+            score: scorePlacement(placement.position, placement.cells),
+        }))
+        .sort(
+            (first, second) =>
+                second.score - first.score ||
+                first.position.y - second.position.y ||
+                first.position.x - second.position.x,
+        )
+        .slice(0, SUMMON_PAIR_PLACEMENT_CANDIDATES);
+    if (placements.length === 0) return null;
+
+    const snapshot = createStrategicSnapshot(state, board, player);
+    let bestPair: {
+        monster: Monster;
+        placement: { position: Position; cells: Position[] };
+    } | null = null;
+    let bestStrategicScore = Number.NEGATIVE_INFINITY;
+    for (const monster of monsters) {
+        for (const placement of placements) {
+            const score = evaluateSummonPlacement(state, player, monster, placement, snapshot);
+            if (score <= bestStrategicScore) continue;
+            bestStrategicScore = score;
+            bestPair = { monster, placement };
+        }
+    }
+    return bestPair;
 }
 
 export function hasAvailablePlacement(
@@ -388,8 +501,10 @@ export function deployMonsters(
             configuration.maxMonstersPerPlayer &&
         state.winner === null
     ) {
-        const placement = findPlacement(state, board, state.currentPlayer);
-        if (!placement) return;
+        const placement = state.summonPlacementPairs
+            ? null
+            : findPlacement(state, board, state.currentPlayer);
+        if (!state.summonPlacementPairs && !placement) return;
         const summonedByMonster = state.statistics[state.currentPlayer].summonedByMonster;
         const deployedCosts = state.monsters
             .filter((monster) => monster.owner === state.currentPlayer)
@@ -406,7 +521,9 @@ export function deployMonsters(
             const firstCount = summonedByMonster[first.id] ?? 0;
             const secondCount = summonedByMonster[second.id] ?? 0;
             const firstSupport = first.attacks.filter((attack) => attack.targetsAlliesOnly).length;
-            const secondSupport = second.attacks.filter((attack) => attack.targetsAlliesOnly).length;
+            const secondSupport = second.attacks.filter(
+                (attack) => attack.targetsAlliesOnly,
+            ).length;
             const swarmPenalty = profile === "cheap" ? 3 : 2;
             const diversityPenalty =
                 (firstSupport === 0 ? 0 : firstSupport * 4) +
@@ -437,25 +554,33 @@ export function deployMonsters(
                       return shuffled;
                   })()
                 : strategicChoices;
-        const monster = choices[0];
-        if (!monster || !spend(state, state.currentPlayer, "invocation", monster.cost)) return;
+        let monster = choices[0];
+        let selectedPlacement = placement;
+        if (state.summonPlacementPairs && monster) {
+            const bestPair = findBestSummonPlacementPair(
+                state,
+                board,
+                state.currentPlayer,
+                choices,
+            );
+            if (!bestPair) return;
+            monster = bestPair.monster;
+            selectedPlacement = bestPair.placement;
+        }
+        if (
+            !monster ||
+            !selectedPlacement ||
+            !spend(state, state.currentPlayer, "invocation", monster.cost)
+        )
+            return;
 
-        const placed: PlacedMonster = {
-            id: `m${state.nextMonsterId++}`,
+        const placed = createSummonedMonsterCandidate(
+            state,
+            state.currentPlayer,
             monster,
-            owner: state.currentPlayer,
-            position: placement.position,
-            facing: state.currentPlayer === 1 ? "east" : "west",
-            currentHp: monster.hp,
-            cells: placement.cells,
-            summonedOnTurn: state.turn,
-            attacksUsedThisTurn: 0,
-            attackUsesThisTurn: getInitialAttackUses(monster),
-            movementsUsedThisTurn: 0,
-            attackCooldowns: getInitialAttackCooldowns(monster),
-            statusEffects: [],
-            isCamouflaged: false,
-        };
+            selectedPlacement,
+        );
+        state.nextMonsterId++;
         state.monsters.push(placed);
         const stats = state.statistics[state.currentPlayer];
         stats.summoned++;
@@ -494,7 +619,7 @@ export function deployMonsters(
             monsterTypeId: monster.id,
             monsterName: monster.name,
             cost: monster.cost,
-            to: placement.position,
+            to: selectedPlacement.position,
         });
     }
 }

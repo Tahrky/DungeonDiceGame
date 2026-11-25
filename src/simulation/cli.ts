@@ -46,8 +46,13 @@ Options :
   --output <fichier>   Chemin du JSON de sortie
   --strategy-weights <fichier> Charge les poids d’un rapport d’entraînement
   --record-decisions   Enregistre les options légales et les scores d’attaque
+  --complete-attack-phases Simule toutes les attaques restantes de chaque phase
+  --broader-attack-candidates Explore aussi des candidats tactiques complémentaires
+  --movement-attack-combos Déplace les monstres pour créer une attaque ce tour-ci
+  --summon-placement-pairs Choisit conjointement le monstre et son placement
+  --next-turn-dice-expectation Pondère les réponses par les dés d’attaque probables
   --debug              Ajoute les détails des décisions IA (avec historique complet)
-  --cross-profile      Répartit le total des matchs entre les 42 confrontations orientées
+  --cross-profile      Répartit le total des matchs entre les profils orientés
   --train-bots         Ajuste hors ligne les poids stratégiques des profils
   --training-profiles  Profils à entraîner, séparés par des virgules
   --training-mode <mode> Mode default, warmStart ou hybrid
@@ -169,6 +174,11 @@ function parseArguments(
         "--output",
         "--strategy-weights",
         "--record-decisions",
+        "--complete-attack-phases",
+        "--broader-attack-candidates",
+        "--movement-attack-combos",
+        "--summon-placement-pairs",
+        "--next-turn-dice-expectation",
         "--allow-incompatible-transfer",
         "--debug",
         "--cross-profile",
@@ -204,6 +214,11 @@ function parseArguments(
         profile2,
         debug: args.includes("--debug"),
         recordDecisionTraces: args.includes("--record-decisions"),
+        ...(args.includes("--complete-attack-phases") ? { completeAttackPhases: true } : {}),
+        ...(args.includes("--broader-attack-candidates") ? { broaderAttackCandidates: true } : {}),
+        ...(args.includes("--movement-attack-combos") ? { movementAttackCombos: true } : {}),
+        ...(args.includes("--summon-placement-pairs") ? { summonPlacementPairs: true } : {}),
+        ...(args.includes("--next-turn-dice-expectation") ? { nextTurnDiceExpectation: true } : {}),
         strategyWeights,
         ...(configurationFile === undefined ? {} : { configurationFile }),
         deck1: parseOptionalDeck(

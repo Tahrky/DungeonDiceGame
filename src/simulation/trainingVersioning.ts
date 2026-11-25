@@ -8,8 +8,8 @@ import { BOT_STRATEGY_WEIGHT_KEYS, type BotProfile } from "../game/botStrategy";
 export const TRAINING_REPORT_SCHEMA_VERSION = 2;
 export const WEIGHTS_SCHEMA_VERSION = "2";
 export const RULES_ENGINE_VERSION = "1";
-export const EVALUATION_VERSION = "3";
-export const SIMULATOR_VERSION = "3";
+export const EVALUATION_VERSION = "9";
+export const SIMULATOR_VERSION = "9";
 
 export const BOT_WEIGHT_GROUPS = {
     combat: ["baseDamage", "damage", "statusDamage", "kills", "support", "friendlyDamage"],

@@ -9,8 +9,9 @@ import {
     getMovementRange,
     type MovementOptions,
 } from "../game/monsterActions";
+import { analyzeLegalMovementRoutes } from "../game/routeAnalysis";
 import { getStartingPositions, type BoardDefinition } from "../game/boards";
-import type { PlacedMonster } from "../types/GameTypes";
+import type { PlacedMonster, Position } from "../types/GameTypes";
 import {
     addEvent,
     canSpend,
@@ -22,6 +23,62 @@ import {
 import { chooseBotObjective, findObjectiveMovement } from "../game/botStrategy";
 import { DEFAULT_BOT_STRATEGY_WEIGHTS } from "../game/botStrategy";
 import { assignMonsterRoles, createThreatScores, type StrategicSnapshot } from "../game/ai";
+import { cloneMatchState, getBestAvailableAttackScore, performAttacks } from "./combat";
+
+type MovementChoice = NonNullable<ReturnType<typeof findObjectiveMovement>>;
+
+function findAttackSetupMovement(
+    state: MatchState,
+    board: BoardDefinition,
+    monster: PlacedMonster,
+    options: MovementOptions,
+    strategicMovement: MovementChoice | null,
+    objective: Position,
+): MovementChoice | null {
+    const currentAttackScore = getBestAvailableAttackScore(state, board, monster.id);
+    const paths = analyzeLegalMovementRoutes(options).paths;
+    let bestScore = currentAttackScore;
+    let bestMovement: MovementChoice | null = null;
+    const isStrategicDestination = (position: Position): boolean =>
+        strategicMovement?.position.x === position.x && strategicMovement.position.y === position.y;
+    const compareMovement = (first: Position, second: Position): number =>
+        Number(isStrategicDestination(second)) - Number(isStrategicDestination(first)) ||
+        Math.abs(first.x - objective.x) +
+            Math.abs(first.y - objective.y) -
+            (Math.abs(second.x - objective.x) + Math.abs(second.y - objective.y)) ||
+        first.y - second.y ||
+        first.x - second.x;
+
+    for (const path of paths.values()) {
+        const destination = path[path.length - 1];
+        if (!destination) continue;
+
+        const candidate = cloneMatchState(state);
+        const candidateMonster = candidate.monsters.find(({ id }) => id === monster.id);
+        if (!candidateMonster) continue;
+        candidateMonster.facing = getFacingFromMovement(
+            candidateMonster.position,
+            destination,
+            candidateMonster.facing,
+        );
+        candidateMonster.position = destination;
+        clearCamouflageForMovement(candidateMonster, path);
+        consumeMovementTurnBuff(candidateMonster);
+
+        const score = getBestAvailableAttackScore(candidate, board, monster.id);
+        if (
+            score <= currentAttackScore ||
+            (score === bestScore &&
+                bestMovement !== null &&
+                compareMovement(destination, bestMovement.position) >= 0)
+        ) {
+            continue;
+        }
+        bestScore = score;
+        bestMovement = { position: destination, path, routeProgress: 0 };
+    }
+    return bestMovement;
+}
 
 export function performMovements(state: MatchState, board: BoardDefinition): void {
     if (state.winner !== null) return;
@@ -104,8 +161,7 @@ export function performMovements(state: MatchState, board: BoardDefinition): voi
                 const random = state.actionRandom?.[player];
                 for (let index = objectives.length - 1; index > 0; index--) {
                     const swapIndex = Math.floor(
-                        Math.max(0, Math.min(1 - Number.EPSILON, random?.() ?? 0.5)) *
-                            (index + 1),
+                        Math.max(0, Math.min(1 - Number.EPSILON, random?.() ?? 0.5)) * (index + 1),
                     );
                     [objectives[index], objectives[swapIndex]] = [
                         objectives[swapIndex]!,
@@ -152,7 +208,11 @@ export function performMovements(state: MatchState, board: BoardDefinition): voi
                 }
                 state.statistics[player].unreachableObjectives++;
             }
-            if (!best) {
+            const attackSetupMovement = state.movementAttackCombos
+                ? findAttackSetupMovement(state, board, monster, movement, best, roleObjective)
+                : null;
+            const selectedMovement = attackSetupMovement ?? best;
+            if (!selectedMovement) {
                 state.statistics[player].stagnantMonsterTurns++;
                 state.movementStagnation[monster.id] =
                     (state.movementStagnation[monster.id] ?? 0) + 1;
@@ -163,21 +223,22 @@ export function performMovements(state: MatchState, board: BoardDefinition): voi
             if (!spend(state, player, "movement", cost)) break;
 
             consumeMovementTurnBuff(monster);
-            clearCamouflageForMovement(monster, best.path);
+            clearCamouflageForMovement(monster, selectedMovement.path);
             const from = monster.position;
-            monster.facing = getFacingFromMovement(from, best.position, monster.facing);
-            monster.position = best.position;
+            monster.facing = getFacingFromMovement(from, selectedMovement.position, monster.facing);
+            monster.position = selectedMovement.position;
             monster.movementsUsedThisTurn++;
             state.movementStagnation[monster.id] = 0;
             state.statistics[player].movements++;
             const reEvaluated =
-                selectedObjective.x !== roleObjective.x ||
-                selectedObjective.y !== roleObjective.y;
+                selectedObjective.x !== roleObjective.x || selectedObjective.y !== roleObjective.y;
             addEvent(state, {
                 turn: state.turn,
                 player,
                 type: "strategy",
-                description: `${reEvaluated ? "Réévalue son objectif ; " : ""}suit le chemin vers ${movementGoal} : ${best.routeProgress} case(s) plus près.`,
+                description: attackSetupMovement
+                    ? "Se déplace pour créer une attaque ce tour-ci."
+                    : `${reEvaluated ? "Réévalue son objectif ; " : ""}suit le chemin vers ${movementGoal} : ${selectedMovement.routeProgress} case(s) plus près.`,
                 monsterId: monster.id,
                 monsterTypeId: monster.monster.id,
                 monsterName: monster.monster.name,
@@ -186,14 +247,19 @@ export function performMovements(state: MatchState, board: BoardDefinition): voi
                 turn: state.turn,
                 player,
                 type: "movement",
-                description: `${monster.monster.name} se déplace de ${best.path.length - 1} case(s).`,
+                description: `${monster.monster.name} se déplace de ${selectedMovement.path.length - 1} case(s).`,
                 monsterId: monster.id,
                 monsterTypeId: monster.monster.id,
                 monsterName: monster.monster.name,
                 from,
-                to: best.position,
+                to: selectedMovement.position,
                 cost,
             });
+            if (attackSetupMovement) {
+                performAttacks(state, board);
+                if (state.winner !== null) return;
+                break;
+            }
         }
     }
 }

@@ -30,6 +30,11 @@ export interface SimulationOptions {
     profilePairs?: readonly ProfilePair[];
     debug?: boolean;
     recordDecisionTraces?: boolean;
+    completeAttackPhases?: boolean;
+    broaderAttackCandidates?: boolean;
+    movementAttackCombos?: boolean;
+    nextTurnDiceExpectation?: boolean;
+    summonPlacementPairs?: boolean;
     strategyWeights?: BotStrategyWeightMap;
     configurationFile?: string;
     deck1?: string[];

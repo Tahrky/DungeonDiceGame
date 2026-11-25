@@ -8,10 +8,11 @@ import {
     getAttackDamage,
     getInitialAttackCooldowns,
     getInitialAttackUses,
+    isAreaAttack,
     isBehind,
 } from "../game/monsterActions";
 import { findValidPlacement } from "../game/placement";
-import type { Monster, PlacedMonster, Position } from "../types/GameTypes";
+import type { PlacedMonster, Position } from "../types/GameTypes";
 import { getInvokedMonsterCount } from "../game/matchRules";
 import {
     canDeployMonsterForProfile,
@@ -39,15 +40,6 @@ interface ComputerAttackChoice {
     score: number;
 }
 
-function isAreaAttack(attack: Monster["attacks"][number]): boolean {
-    return (
-        attack.hitsAllies === true ||
-        attack.movesToZone === true ||
-        attack.pattern.type === "directionalArea" ||
-        attack.pattern.type === "selfRadius"
-    );
-}
-
 function createTacticalValue(): TacticalAttackValue {
     return {
         damage: 0,
@@ -63,6 +55,24 @@ function createTacticalValue(): TacticalAttackValue {
 }
 
 export abstract class GameSceneComputer extends GameSceneComputerConversion {
+    private createComputerStrategicSnapshot(tactic = this.getComputerTactic()): StrategicSnapshot {
+        return {
+            board: this.board,
+            blockedCells: this.obstacles.map(({ position }) => position),
+            health: { ...this.playerHealth },
+            initialHealth: this.gameConfiguration.initialPlayerHealth,
+            monsters: this.placedMonsters,
+            reserves: {
+                1: { ...this.diceReserves[1] },
+                2: { ...this.diceReserves[2] },
+            },
+            profile: this.opponentProfile,
+            tactics: { 1: "balanced", 2: tactic },
+            currentPlayer: 2,
+            turn: this.turnNumber,
+        };
+    }
+
     protected playComputerTurn(): void {
         if (this.currentPlayer !== 2 || this.winner !== null) {
             this.computerTurnInProgress = false;
@@ -229,21 +239,7 @@ export abstract class GameSceneComputer extends GameSceneComputerConversion {
                 .filter((monster) => monster.currentHp > 0)
                 .map(({ position }) => `${position.x},${position.y}`),
         );
-        const strategicSnapshot: StrategicSnapshot = {
-            board: this.board,
-            blockedCells: this.obstacles.map(({ position }) => position),
-            health: { ...this.playerHealth },
-            initialHealth: this.gameConfiguration.initialPlayerHealth,
-            monsters: this.placedMonsters,
-            reserves: {
-                1: { ...this.diceReserves[1] },
-                2: { ...this.diceReserves[2] },
-            },
-            profile: this.opponentProfile,
-            tactics: { 1: "balanced", 2: tactic },
-            currentPlayer: 2,
-            turn: this.turnNumber,
-        };
+        const strategicSnapshot = this.createComputerStrategicSnapshot(tactic);
         const strategicCellScore = createStrategicCellScorer(strategicSnapshot, 2);
         const preservesFirstDeployment = this.getOpponentFirstDeploymentProtection(2);
         return findValidPlacement({
@@ -302,21 +298,7 @@ export abstract class GameSceneComputer extends GameSceneComputerConversion {
             (monster) => monster.owner === 2 && monster.currentHp > 0,
         );
         const tactic = this.getComputerTactic();
-        const strategicSnapshot: StrategicSnapshot = {
-            board: this.board,
-            blockedCells: this.obstacles.map(({ position }) => position),
-            health: { ...this.playerHealth },
-            initialHealth: this.gameConfiguration.initialPlayerHealth,
-            monsters: this.placedMonsters,
-            reserves: {
-                1: { ...this.diceReserves[1] },
-                2: { ...this.diceReserves[2] },
-            },
-            profile: this.opponentProfile,
-            tactics: { 1: "balanced", 2: tactic },
-            currentPlayer: 2,
-            turn: this.turnNumber,
-        };
+        const strategicSnapshot = this.createComputerStrategicSnapshot(tactic);
         const roles = new Map(
             assignMonsterRoles(strategicSnapshot, 2).map((role) => [role.monsterId, role]),
         );
@@ -408,7 +390,8 @@ export abstract class GameSceneComputer extends GameSceneComputerConversion {
                 }
                 const damage =
                     getAttackDamage(attack, attacker.turnBuffs?.attackDamageBonus ?? 0) +
-                    (cell.x === target.x &&
+                    (!isAreaAttack(attack) &&
+                    cell.x === target.x &&
                     cell.y === target.y &&
                     victim.owner === 1 &&
                     (attacker.monster.bonusDamageFromBehind ?? 0) > 0 &&
@@ -471,21 +454,7 @@ export abstract class GameSceneComputer extends GameSceneComputerConversion {
                     .filter((placed) => placed.owner === 1 && placed.currentHp > 0)
                     .map((placed) => placed.position);
                 const tactic = this.getComputerTactic();
-                const strategicSnapshot: StrategicSnapshot = {
-                    board: this.board,
-                    blockedCells: this.obstacles.map(({ position }) => position),
-                    health: { ...this.playerHealth },
-                    initialHealth: this.gameConfiguration.initialPlayerHealth,
-                    monsters: this.placedMonsters,
-                    reserves: {
-                        1: { ...this.diceReserves[1] },
-                        2: { ...this.diceReserves[2] },
-                    },
-                    profile: this.opponentProfile,
-                    tactics: { 1: "balanced", 2: tactic },
-                    currentPlayer: 2,
-                    turn: this.turnNumber,
-                };
+                const strategicSnapshot = this.createComputerStrategicSnapshot(tactic);
                 const role = assignMonsterRoles(strategicSnapshot, 2).find(
                     (assignment) => assignment.monsterId === monster.id,
                 );
