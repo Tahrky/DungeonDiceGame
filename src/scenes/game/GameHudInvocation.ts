@@ -10,9 +10,11 @@ import {
     INVOCATION_PANEL_WIDTH,
     INVOCATION_ROW_GAP,
     INVOCATION_ROW_HEIGHT,
+    HUD_BUTTON_HEIGHT,
     WIDE_BUTTON_OPTIONS,
     getHudRightX,
     getHudTopY,
+    getPatternToggleY,
 } from "./hudLayout";
 import type { GameHudActions } from "./hudTypes";
 import { onPointerDown } from "./uiStyle";
@@ -66,16 +68,36 @@ export abstract class GameHudInvocation extends GameHudReserves {
         availableCount: number,
     ): void {
         const panelX = getHudRightX(this.scene) - INVOCATION_PANEL_WIDTH;
-        const rowsY = getHudTopY(this.scene, 82);
-        this.addText(
+        const header = this.addText(
             state.pendingCells
                 ? "Dé posé : choisis une case"
                 : `MONSTRE — COÛT (${invokedCount}/${state.maxMonstersPerPlayer})`,
             panelX + INVOCATION_PANEL_WIDTH / 2,
-            getHudTopY(this.scene, 58),
+            getHudTopY(this.scene, INVOCATION_BUTTON_Y) + HUD_BUTTON_HEIGHT + 6,
             "#ffffff",
             17,
         ).setOrigin(0.5, 0);
+        header.setScale(Math.min(1, (INVOCATION_PANEL_WIDTH - 10) / header.width));
+        const rowsY = header.y + header.displayHeight + 4;
+        const instruction = state.selectedMonster
+            ? this.addRightInstruction(
+                  state.pendingCells
+                      ? `Monstre : ${state.selectedMonster.name} — sélectionne une case du dé`
+                      : `Monstre : ${state.selectedMonster.name} — choisis un patron et une position`,
+                  0,
+              )
+            : null;
+        const instructionHeight = instruction ? instruction.height + 8 + HUD_BUTTON_HEIGHT : 0;
+        const rowGap = INVOCATION_ROW_GAP - INVOCATION_ROW_HEIGHT;
+        const availableHeight =
+            getPatternToggleY(this.scene, state.patternSelectorExpanded) -
+            8 -
+            rowsY -
+            instructionHeight;
+        const rowHeight = Math.min(
+            INVOCATION_ROW_HEIGHT,
+            Math.max(1, availableHeight / Math.max(1, state.availableMonsters.length) - rowGap),
+        );
 
         [...state.availableMonsters]
             .sort((first, second) => first.cost - second.cost)
@@ -85,18 +107,23 @@ export abstract class GameHudInvocation extends GameHudReserves {
                     actions,
                     monster,
                     panelX,
-                    rowsY + index * INVOCATION_ROW_GAP,
+                    rowsY + index * (rowHeight + rowGap),
+                    rowHeight,
                     hasCapacity && availableCount >= monster.cost,
                 ),
             );
 
-        if (state.selectedMonster) {
-            this.addInstructionWithCancel(
-                state.pendingCells
-                    ? `Monstre : ${state.selectedMonster.name} — sélectionne une case du dé`
-                    : `Monstre : ${state.selectedMonster.name} — choisis un patron et une position`,
-                rowsY + state.availableMonsters.length * INVOCATION_ROW_GAP + 4,
+        if (instruction) {
+            const y = rowsY + state.availableMonsters.length * (rowHeight + rowGap);
+            instruction.setY(y);
+            this.addButton(
+                "ANNULER",
+                getHudRightX(this.scene),
+                y + instruction.height + 8,
                 actions.cancelInvocation,
+                {
+                    rightAligned: true,
+                },
             );
         }
     }
@@ -107,18 +134,14 @@ export abstract class GameHudInvocation extends GameHudReserves {
         monster: Monster,
         x: number,
         y: number,
+        height: number,
         affordable: boolean,
     ): void {
         const colors = getInvocationRowColors(state.selectedMonster?.id === monster.id, affordable);
-        const background = this.addRect(
-            x,
-            y,
-            INVOCATION_PANEL_WIDTH,
-            INVOCATION_ROW_HEIGHT,
-            colors.fill,
+        const background = this.addRect(x, y, INVOCATION_PANEL_WIDTH, height, colors.fill, 1, [
             1,
-            [1, colors.border],
-        ).setInteractive({ useHandCursor: affordable });
+            colors.border,
+        ]).setInteractive({ useHandCursor: affordable });
         background.on("pointerover", (pointer: Phaser.Input.Pointer) =>
             actions.hoverInvocationMonster(monster, pointer),
         );
@@ -129,14 +152,25 @@ export abstract class GameHudInvocation extends GameHudReserves {
             onPointerDown(background, () => actions.selectMonster(monster.id));
         }
 
-        const name = this.addText(monster.name, x + 5, y + 8, colors.name, 16);
         const cost = this.addText(
             `${monster.cost} 🐍`,
             x + INVOCATION_PANEL_WIDTH - 6,
-            y + 8,
+            y + height / 2,
             affordable ? COST_COLOR : UNAVAILABLE_TEXT_COLOR,
             16,
-        ).setOrigin(1, 0);
+        ).setOrigin(1, 0.5);
+        cost.setScale(Math.min(1, (height - 4) / cost.height));
+        const name = this.addText(monster.name, x + 5, y + height / 2, colors.name, 16).setOrigin(
+            0,
+            0.5,
+        );
+        name.setScale(
+            Math.min(
+                1,
+                (INVOCATION_PANEL_WIDTH - 16 - cost.displayWidth) / name.width,
+                (height - 4) / name.height,
+            ),
+        );
         name.setDepth(background.depth + 1);
         cost.setDepth(background.depth + 1);
     }

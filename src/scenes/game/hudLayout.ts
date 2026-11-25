@@ -44,11 +44,11 @@ export const ACTION_LOG_THUMB_MIN_HEIGHT = 24;
 export const ACTION_LOG_VISIBLE_COUNT = 6;
 
 export function getHudTopY(scene: Phaser.Scene, offset: number): number {
-    return scene.cameras.main.getWorldPoint(0, offset).y;
+    return scene.cameras.main.getWorldPoint(0, 0).y + offset;
 }
 
 export function getHudBottomY(scene: Phaser.Scene, offset: number): number {
-    return scene.cameras.main.getWorldPoint(0, scene.scale.height - offset).y;
+    return scene.cameras.main.getWorldPoint(0, scene.scale.height).y - offset;
 }
 
 export function getHudLeftX(scene: Phaser.Scene): number {
@@ -61,4 +61,8 @@ export function getHudRightX(scene: Phaser.Scene): number {
 
 export function getPatternStartX(scene: Phaser.Scene): number {
     return getHudRightX(scene) - PATTERN_GRID_WIDTH;
+}
+
+export function getPatternToggleY(scene: Phaser.Scene, expanded: boolean): number {
+    return getHudBottomY(scene, 8) - (expanded ? PATTERN_GRID_HEIGHT : PATTERN_CARD_HEIGHT) - 36;
 }

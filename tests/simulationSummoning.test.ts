@@ -1,11 +1,21 @@
 import { describe, expect, it } from "vitest";
 import { getStartingPositions, createCustomBoard } from "../src/game/boards";
 import { getDefaultGameConfiguration } from "../src/game/gameConfiguration";
-import { getInitialAttackCooldowns, getInitialAttackUses } from "../src/game/monsterActions";
+import {
+    createPlacedMonster,
+    getInitialAttackCooldowns,
+    getInitialAttackUses,
+} from "../src/game/monsterActions";
 import { deployMonsters } from "../src/simulation/deployment";
 import { createStats, type MatchState } from "../src/simulation/matchState";
-import { createFormationScorer } from "../src/simulation/formation";
-import { findPlacement } from "../src/simulation/summonPlacement";
+import { createFormationScorer } from "../src/game/formation";
+import {
+    createSummonedMonsterCandidate,
+    findBestSummonPlacementPair,
+    findPlacement,
+} from "../src/simulation/summonPlacement";
+import { getPlacementReplyPenalty } from "../src/simulation/placementReply";
+import { getAvailableAttackChoices } from "../src/simulation/combat/attackChoices";
 
 function createMatchState(summonPlacementPairs: boolean): MatchState {
     const configuration = getDefaultGameConfiguration();
@@ -54,6 +64,221 @@ function createMatchState(summonPlacementPairs: boolean): MatchState {
 }
 
 describe("invocations tactiques de simulation", () => {
+    it("choisit une paire qui protège le dos d’un allié contre une réponse payable", () => {
+        const board = createCustomBoard(9, 9);
+        const ghost = getDefaultGameConfiguration().monsters.find(({ id }) => id === "ghost")!;
+        const state = createMatchState(true);
+        const enemy = createPlacedMonster(
+            "enemy",
+            {
+                ...ghost,
+                movementRange: 3,
+                bonusDamageFromBehind: 3,
+                attacks: [{ name: "Frappe", damage: 1, cost: 1, pattern: { type: "adjacent" } }],
+            },
+            2,
+            { x: 3, y: 5 },
+            [
+                { x: 3, y: 5 },
+                { x: 3, y: 6 },
+            ],
+            0,
+        );
+        const ally = createPlacedMonster(
+            "ally",
+            ghost,
+            1,
+            { x: 3, y: 4 },
+            [
+                { x: 3, y: 4 },
+                { x: 2, y: 4 },
+                { x: 1, y: 4 },
+                { x: 1, y: 3 },
+                { x: 1, y: 5 },
+                { x: 2, y: 3 },
+            ],
+            0,
+        );
+        ally.facing = "west";
+        state.monsters = [enemy, ally];
+        state.reserves[2] = { invocation: 0, attack: 1, movement: 1 };
+        const chosen = findBestSummonPlacementPair(state, board, 1, [ghost]);
+        if (!chosen) throw new Error("Paire attendue.");
+        const candidate = createSummonedMonsterCandidate(
+            state,
+            1,
+            chosen.monster,
+            chosen.placement,
+        );
+        expect(
+            getPlacementReplyPenalty(
+                { ...state, monsters: [...state.monsters, candidate] },
+                board,
+                1,
+            ),
+        ).toBe(0);
+    });
+    it("ne pénalise le dos que si le voleur peut réellement se déplacer et attaquer", () => {
+        const board = createCustomBoard(9, 9);
+        const state = createMatchState(true);
+        const ghost = getDefaultGameConfiguration().monsters.find(({ id }) => id === "ghost")!;
+        const thief = {
+            ...ghost,
+            bonusDamageFromBehind: 3,
+            movementRange: 2,
+            attacks: [
+                { name: "Frappe", damage: 1, cost: 1, pattern: { type: "adjacent" as const } },
+            ],
+        };
+        const victim = createPlacedMonster("victim", ghost, 1, { x: 5, y: 4 }, [{ x: 5, y: 4 }], 0);
+        const enemy = createPlacedMonster(
+            "thief",
+            thief,
+            2,
+            { x: 4, y: 2 },
+            [
+                { x: 4, y: 2 },
+                { x: 4, y: 3 },
+                { x: 4, y: 4 },
+            ],
+            0,
+        );
+        victim.facing = "east";
+        state.monsters = [victim, enemy];
+        state.reserves[2] = { invocation: 0, attack: 1, movement: 1 };
+        expect(getPlacementReplyPenalty(state, board, 1)).toBeGreaterThan(0);
+
+        state.reserves[2].attack = 0;
+        expect(getPlacementReplyPenalty(state, board, 1)).toBe(0);
+        state.reserves[2].attack = 1;
+        state.reserves[2].movement = 0;
+        expect(getPlacementReplyPenalty(state, board, 1)).toBe(0);
+        state.reserves[2].movement = 1;
+        enemy.attackCooldowns[0] = 2;
+        expect(getPlacementReplyPenalty(state, board, 1)).toBe(0);
+        enemy.attackCooldowns[0] = 0;
+        enemy.cells = [enemy.position, { x: 4, y: 4 }];
+        expect(getPlacementReplyPenalty(state, board, 1)).toBe(0);
+    });
+
+    it("considère une attaque de base légale même si son score glouton est nul", () => {
+        const board = createCustomBoard(9, 9);
+        const state = createMatchState(true);
+        const ghost = getDefaultGameConfiguration().monsters.find(({ id }) => id === "ghost")!;
+        const attacker = createPlacedMonster(
+            "attacker",
+            {
+                ...ghost,
+                attacks: [
+                    {
+                        name: "Explosion",
+                        damage: 10,
+                        cost: 1,
+                        hitsAllies: true,
+                        pattern: { type: "selfRadius", range: 1 },
+                    },
+                ],
+            },
+            2,
+            { x: 1, y: 4 },
+            [{ x: 1, y: 4 }],
+            0,
+        );
+        const ally = createPlacedMonster(
+            "ally",
+            { ...ghost, hp: 10 },
+            2,
+            { x: 1, y: 3 },
+            [{ x: 1, y: 3 }],
+            0,
+        );
+        state.monsters = [attacker, ally];
+        state.currentPlayer = 2;
+        state.reserves[2].attack = 1;
+        expect(getAvailableAttackChoices(state, board, "attacker", false)).toHaveLength(0);
+        state.currentPlayer = 1;
+        expect(getPlacementReplyPenalty(state, board, 1)).toBeGreaterThan(0);
+    });
+
+    it("reconnaît une attaque décisive sur la base mais pas à travers un garde", () => {
+        const board = createCustomBoard(9, 9);
+        const state = createMatchState(true);
+        const ghost = getDefaultGameConfiguration().monsters.find(({ id }) => id === "ghost")!;
+        const attacker = createPlacedMonster(
+            "attacker",
+            {
+                ...ghost,
+                movementRange: 2,
+                attacks: [{ name: "Frappe", damage: 1, cost: 1, pattern: { type: "adjacent" } }],
+            },
+            2,
+            { x: 2, y: 3 },
+            [
+                { x: 2, y: 3 },
+                { x: 2, y: 4 },
+                { x: 1, y: 4 },
+            ],
+            0,
+        );
+        state.monsters = [attacker];
+        state.health[1] = 1;
+        state.reserves[2] = { invocation: 0, attack: 1, movement: 1 };
+        expect(getPlacementReplyPenalty(state, board, 1)).toBe(100_000);
+        const guard = createPlacedMonster("guard", ghost, 1, { x: 1, y: 4 }, [{ x: 1, y: 4 }], 0);
+        state.monsters.push(guard);
+        expect(getPlacementReplyPenalty(state, board, 1)).toBe(0);
+    });
+
+    it("respecte le changement de tour, les statuts et ne modifie pas l’état examiné", () => {
+        const board = createCustomBoard(9, 9);
+        const state = createMatchState(true);
+        const attacker = state.monsters[0]!;
+        attacker.position = { x: 1, y: 4 };
+        attacker.cells = [attacker.position];
+        attacker.summonedOnTurn = state.turn;
+        attacker.monster = {
+            ...attacker.monster,
+            attacks: [{ name: "Frappe", damage: 1, cost: 0, pattern: { type: "adjacent" } }],
+        };
+        attacker.attackUsesThisTurn = [0];
+        attacker.attackCooldowns = [0];
+        state.health[1] = 1;
+        state.startingPlayer = 1;
+        const original = structuredClone(state);
+        expect(getPlacementReplyPenalty(state, board, 1)).toBe(0);
+        expect(state).toEqual(original);
+
+        state.startingPlayer = 2;
+        expect(getPlacementReplyPenalty(state, board, 1)).toBe(100_000);
+        attacker.statusEffects = [
+            {
+                type: "damageOverTime",
+                damagePerTurn: attacker.currentHp,
+                duration: 1,
+                remainingTurns: 1,
+                color: "green",
+            },
+        ];
+        const beforeStatus = structuredClone(state);
+        expect(getPlacementReplyPenalty(state, board, 1)).toBe(0);
+        expect(state).toEqual(beforeStatus);
+
+        const secondAttacker = createPlacedMonster(
+            "second",
+            attacker.monster,
+            2,
+            { x: 1, y: 3 },
+            [{ x: 1, y: 3 }],
+            0,
+        );
+        secondAttacker.position = { x: 0, y: 3 };
+        state.monsters.push(secondAttacker);
+        state.monstersKilledForVictory = 2;
+        expect(getPlacementReplyPenalty(state, board, 1)).toBe(100_000);
+        state.monstersKilledForVictory = 1;
+        expect(getPlacementReplyPenalty(state, board, 1)).toBe(0);
+    });
+
     it("compare une entrée défendable à la percée offensive, des deux côtés du plateau", () => {
         const board = createCustomBoard(19, 15);
         for (const player of [1, 2] as const) {

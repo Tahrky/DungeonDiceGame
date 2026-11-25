@@ -1,5 +1,6 @@
 import type { BoardDefinition } from "../../game/boards";
 import { choosesRandomActions } from "../../game/botStrategy";
+import { opposingPlayer } from "../../game/matchRules";
 import { pickIndex } from "../../game/random";
 import type { MatchState } from "../matchState";
 import type { AttackChoice } from "./attackChoices";
@@ -40,6 +41,12 @@ function selectAttack(
     if (choosesRandomActions(profile)) {
         const random = state.actionRandom?.[player]?.() ?? 0;
         return choices[pickIndex(random, choices.length)]!;
+    }
+    if (
+        bestChoice.features.baseDamage > 0 &&
+        bestChoice.features.baseDamage >= state.health[opposingPlayer(player)]
+    ) {
+        return bestChoice;
     }
     return searchBestAttack(state, board, choices, bestChoice);
 }

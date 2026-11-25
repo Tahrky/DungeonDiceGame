@@ -13,6 +13,7 @@ import {
     getHudBottomY,
     getHudRightX,
     getPatternStartX,
+    getPatternToggleY,
 } from "./hudLayout";
 import type { GameHudActions } from "./hudTypes";
 import { arialStyle, onPointerDown, setHoverFill } from "./uiStyle";
@@ -46,9 +47,9 @@ export class GameHudPatterns extends GameHudActionsPanel {
         this.addButton(
             expanded ? "PATRONS ▲" : "PATRONS ▼",
             getHudRightX(this.scene),
-            startY - 29,
+            getPatternToggleY(this.scene, expanded),
             actions.togglePatternSelector,
-            { rightAligned: true },
+            { rightAligned: true, uniformSize: true, centerVertically: true, height: 32 },
         );
 
         const visibleIndexes = expanded

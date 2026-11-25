@@ -10,6 +10,7 @@ import { byPlayer, opposingPlayer } from "../game/matchRules";
 import { getMonsterSymbol, getUniqueMonsterSymbols } from "../game/monsterSymbols";
 import { createSeededRandom } from "../game/random";
 import type { Monster, PlacedMonster, PlayerId } from "../types/GameTypes";
+import { isPlainRecord } from "../utils/guards";
 import { beginTurn } from "./combat";
 import { buildMatchBoard } from "./finalBoard";
 import { createStats, type MatchState } from "./matchState";
@@ -50,6 +51,7 @@ function createInitialState(
     return {
         turn: 1,
         currentPlayer: startingPlayer,
+        startingPlayer,
         debug: options.debug ?? false,
         protectFirstDeployment: configuration.protectFirstDeployment,
         completeAttackPhases: options.completeAttackPhases === true,
@@ -144,6 +146,9 @@ function createMatch(
         strategyWeights,
     };
     const turnOrder = [startingPlayer, opposingPlayer(startingPlayer)] as const;
+    const turnDurationsMs = options.measureTurnDurations
+        ? byPlayer(() => [] as number[])
+        : undefined;
 
     for (let turn = 1; turn <= options.maxTurns && state.winner === null; turn++) {
         state.turn = turn;
@@ -152,7 +157,15 @@ function createMatch(
             if (turn > 1 || player !== startingPlayer) beginTurn(state, configuration, player);
             else state.currentPlayer = player;
             if (state.winner !== null) break;
+            state.movementAttackCombos =
+                options.playerOptions?.[player]?.movementAttackCombos ??
+                options.movementAttackCombos === true;
+            state.summonPlacementPairs =
+                options.playerOptions?.[player]?.summonPlacementPairs ??
+                options.summonPlacementPairs === true;
+            const startedAt = turnDurationsMs ? performance.now() : 0;
             playPlayerTurn(context, player);
+            if (turnDurationsMs) turnDurationsMs[player].push(performance.now() - startedAt);
         }
     }
 
@@ -173,10 +186,35 @@ function createMatch(
         remainingResources: state.reserves,
         history: state.history,
         ...(state.decisionTraces === undefined ? {} : { decisionTraces: state.decisionTraces }),
+        ...(turnDurationsMs ? { turnDurationsMs } : {}),
     };
 }
 
 function validateSimulationOptions(options: SimulationOptions, startIndex: number): void {
+    if (
+        options.measureTurnDurations !== undefined &&
+        typeof options.measureTurnDurations !== "boolean"
+    ) {
+        throw new RangeError("L’option de mesure des tours est invalide.");
+    }
+    if (options.playerOptions !== undefined) {
+        const players: unknown = options.playerOptions;
+        if (
+            !isPlainRecord(players) ||
+            Object.entries(players).some(
+                ([player, value]) =>
+                    (player !== "1" && player !== "2") ||
+                    !isPlainRecord(value) ||
+                    Object.entries(value).some(
+                        ([key, enabled]) =>
+                            (key !== "movementAttackCombos" && key !== "summonPlacementPairs") ||
+                            typeof enabled !== "boolean",
+                    ),
+            )
+        ) {
+            throw new RangeError("Les options de simulation par joueur sont invalides.");
+        }
+    }
     if (!Number.isInteger(options.games) || options.games < 1) {
         throw new RangeError("Le nombre de matchs doit être un entier positif.");
     }

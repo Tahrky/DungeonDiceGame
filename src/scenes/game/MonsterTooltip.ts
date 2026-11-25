@@ -7,7 +7,6 @@ import {
     describeMonsterAttack,
     describeMonsterMovement,
     describeMonsterTraits,
-    formatMonsterArmor,
 } from "../../game/monsterDescriptions";
 
 import type {
@@ -190,21 +189,13 @@ export class MonsterTooltip {
         const hitPoints = addHitPointRow(this.scene, monster, hp, statusEffects, hpY);
 
         const detailsY = hpY + Math.max(...hitPoints.labels.map((label) => label.height)) + 2;
-        const armorLabel = addTooltipText(
-            this.scene,
-            CONTENT_X,
-            detailsY,
-            formatMonsterArmor(monster),
-            14,
-            "#c7d3df",
-        );
         const backstab = monster.bonusDamageFromBehind
             ? `\nBonus de dos : +${monster.bonusDamageFromBehind} dégâts`
             : "";
         const details = addTooltipText(
             this.scene,
             CONTENT_X,
-            armorLabel.y + armorLabel.height + 2,
+            detailsY,
             `${describeAttacks(monster, attackCooldowns)}\n${describeMonsterMovement(monster)}${backstab}`,
             15,
             WHITE,

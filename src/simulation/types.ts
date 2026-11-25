@@ -21,6 +21,11 @@ export interface ProfilePair {
     profile2: BotProfile;
 }
 
+export interface PlayerSimulationOptions {
+    movementAttackCombos?: boolean;
+    summonPlacementPairs?: boolean;
+}
+
 export interface SimulationOptions {
     games: number;
     seed: number;
@@ -35,6 +40,8 @@ export interface SimulationOptions {
     movementAttackCombos?: boolean;
     nextTurnDiceExpectation?: boolean;
     summonPlacementPairs?: boolean;
+    playerOptions?: Partial<Record<PlayerId, PlayerSimulationOptions>>;
+    measureTurnDurations?: boolean;
     strategyWeights?: BotStrategyWeightMap;
     configurationFile?: string;
     deck1?: string[];
@@ -151,6 +158,7 @@ export interface MatchResult {
     remainingResources: Record<PlayerId, DiceReserve>;
     history: SimulationEvent[];
     decisionTraces?: TacticalDecisionTrace[];
+    turnDurationsMs?: Record<PlayerId, number[]>;
 }
 
 export interface TacticalDecisionTrace {

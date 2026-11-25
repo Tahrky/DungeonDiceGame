@@ -60,9 +60,7 @@ export abstract class GameHudBase {
     }
 
     private renderStatus(state: GameViewState, actions: GameHudActions): void {
-        const camera = this.scene.cameras.main;
-        const statusTextScale = 1 / camera.zoom;
-        const fontSize = (camera.zoom < 0.75 ? 15 : 18) * 1.5 * statusTextScale;
+        const fontSize = 22;
         const x = getHudLeftX(this.scene);
         const playerLabel =
             state.computerOpponent && state.currentPlayer === 2
@@ -98,6 +96,7 @@ export abstract class GameHudBase {
             this.addButton("TOUR DE L’ADVERSAIRE", x, y, actions.rollDice, {
                 rightAligned: true,
                 uniformSize: true,
+                centerVertically: true,
                 enabled: false,
                 width: 220,
             });
@@ -105,6 +104,7 @@ export abstract class GameHudBase {
             this.addButton("LANCER LES DES", x, y, actions.rollDice, {
                 rightAligned: true,
                 uniformSize: true,
+                centerVertically: true,
                 enabled: state.actionMode.type === "idle",
             });
         } else {
@@ -240,7 +240,6 @@ export abstract class GameHudBase {
             width = HUD_BUTTON_WIDTH,
             height = HUD_BUTTON_HEIGHT,
         } = options;
-        const verticalPadding = centerVertically ? Math.max(0, Math.floor((height - 18) / 2)) : 7;
         const { color, backgroundColor, hoverColor } = getButtonColors(enabled, muted);
         const button = this.scene.add.text(
             x,
@@ -249,10 +248,22 @@ export abstract class GameHudBase {
             arialStyle(fontSize, color, {
                 backgroundColor,
                 align: uniformSize ? "center" : "left",
-                padding: uniformSize ? { x: 6, y: verticalPadding } : { x: 10, y: 8 },
+                padding: uniformSize ? { x: 6, y: 0 } : { x: 10, y: 8 },
             }),
         );
-        if (uniformSize) button.setFixedSize(width, height);
+        if (uniformSize) {
+            const scale = Math.min(
+                1,
+                (width - 12) / Math.max(1, button.width - 12),
+                height / button.height,
+            );
+            if (scale < 1) button.setFontSize(fontSize * scale);
+            const verticalPadding = centerVertically
+                ? Math.max(0, Math.floor((height - button.height) / 2))
+                : 0;
+            button.setPadding(6, verticalPadding);
+            button.setFixedSize(width, height);
+        }
         if (rightAligned) button.setOrigin(1, 0);
         if (enabled) {
             button.setInteractive({ useHandCursor: true });

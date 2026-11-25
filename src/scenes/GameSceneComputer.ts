@@ -2,11 +2,20 @@ import { GameSceneComputerConversion } from "./GameSceneComputerConversion";
 import type { ComputerAttackChoice } from "./GameSceneComputerBase";
 import {
     chooseBotObjective,
-    findObjectiveMovement,
+    DEFAULT_BOT_STRATEGY_WEIGHTS,
     scoreMonsterForProfile,
 } from "../game/botStrategy";
+import { createObjectivePlanner } from "../game/botMovement";
+import { selectAttackSetupMovement } from "../game/attackSetupMovement";
+import { createFormationScorer } from "../game/formation";
+import {
+    clearCamouflageForMovement,
+    consumeMovementTurnBuff,
+    getFacingFromMovement,
+    getGridDistance,
+} from "../game/monsterActions";
 import { assignMonsterRoles, createThreatScores } from "../game/ai";
-import type { PlacedMonster } from "../types/GameTypes";
+import type { PlacedMonster, Position } from "../types/GameTypes";
 
 export abstract class GameSceneComputer extends GameSceneComputerConversion {
     protected playComputerTurn(): void {
@@ -46,7 +55,7 @@ export abstract class GameSceneComputer extends GameSceneComputerConversion {
                 scoreMonsterForProfile(second, this.opponentProfile) -
                     scoreMonsterForProfile(first, this.opponentProfile),
         );
-        const placement = monster ? this.findComputerPlacement() : null;
+        const placement = monster ? this.findComputerPlacement(monster) : null;
         if (!monster || !placement || !this.spendCurrentSymbol("invocation", monster.cost)) {
             return false;
         }
@@ -123,9 +132,8 @@ export abstract class GameSceneComputer extends GameSceneComputerConversion {
                 enemyPositions,
                 this.startingPositions[2],
             );
-        const movement = findObjectiveMovement(
+        const planner = createObjectivePlanner(
             this.getMovementOptions(monster, monster.position),
-            objective,
             enemyPositions,
             tactic,
             createThreatScores(
@@ -134,13 +142,86 @@ export abstract class GameSceneComputer extends GameSceneComputerConversion {
                 monster.id,
                 true,
             ),
+            DEFAULT_BOT_STRATEGY_WEIGHTS,
         );
+        const strategicMovement = planner.toward(objective);
+        const attackSetup = this.getComputerAttackOptions(monster.id).length
+            ? selectAttackSetupMovement(
+                  planner.paths,
+                  strategicMovement,
+                  objective,
+                  this.getMonsterAttackScore(monster.id),
+                  (path) => this.getAttackScoreAfterMovement(monster, path),
+              )
+            : null;
+        const movement = attackSetup ?? strategicMovement;
         if (!movement) return false;
+        const guardingGate =
+            tactic === "defense" &&
+            this.getLivingMonsters(2).length > 1 &&
+            enemyPositions.some(
+                (position) => getGridDistance(position, this.startingPositions[2]) <= 5,
+            ) &&
+            createFormationScorer(
+                this.board,
+                this.placedMonsters,
+                2,
+                this.startingPositions[2],
+            ).guardsLastEntrance(monster.position);
+        const winsImmediately =
+            guardingGate &&
+            attackSetup !== null &&
+            this.getAttackScoreAfterMovement(monster, attackSetup.path) >=
+                Number.MAX_SAFE_INTEGER * 10;
+        if (
+            guardingGate &&
+            !winsImmediately &&
+            this.getComputerMovementReplyPenalty(monster, movement.path) >
+                this.getComputerReplyPenalty(this.placedMonsters)
+        ) {
+            return false;
+        }
 
         const movementsUsed = monster.movementsUsedThisTurn;
         this.actionMode = { type: "movement", monsterId: monster.id };
         this.handleMovementAction(movement.position, monster.id);
         this.actionMode = { type: "idle" };
-        return monster.movementsUsedThisTurn !== movementsUsed;
+        const moved = monster.movementsUsedThisTurn !== movementsUsed;
+        if (moved && attackSetup) this.playComputerAttacks();
+        return moved && !attackSetup;
+    }
+
+    private getMonsterAttackScore(monsterId: string): number {
+        const roles = new Map(
+            assignMonsterRoles(this.createComputerStrategicSnapshot(), 2).map((role) => [
+                role.monsterId,
+                role,
+            ]),
+        );
+        let score = 0;
+        for (const choice of this.getComputerAttackChoices(roles, monsterId)) {
+            score = Math.max(score, choice.score);
+        }
+        return score;
+    }
+
+    private getAttackScoreAfterMovement(monster: PlacedMonster, path: Position[]): number {
+        const index = this.placedMonsters.indexOf(monster);
+        if (index < 0) throw new Error(`Monstre introuvable : ${monster.id}`);
+        const destination = path[path.length - 1]!;
+        const candidate: PlacedMonster = {
+            ...monster,
+            position: destination,
+            facing: getFacingFromMovement(monster.position, destination, monster.facing),
+            ...(monster.turnBuffs ? { turnBuffs: { ...monster.turnBuffs } } : {}),
+        };
+        clearCamouflageForMovement(candidate, path);
+        consumeMovementTurnBuff(candidate);
+        this.placedMonsters[index] = candidate;
+        try {
+            return this.getMonsterAttackScore(candidate.id);
+        } finally {
+            this.placedMonsters[index] = monster;
+        }
     }
 }

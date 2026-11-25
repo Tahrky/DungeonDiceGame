@@ -55,7 +55,7 @@ function canSelectReserveSymbol(
 export abstract class GameHudReserves extends GameHudHistory {
     protected renderDiceAndReserves(state: GameViewState, actions: GameHudActions): void {
         const x = getHudLeftX(this.scene);
-        const secondReserveY = getHudBottomY(this.scene, 30 * this.scene.cameras.main.zoom + 8);
+        const secondReserveY = getHudBottomY(this.scene, 38);
         const firstReserveY = secondReserveY - RESERVE_ROW_SPACING;
         const diceTitleY = firstReserveY - 105;
         this.addText("DÉS DU TOUR", x, diceTitleY, "#ffffff", 16);

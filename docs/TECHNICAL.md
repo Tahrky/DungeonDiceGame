@@ -313,10 +313,32 @@ tient compte de la suppression des dés d’invocation lorsque l’armée est co
 coût, les phases plus éloignées conservent le modèle d’une attaque. Cette option est désactivée par
 défaut. `--summon-placement-pairs` évalue les monstres admissibles avec leurs placements possibles
 parmi les trois placements les mieux classés par l’heuristique existante, à l’aide de l’évaluation
-stratégique de l’état résultant, puis retient la paire la mieux notée; sans cette option, le choix
-actuel d’invocation et de placement reste inchangé. La shortlist borne le coût de cette expérience.
+stratégique de l’état résultant, puis retient la paire la mieux notée. Pour chaque paire, le
+simulateur estime aussi la pire attaque de base ou attaque de dos légale et payable immédiatement
+ou après un déplacement adverse. Le bot en jeu examine de même les trois poses les mieux classées
+pour le monstre choisi. Chaque mode utilise ses propres règles de ciblage et de mouvement,
+notamment les obstacles de la scène. L’évaluation applique les effets et recharges du début du
+tour adverse, mais ne suppose aucun nouveau lancer de dés ni aucune suite de plusieurs actions.
+La garde peut quitter la dernière entrée si son déplacement ne rend pas cette réponse plus
+dangereuse ; une victoire immédiate reste prioritaire. En simulation, cette garde est activée avec
+`--movement-attack-combos`. Sans ces options, le choix d’invocation et la garde du simulateur
+conservent leur comportement historique. La shortlist borne le coût de cette expérience.
+Le bot en jeu utilise le même classement des déplacements préparant une attaque que le simulateur,
+avec les vérifications de légalité propres à la scène.
 Les attaques de score égal sont départagées par identifiant de monstre, index d’attaque, puis
 coordonnées de cible (y, x), pour éviter que le résultat dépende de l’ordre des collections.
+
+L’API `runSimulations` accepte `playerOptions` pour activer ou désactiver les deux options par joueur,
+afin de comparer un candidat à une référence dans le même match. `measureTurnDurations` ajoute
+facultativement `turnDurationsMs` aux résultats : ces mesures non déterministes couvrent
+`playPlayerTurn`, sans le début de tour ni le rendu, et ne modifient pas les décisions. Pour une
+comparaison appariée, utiliser les mêmes decks et graines, inverser les camps et le premier joueur,
+puis réserver d’autres graines à la validation. Le p95 se calcule sur les durées de tour de chaque
+version; le débit d’un match mixte ne remplace pas le débit mesuré séparément pour chaque version.
+Les tests des matchs 7 et 93 conservent les géométries des fins de tours 28 et 11, reconstituées
+à partir des positions finales, des routes et de l’historique exportés. Ils ajoutent des dés de
+déplacement et réinitialisent les recharges et orientations : ils vérifient ces positions sans
+prétendre reproduire intégralement les tours historiques.
 
 Sur 420 matchs reproductibles (seed `731`, profils `balanced` et `defensive`, plateau et
 configuration par défaut), le réglage 5/2/250 a pris 236,8 s contre 283,0 s pour 8/2/600 et

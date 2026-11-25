@@ -1,5 +1,5 @@
-import type { BoardDefinition } from "../game/boards";
-import { getFacingFromMovement, getGridDistance } from "../game/monsterActions";
+import type { BoardDefinition } from "./boards";
+import { getFacingFromMovement, getGridDistance } from "./monsterActions";
 import type { Facing, PlacedMonster, PlayerId, Position } from "../types/GameTypes";
 
 const behind: Record<Facing, Position> = {

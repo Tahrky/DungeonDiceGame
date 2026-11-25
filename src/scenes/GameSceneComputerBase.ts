@@ -1,8 +1,12 @@
-import { GameSceneMovement } from "./GameSceneMovement";
+import { GameSceneComputerReply } from "./GameSceneComputerReply";
 import { getComputerAttackValue, getRoleBonus } from "./computerAttackValue";
 import { PLACEMENT_PATTERNS } from "../data/placementPatterns";
 import { positionKey } from "../game/geometry";
-import { findValidPlacement } from "../game/placement";
+import {
+    findValidPlacement,
+    findValidPlacements,
+    type PlacementSearchOptions,
+} from "../game/placement";
 import {
     canDeployMonsterForProfile,
     chooseBotObjective,
@@ -30,7 +34,7 @@ export interface ComputerAttackChoice {
     score: number;
 }
 
-export abstract class GameSceneComputerBase extends GameSceneMovement {
+export abstract class GameSceneComputerBase extends GameSceneComputerReply {
     protected getComputerTactic() {
         return chooseBotTactic(this.opponentProfile, "balanced").tactic;
     }
@@ -75,7 +79,9 @@ export abstract class GameSceneComputerBase extends GameSceneMovement {
         return !this.hasReachedMonsterLimit(2) && this.findComputerPlacement() !== null;
     }
 
-    protected findComputerPlacement(): { position: Position; cells: Position[] } | null {
+    protected findComputerPlacement(
+        monster?: Monster,
+    ): { position: Position; cells: Position[] } | null {
         const start = this.startingPositions[2];
         const enemyStart = this.startingPositions[1];
         const tactic = this.getComputerTactic();
@@ -120,7 +126,12 @@ export abstract class GameSceneComputerBase extends GameSceneMovement {
             2,
         );
         const preservesFirstDeployment = this.getOpponentFirstDeploymentProtection(2);
-        return findValidPlacement({
+        const scorePlacement = (position: Position, cells: readonly Position[]) =>
+            territoryExpansionScore(cells) +
+            defensivePlacementScore(position) +
+            pathBlockadeScore(cells) +
+            strategicCellScore(position) * 0.5;
+        const options: PlacementSearchOptions = {
             patterns: PLACEMENT_PATTERNS,
             boardWidth: this.board.width,
             boardHeight: this.board.height,
@@ -134,36 +145,65 @@ export abstract class GameSceneComputerBase extends GameSceneMovement {
                 !livingMonsterKeys.has(positionKey(position)) &&
                 !cells.some((cell) => opponentTerritoryKeys.has(positionKey(cell))) &&
                 (!preservesFirstDeployment || preservesFirstDeployment(cells)),
-            scorePlacement: (position, cells) =>
-                territoryExpansionScore(cells) +
-                defensivePlacementScore(position) +
-                pathBlockadeScore(cells) +
-                strategicCellScore(position) * 0.5,
-        });
-    }
-
-    protected getComputerAttackOptions(): ComputerAttackOption[] {
-        return this.getLivingMonsters(2).flatMap((attacker) =>
-            attacker.monster.attacks.flatMap((attack, attackIndex) =>
-                this.canUseMonsterAttack(attacker, attackIndex)
-                    ? [
-                          {
-                              attacker,
-                              attackIndex,
-                              attack,
-                              cost: this.getMonsterAttackCost(attacker, attack),
-                          },
-                      ]
-                    : [],
+            scorePlacement,
+        };
+        const canReply = this.getLivingMonsters(1).some((opponent) =>
+            opponent.monster.attacks.some(
+                (attack) =>
+                    !attack.targetsAlliesOnly &&
+                    this.getMonsterAttackCost(opponent, attack) <= this.diceReserves[1].attack,
             ),
         );
+        if (!monster || !canReply) return findValidPlacement(options);
+
+        const candidates = findValidPlacements(options)
+            .map((placement) => ({
+                placement,
+                score: scorePlacement(placement.position, placement.cells),
+            }))
+            .sort((first, second) => second.score - first.score)
+            .slice(0, 3);
+        let best: (typeof candidates)[number] | undefined;
+        let bestScore = Number.NEGATIVE_INFINITY;
+        for (const candidate of candidates) {
+            const score =
+                candidate.score -
+                this.getComputerPlacementReplyPenalty(monster, candidate.placement);
+            if (score > bestScore) {
+                best = candidate;
+                bestScore = score;
+            }
+        }
+        return best?.placement ?? null;
+    }
+
+    protected getComputerAttackOptions(attackerId?: string): ComputerAttackOption[] {
+        return this.getLivingMonsters(2)
+            .filter((attacker) => !attackerId || attacker.id === attackerId)
+            .flatMap((attacker) =>
+                attacker.monster.attacks.flatMap((attack, attackIndex) =>
+                    this.canUseMonsterAttack(attacker, attackIndex)
+                        ? [
+                              {
+                                  attacker,
+                                  attackIndex,
+                                  attack,
+                                  cost: this.getMonsterAttackCost(attacker, attack),
+                              },
+                          ]
+                        : [],
+                ),
+            );
     }
 
     protected *getComputerAttackChoices(
         roles?: ReadonlyMap<string, RoleAssignment>,
+        attackerId?: string,
     ): Generator<ComputerAttackChoice> {
         const tactic = this.getComputerTactic();
-        for (const { attacker, attackIndex, attack, cost } of this.getComputerAttackOptions()) {
+        for (const { attacker, attackIndex, attack, cost } of this.getComputerAttackOptions(
+            attackerId,
+        )) {
             for (const target of this.getAttackCandidateCells(attacker.id, attackIndex)) {
                 if (!this.canAttackTarget(attacker.id, attackIndex, target)) continue;
                 const cells = this.getAttackPreviewCells(attacker.id, attackIndex, target);

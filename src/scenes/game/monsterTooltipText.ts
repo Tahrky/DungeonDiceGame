@@ -5,6 +5,7 @@ import {
     describeMonsterStatusEffect,
     formatCost,
     formatHitPoints,
+    formatMonsterArmor,
 } from "../../game/monsterDescriptions";
 import { STATUS_EFFECT_COLORS } from "../../game/statusEffects";
 import type { Monster, MonsterStatusEffect } from "../../types/GameTypes";
@@ -67,8 +68,15 @@ export function addHitPointRow(
         formatHitPoints(monster.hp),
         WHITE,
     );
-    let width = cost.width + 8 + currentHp.width + separator.width + total.width;
-    let statusX = total.x + total.width + 8;
+    const armor = addHitPointText(
+        scene,
+        total.x + total.width,
+        y,
+        ` · ${formatMonsterArmor(monster)}`,
+        WHITE,
+    );
+    let width = armor.x + armor.width - CONTENT_X;
+    let statusX = armor.x + armor.width + 8;
     const statusLabels = statusEffects.map((effect) => {
         const color = STATUS_EFFECT_COLORS[effect.color].toString(16).padStart(6, "0");
         const label = addTooltipText(
@@ -83,5 +91,5 @@ export function addHitPointRow(
         width = Math.max(width, label.x + label.width - CONTENT_X);
         return label;
     });
-    return { cost, labels: [currentHp, separator, total, ...statusLabels], width };
+    return { cost, labels: [currentHp, separator, total, armor, ...statusLabels], width };
 }

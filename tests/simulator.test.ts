@@ -16,6 +16,67 @@ function createRandom(seed: number): () => number {
 }
 
 describe("simulation de matchs", () => {
+    it("refuse les options expérimentales mal formées", () => {
+        const options: SimulationOptions = {
+            games: 1,
+            seed: 731,
+            maxTurns: 1,
+            profile1: "balanced",
+            profile2: "balanced",
+        };
+        for (const invalid of [
+            { playerOptions: { 3: { movementAttackCombos: true } } },
+            { playerOptions: { 1: { summonPlacementPairs: "true" } } },
+            { playerOptions: { 1: null } },
+            { measureTurnDurations: "true" },
+        ]) {
+            expect(() =>
+                runSimulations({ ...options, ...JSON.parse(JSON.stringify(invalid)) }),
+            ).toThrow(RangeError);
+        }
+    });
+
+    it("applique les options par joueur et mesure les tours uniquement sur demande", () => {
+        const options: SimulationOptions = {
+            games: 1,
+            seed: 731,
+            maxTurns: 4,
+            profile1: "balanced",
+            profile2: "defensive",
+        };
+        const global = runSimulations({
+            ...options,
+            movementAttackCombos: true,
+            summonPlacementPairs: true,
+        }).matches[0]!;
+        const perPlayer = runSimulations({
+            ...options,
+            playerOptions: {
+                1: { movementAttackCombos: true, summonPlacementPairs: true },
+                2: { movementAttackCombos: true, summonPlacementPairs: true },
+            },
+        }).matches[0]!;
+        expect(perPlayer).toEqual(global);
+        const baseline = runSimulations(options).matches[0]!;
+        const overrides = runSimulations({
+            ...options,
+            movementAttackCombos: true,
+            summonPlacementPairs: true,
+            playerOptions: {
+                1: { movementAttackCombos: false, summonPlacementPairs: false },
+                2: { movementAttackCombos: false, summonPlacementPairs: false },
+            },
+        }).matches[0]!;
+        expect(overrides).toEqual(baseline);
+        expect(baseline).not.toHaveProperty("turnDurationsMs");
+        const timed = runSimulations({ ...options, measureTurnDurations: true }).matches[0]!;
+        expect(timed.turnDurationsMs?.[1].length).toBeGreaterThan(0);
+        expect(timed.turnDurationsMs?.[2].length).toBeGreaterThan(0);
+        expect(timed.turnDurationsMs?.[1].every((duration) => duration >= 0)).toBe(true);
+        delete timed.turnDurationsMs;
+        expect(timed).toEqual(baseline);
+    });
+
     it("produit un résultat reproductible avec l'état final et les décisions du bot", () => {
         const options: SimulationOptions = {
             games: 2,

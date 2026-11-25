@@ -21,7 +21,8 @@ import {
     type BotTactic,
 } from "../game/botStrategy";
 import { createStrategicSnapshot, type MatchState } from "./matchState";
-import { createFormationScorer } from "./formation";
+import { createFormationScorer } from "../game/formation";
+import { getPlacementReplyPenalty } from "./placementReply";
 import {
     createStrategicCellScorer,
     evaluateStrategicState,
@@ -153,14 +154,20 @@ function evaluateSummonPlacement(
 ): number {
     const reserves = byPlayer((owner) => ({ ...state.reserves[owner] }));
     reserves[player].invocation -= monster.cost;
-    return evaluateStrategicState({
+    const candidate = createSummonedMonsterCandidate(state, player, monster, placement);
+    const strategicScore = evaluateStrategicState({
         ...snapshot,
-        monsters: [
-            ...state.monsters,
-            createSummonedMonsterCandidate(state, player, monster, placement),
-        ],
+        monsters: [...state.monsters, candidate],
         reserves,
     });
+    return (
+        strategicScore -
+        getPlacementReplyPenalty(
+            { ...state, monsters: [...state.monsters, candidate], reserves },
+            snapshot.board,
+            player,
+        )
+    );
 }
 
 function getGuardPriority(defend: boolean, tactic: BotTactic, hasBackstabThreat: boolean): number {

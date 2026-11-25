@@ -15,6 +15,7 @@ import type {
 export interface MatchState {
     turn: number;
     currentPlayer: PlayerId;
+    startingPlayer?: PlayerId;
     debug?: boolean;
     protectFirstDeployment?: boolean;
     completeAttackPhases?: boolean;

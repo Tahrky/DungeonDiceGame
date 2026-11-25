@@ -1,12 +1,9 @@
 import {
-    canPassHostileMonsters,
     canUseActionThisTurn,
     consumeMovementTurnBuff,
     clearCamouflageForMovement,
     getMovementActionsPerTurn,
     getMovementCost,
-    getMovementRange,
-    type MovementOptions,
 } from "../game/monsterActions";
 import {
     getFacingFromMovement,
@@ -21,6 +18,7 @@ import type { PlacedMonster, PlayerId, Position } from "../types/GameTypes";
 import {
     addEvent,
     canSpend,
+    cloneMatchState,
     createStrategicSnapshot,
     getPlayerMonsters,
     spend,
@@ -42,7 +40,10 @@ import {
 } from "../game/ai";
 import { findAttackSetupMovement } from "./attackSetupMovement";
 import { performAttacks } from "./combat";
-import { createFormationScorer } from "./formation";
+import { getAvailableAttackChoices } from "./combat/attackChoices";
+import { createFormationScorer } from "../game/formation";
+import { createMovementOptions } from "./movementOptions";
+import { getPlacementReplyPenalty } from "./placementReply";
 
 type FormationScorer = ReturnType<typeof createFormationScorer>;
 type MovementStep = "moved" | "stopped" | "matchOver";
@@ -65,30 +66,6 @@ const MOVEMENT_GOALS: Partial<Record<RoleAssignment["role"], string>> = {
 };
 const DEFAULT_MOVEMENT_GOAL = "le départ ennemi";
 const ATTACK_SETUP_DESCRIPTION = "Se déplace pour créer une attaque ce tour-ci.";
-
-function createMovementOptions(
-    state: MatchState,
-    board: BoardDefinition,
-    monster: PlacedMonster,
-): MovementOptions {
-    return {
-        source: monster.position,
-        deployedCells: state.monsters.flatMap((placed) => placed.cells),
-        occupiedCells: state.monsters
-            .filter((placed) => placed.currentHp > 0 && placed.id !== monster.id)
-            .map((placed) => placed.position),
-        blockedCells: [...board.blockedCells, ...Object.values(getStartingPositions(board))],
-        hostileCells: state.monsters
-            .filter((placed) => placed.currentHp > 0 && placed.owner !== monster.owner)
-            .map((placed) => placed.position),
-        canPassHostiles: canPassHostileMonsters(monster.monster),
-        canPassUndeployedCells: monster.monster.flying === true,
-        range: getMovementRange(monster.monster, monster.turnBuffs?.movementRangeBonus ?? 0),
-        boardWidth: board.width,
-        boardHeight: board.height,
-        destination: monster.position,
-    };
-}
 
 function chooseObjectives(
     context: MovementContext,
@@ -167,6 +144,42 @@ function recordStagnation(state: MatchState, player: PlayerId, monsterId: string
         (statistics.actionsSkippedByReason.unreachableObjective ?? 0) + 1;
 }
 
+function opensGuardedThreat(
+    context: MovementContext,
+    monster: PlacedMonster,
+    movement: ObjectiveMovement,
+    attacksAfterMovement: boolean,
+): boolean {
+    const before = getPlacementReplyPenalty(context.state, context.board, context.player);
+    const candidate = cloneMatchState(context.state);
+    const guard = candidate.monsters.find(({ id }) => id === monster.id);
+    if (!guard) throw new Error(`Garde introuvable : ${monster.id}`);
+    guard.facing = getFacingFromMovement(guard.position, movement.position, guard.facing);
+    guard.position = movement.position;
+    clearCamouflageForMovement(guard, movement.path);
+    consumeMovementTurnBuff(guard);
+    if (attacksAfterMovement && !choosesRandomActions(candidate.profiles[context.player])) {
+        const bestAttack = getAvailableAttackChoices(candidate, context.board, undefined, false)[0];
+        if (
+            bestAttack &&
+            bestAttack.features.baseDamage >= candidate.health[opposingPlayer(context.player)]
+        ) {
+            return false;
+        }
+    }
+    return getPlacementReplyPenalty(candidate, context.board, context.player) > before;
+}
+
+function recordGuardDecision(state: MatchState, player: PlayerId, monsterId: string): void {
+    addEvent(state, {
+        turn: state.turn,
+        player,
+        type: "strategy",
+        monsterId,
+        description: "Garde l’entrée de sa base plutôt que d’ouvrir le passage.",
+    });
+}
+
 function describeObjectiveMovement(
     role: RoleAssignment | undefined,
     reEvaluated: boolean,
@@ -220,14 +233,9 @@ function moveMonster(context: MovementContext, monster: PlacedMonster, cost: num
     );
     const { roleObjective, objectives } = chooseObjectives(context, monster, role, enemyPositions);
     const formation = createFormationScorer(board, state.monsters, player, starts[player]);
-    if (isGuardingGate(context, formation, monster, enemyPositions)) {
-        addEvent(state, {
-            turn: state.turn,
-            player,
-            type: "strategy",
-            monsterId: monster.id,
-            description: "Garde l’entrée de sa base plutôt que d’ouvrir le passage.",
-        });
+    const guardingGate = isGuardingGate(context, formation, monster, enemyPositions);
+    if (guardingGate && !state.movementAttackCombos) {
+        recordGuardDecision(state, player, monster.id);
         return "stopped";
     }
     const planner = createObjectivePlanner(
@@ -259,7 +267,15 @@ function moveMonster(context: MovementContext, monster: PlacedMonster, cost: num
         : null;
     const selectedMovement = attackSetupMovement ?? best;
     if (!selectedMovement) {
-        if (!onGuard) recordStagnation(state, player, monster.id);
+        if (guardingGate) recordGuardDecision(state, player, monster.id);
+        else if (!onGuard) recordStagnation(state, player, monster.id);
+        return "stopped";
+    }
+    if (
+        guardingGate &&
+        opensGuardedThreat(context, monster, selectedMovement, !!attackSetupMovement)
+    ) {
+        recordGuardDecision(state, player, monster.id);
         return "stopped";
     }
     if (!spend(state, player, "movement", cost)) return "stopped";

@@ -171,6 +171,7 @@ function getAttackChoices(
     attacker: PlacedMonster,
     attack: MonsterAttack,
     attackIndex: number,
+    includeNonPositive: boolean,
 ): AttackChoice[] {
     const player = state.currentPlayer;
     const weights = state.strategyWeights?.[player] ?? DEFAULT_BOT_STRATEGY_WEIGHTS;
@@ -193,7 +194,7 @@ function getAttackChoices(
             weights === DEFAULT_BOT_STRATEGY_WEIGHTS
                 ? choiceScore
                 : score(features, DEFAULT_BOT_STRATEGY_WEIGHTS);
-        if (defaultScore > 0) {
+        if (includeNonPositive || defaultScore > 0) {
             choices.push({ attacker, attackIndex, ...option, features, score: choiceScore });
         }
     }
@@ -210,6 +211,7 @@ export function getAvailableAttackChoices(
     board: BoardDefinition,
     attackerId?: string,
     recordStatistics = true,
+    includeNonPositive = false,
 ): AttackChoice[] {
     const context = createAttackContext(state, board);
     const player = state.currentPlayer;
@@ -218,7 +220,16 @@ export function getAvailableAttackChoices(
         if (attackerId !== undefined && attacker.id !== attackerId) continue;
         for (const { attack, attackIndex } of getReadyAttacks(attacker)) {
             if (canSpend(state, player, "attack", getBuffedAttackCost(attacker, attack))) {
-                choices.push(...getAttackChoices(state, context, attacker, attack, attackIndex));
+                choices.push(
+                    ...getAttackChoices(
+                        state,
+                        context,
+                        attacker,
+                        attack,
+                        attackIndex,
+                        includeNonPositive,
+                    ),
+                );
             }
         }
     }
