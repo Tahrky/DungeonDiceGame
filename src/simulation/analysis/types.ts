@@ -1,6 +1,5 @@
 import type { BoardDefinition } from "../../game/boards";
-import type { GameConfiguration } from "../../game/gameConfiguration";
-import type { DiceReserve, PlayerId } from "../../types/GameTypes";
+import type { DiceReserve, Monster, PlayerId } from "../../types/GameTypes";
 import type { OutcomeRate } from "../statistics";
 import type { BotProfile, FinalBoard, FinalMonster, SimulationEvent } from "../types";
 
@@ -56,9 +55,15 @@ export interface AnalyzableMatch {
 }
 
 export interface SimulationData {
-    configuration: GameConfiguration;
+    configuration: SimulationAnalysisConfiguration;
     board: BoardDefinition;
     matches: AnalyzableMatch[];
+}
+
+export type AnalyzableMonster = Pick<Monster, "id" | "name" | "symbol" | "color">;
+
+export interface SimulationAnalysisConfiguration {
+    monsters: AnalyzableMonster[];
 }
 
 export interface MonsterAttackUsage {
@@ -111,4 +116,16 @@ export interface SimulationAnalytics {
     averageConversionLosses: Record<PlayerId, number | null>;
     averageDecisionTimeMs: Record<PlayerId, number>;
     averagePositionsExplored: Record<PlayerId, number>;
+}
+
+export interface ProfileAnalytics {
+    matchCount: number;
+    averageTurns: number | null;
+    winRate: number | null;
+    winsByPlayer: Record<PlayerId, number>;
+    winsByFinishReason: { baseDestroyed: number; monstersEliminated: number };
+    draws: number;
+    turnDistribution: Array<{ turns: number; matches: number }>;
+    monsters: MonsterAnalysis[];
+    hasDetailedHistory: boolean;
 }

@@ -20,10 +20,8 @@ export function App() {
     const activeGameRef = useRef<ActiveGame | null>(null);
     const [gameConfiguration, setGameConfiguration] = useState(getSavedGameConfiguration);
     const [opponentProfile, setOpponentProfile] = useState<BotProfile>("balanced");
-    const { screen, navigateTo, recoveryError, setRecoveryError } = useScreenNavigation(
-        sessionId,
-        activeGameRef,
-    );
+    const { screen, simulationReturnScreen, navigateTo, recoveryError, setRecoveryError } =
+        useScreenNavigation(sessionId, activeGameRef);
     const { game, gameRef, containerRef, isLoading, loadError, initializeGame } = useGameEngine({
         sessionId,
         activeGameRef,
@@ -95,6 +93,7 @@ export function App() {
     return (
         <AppScreen
             screen={screen}
+            simulationReturnScreen={simulationReturnScreen}
             sessionId={sessionId}
             canPlay={game !== null}
             isGameLoading={isLoading}

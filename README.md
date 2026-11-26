@@ -40,6 +40,11 @@ dissipe les effets de statut de la cible. `highAltitude: true` réserve le monst
 distance ou aux attaques des monstres volants; `flying: true` seul ne protège pas des attaques au
 corps à corps.
 
+## Simulations
+
+Le laboratoire de simulation est accessible depuis **Options → Simulations** ou avec la touche
+**S** sur l’écran d’accueil.
+
 ## Sprites animés
 
 Les spritesheets peuvent être organisées en grille (comme le golem) ou sur une seule ligne (comme le chevalier). Chaque frame doit avoir les dimensions indiquées par `frameWidth` et `frameHeight` dans `src/data/monsterSprites.ts` (180 × 180 actuellement). Le jeu détecte automatiquement le nombre de frames dans chaque image à partir de la texture chargée; il n’est pas nécessaire de le renseigner dans la configuration. Le nombre de frames peut donc varier selon l’action.

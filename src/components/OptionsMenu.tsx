@@ -5,12 +5,18 @@ interface OptionsMenuProps {
     readonly onBack: () => void;
     readonly onConfigureRules: () => void;
     readonly onConfigureMonsters: () => void;
+    readonly onOpenSimulation: () => void;
 }
 
-export function OptionsMenu({ onBack, onConfigureRules, onConfigureMonsters }: OptionsMenuProps) {
+export function OptionsMenu({
+    onBack,
+    onConfigureRules,
+    onConfigureMonsters,
+    onOpenSimulation,
+}: OptionsMenuProps) {
     return (
         <MenuScreen isLive onBack={onBack} title="Options">
-            <div className="menu-card-grid menu-card-grid--two">
+            <div className="menu-card-grid">
                 <MenuCard
                     icon={<ChoiceIcon>⚙</ChoiceIcon>}
                     label="Règles"
@@ -31,6 +37,11 @@ export function OptionsMenu({ onBack, onConfigureRules, onConfigureMonsters }: O
                         </>
                     }
                     onClick={onConfigureMonsters}
+                />
+                <MenuCard
+                    icon={<ChoiceIcon>⚗</ChoiceIcon>}
+                    label="Simulations"
+                    onClick={onOpenSimulation}
                 />
             </div>
         </MenuScreen>

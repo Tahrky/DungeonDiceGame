@@ -1,15 +1,18 @@
 import { Fragment } from "react";
-import type { GameConfiguration } from "../../game/gameConfiguration";
 import { PLAYER_IDS } from "../../game/matchRules";
 import { getUniqueMonsterSymbols } from "../../game/monsterSymbols";
-import { analyzeMatchMonsters, type AnalyzableMatch } from "../../simulation/analysis";
+import {
+    analyzeMatchMonsters,
+    type AnalyzableMatch,
+    type SimulationAnalysisConfiguration,
+} from "../../simulation/analysis";
 import { HISTORY_COLUMNS, getMatchMonsterColumns } from "./matchColumns";
 import { SimulationBoard } from "./SimulationBoard";
 import { SortableTable } from "./SortableTable";
 
 interface MatchDetailsProps {
     readonly match: AnalyzableMatch;
-    readonly configuration: GameConfiguration;
+    readonly configuration: SimulationAnalysisConfiguration;
 }
 
 const MAX_VISIBLE_EVENTS = 500;

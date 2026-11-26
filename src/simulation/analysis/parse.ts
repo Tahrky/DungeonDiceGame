@@ -1,9 +1,14 @@
 import { parseBoardDefinition } from "../../game/boards";
-import { parseGameConfiguration } from "../../game/gameConfiguration";
 import { isPlainRecord as isRecord } from "../../utils/guards";
 import type { DiceReserve, PlayerId } from "../../types/GameTypes";
 import { BOT_PROFILES, type BotProfile, type FinalBoard, type SimulationEvent } from "../types";
-import type { AnalyzableMatch, AnalyzablePlayerStats, SimulationData } from "./types";
+import type {
+    AnalyzableMatch,
+    AnalyzableMonster,
+    AnalyzablePlayerStats,
+    SimulationAnalysisConfiguration,
+    SimulationData,
+} from "./types";
 
 function isNumber(value: unknown): value is number {
     return typeof value === "number" && Number.isFinite(value);
@@ -11,6 +16,34 @@ function isNumber(value: unknown): value is number {
 
 function isPlayerId(value: unknown): value is PlayerId {
     return value === 1 || value === 2;
+}
+
+function isAnalysisConfiguration(value: unknown): value is SimulationAnalysisConfiguration {
+    if (
+        !isRecord(value) ||
+        !Array.isArray(value.monsters) ||
+        value.monsters.length === 0 ||
+        value.monsters.length > 26
+    ) {
+        return false;
+    }
+    const monsters: unknown[] = value.monsters;
+    const isMonster = (monster: unknown): monster is AnalyzableMonster =>
+        isRecord(monster) &&
+        typeof monster.id === "string" &&
+        monster.id.length > 0 &&
+        typeof monster.name === "string" &&
+        monster.name.trim().length > 0 &&
+        typeof monster.symbol === "string" &&
+        monster.symbol.length > 0 &&
+        Number.isInteger(monster.color) &&
+        typeof monster.color === "number" &&
+        monster.color >= 0 &&
+        monster.color <= 0xffffff;
+    return (
+        monsters.every(isMonster) &&
+        new Set(monsters.map((monster) => monster.id)).size === monsters.length
+    );
 }
 
 function isDiceReserve(value: unknown): value is DiceReserve {
@@ -172,9 +205,22 @@ export function parseSimulationData(value: unknown): SimulationData | null {
     if (!isRecord(value) || value.schemaVersion !== 1 || !Array.isArray(value.matches)) {
         return null;
     }
-    const configuration = parseGameConfiguration(value.configuration);
+    const configuration = value.configuration;
     const board = parseBoardDefinition(value.board);
-    if (!configuration || !board || value.matches.length === 0 || !value.matches.every(isMatch)) {
+    if (
+        !isAnalysisConfiguration(configuration) ||
+        !board ||
+        value.matches.length === 0 ||
+        !value.matches.every(isMatch)
+    ) {
+        return null;
+    }
+    const monsterIds = new Set(configuration.monsters.map((monster) => monster.id));
+    if (
+        value.matches.some((match) =>
+            match.finalMonsters.some((monster) => !monsterIds.has(monster.monsterId)),
+        )
+    ) {
         return null;
     }
     return { configuration, board, matches: value.matches };

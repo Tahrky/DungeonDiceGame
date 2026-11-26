@@ -1,9 +1,10 @@
 import { createEmptyDiceReserve } from "../../game/diceResources";
 import { PLAYER_IDS } from "../../game/matchRules";
-import type { DiceReserve, Monster } from "../../types/GameTypes";
+import type { DiceReserve, PlayerId } from "../../types/GameTypes";
 import type { SimulationEvent } from "../types";
 import type {
     AnalyzableMatch,
+    AnalyzableMonster,
     MatchMonsterAnalysis,
     MonsterAnalysis,
     MonsterAttackUsage,
@@ -108,7 +109,7 @@ function createMonsterTotals(): MonsterTotals {
     };
 }
 
-export function createMonsterStatistics(monsters: readonly Monster[]): MonsterStatistics {
+export function createMonsterStatistics(monsters: readonly AnalyzableMonster[]): MonsterStatistics {
     return {
         totals: new Map(monsters.map((monster) => [monster.id, createMonsterTotals()])),
         idsByName: new Map(monsters.map((monster) => [monster.name, monster.id])),
@@ -116,9 +117,13 @@ export function createMonsterStatistics(monsters: readonly Monster[]): MonsterSt
     };
 }
 
-function recordAppearances(statistics: MonsterStatistics, match: AnalyzableMatch): void {
+function recordAppearances(
+    statistics: MonsterStatistics,
+    match: AnalyzableMatch,
+    players: readonly PlayerId[],
+): void {
     const monstersSeen = new Set<string>();
-    for (const player of PLAYER_IDS) {
+    for (const player of players) {
         for (const [monsterId, count] of Object.entries(
             match.statistics[player].summonedByMonster,
         )) {
@@ -144,14 +149,15 @@ function recordAttack(total: MonsterTotals, event: SimulationEvent): void {
 export function addMatchMonsterStatistics(
     statistics: MonsterStatistics,
     match: AnalyzableMatch,
+    players: readonly PlayerId[] = PLAYER_IDS,
 ): void {
     if (match.history.length === 0) statistics.resourceCostsAvailable = false;
-    recordAppearances(statistics, match);
+    recordAppearances(statistics, match, players);
 
     const eventCounts = { invocation: 0, attack: 0, status: 0, movement: 0 };
     const firstInvocationTurns = new Map<string, number>();
     for (const event of match.history) {
-        if (!isMonsterEvent(event)) continue;
+        if (!players.includes(event.player) || !isMonsterEvent(event)) continue;
         const monsterTypeId =
             event.monsterTypeId ??
             (event.monsterName ? statistics.idsByName.get(event.monsterName) : undefined);
@@ -177,11 +183,20 @@ export function addMatchMonsterStatistics(
         }
     }
 
-    const [first, second] = [match.statistics[1], match.statistics[2]];
+    const expected = players.reduce(
+        (counts, player) => {
+            const playerStats = match.statistics[player];
+            counts.invocation += playerStats.summoned;
+            counts.attack += playerStats.attacks;
+            counts.movement += playerStats.movements;
+            return counts;
+        },
+        { invocation: 0, attack: 0, movement: 0 },
+    );
     if (
-        eventCounts.invocation !== first.summoned + second.summoned ||
-        eventCounts.attack !== first.attacks + second.attacks ||
-        eventCounts.movement !== first.movements + second.movements
+        eventCounts.invocation !== expected.invocation ||
+        eventCounts.attack !== expected.attack ||
+        eventCounts.movement !== expected.movement
     ) {
         statistics.resourceCostsAvailable = false;
     }
@@ -194,7 +209,7 @@ export function addMatchMonsterStatistics(
 
 export function getMonsterAnalyses(
     statistics: MonsterStatistics,
-    monsters: readonly Monster[],
+    monsters: readonly AnalyzableMonster[],
 ): MonsterAnalysis[] {
     return monsters
         .map((monster) => {

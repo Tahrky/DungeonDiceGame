@@ -3,6 +3,7 @@ import { getDefaultGameConfiguration } from "../src/game/gameConfiguration";
 import { getDefaultBoard } from "../src/game/boards";
 import {
     analyzeMatchMonsters,
+    analyzeProfileData,
     analyzeSimulationData,
     calculateWilsonInterval,
     parseSimulationData,
@@ -329,5 +330,145 @@ describe("analyse des résultats de simulation", () => {
         expect(globalAnalysis?.averageMovements).toBeCloseTo(
             (baseline.movements + 1) / baseline.appearances,
         );
+    });
+
+    it("filtre les résultats et les actions par profil, y compris les matchs miroir", () => {
+        const batch = runSimulations({
+            games: 5,
+            seed: 33,
+            maxTurns: 1,
+            profile1: "cheap",
+            profile2: "support",
+        });
+        const data = parseSimulationData(batch);
+        if (!data) throw new Error("Export de simulation attendu comme valide.");
+        const [first, second, mirror, unrelated, loss] = data.matches;
+        first.profiles = { 1: "cheap", 2: "support" };
+        first.winner = 1;
+        first.finishReason = "baseDestroyed";
+        first.turns = 8;
+        second.profiles = { 1: "support", 2: "cheap" };
+        second.winner = 2;
+        second.finishReason = "monstersEliminated";
+        second.turns = 11;
+        mirror.profiles = { 1: "cheap", 2: "cheap" };
+        mirror.winner = null;
+        mirror.finishReason = "turnLimit";
+        mirror.turns = 8;
+        unrelated.profiles = { 1: "support", 2: "balanced" };
+        unrelated.winner = 2;
+        unrelated.finishReason = "baseDestroyed";
+        loss.profiles = { 1: "cheap", 2: "support" };
+        loss.winner = 2;
+        loss.finishReason = "baseDestroyed";
+        loss.turns = 9;
+
+        for (const match of data.matches) {
+            for (const player of [1, 2] as const) {
+                Object.assign(match.statistics[player], {
+                    summoned: 1,
+                    summonedByMonster: { ghost: 1 },
+                    attacks: 1,
+                    movements: 0,
+                });
+            }
+            match.history = [1, 2].flatMap((player) => [
+                {
+                    turn: player,
+                    player: player === 1 ? 1 : 2,
+                    type: "invocation" as const,
+                    description: "Invocation",
+                    monsterTypeId: "ghost",
+                    cost: 1,
+                },
+                {
+                    turn: 3,
+                    player: player === 1 ? 1 : 2,
+                    type: "attack" as const,
+                    description: "Attaque",
+                    monsterTypeId: "ghost",
+                    attackName: "Griffe",
+                    damage: player === 1 ? 2 : 5,
+                    cost: 1,
+                },
+            ]);
+        }
+        first.history.push({
+            turn: 4,
+            player: 1,
+            type: "status",
+            description: "Poison",
+            monsterTypeId: "ghost",
+            damage: 3,
+        });
+        const original = structuredClone(data);
+
+        const analytics = analyzeProfileData(data, "cheap");
+        expect(analytics).toMatchObject({
+            matchCount: 4,
+            averageTurns: 9,
+            winRate: 0.5,
+            winsByPlayer: { 1: 1, 2: 1 },
+            winsByFinishReason: { baseDestroyed: 1, monstersEliminated: 1 },
+            draws: 1,
+            hasDetailedHistory: true,
+            turnDistribution: [
+                { turns: 8, matches: 2 },
+                { turns: 9, matches: 1 },
+                { turns: 11, matches: 1 },
+            ],
+        });
+        expect(analytics.monsters.find(({ id }) => id === "ghost")).toMatchObject({
+            appearances: 5,
+            matchesSeen: 4,
+            attacks: 5,
+            directDamage: 16,
+            damageOverTime: 3,
+            totalDamage: 19,
+            resourceCosts: { invocation: 5, attack: 5, movement: 0 },
+            averageFirstInvocationTurn: 1.25,
+            attackUsage: [{ name: "Griffe", uses: 5 }],
+        });
+        expect(data).toEqual(original);
+
+        const fractional = structuredClone(data);
+        fractional.matches[1].turns = 12;
+        expect(analyzeProfileData(fractional, "cheap").averageTurns).toBe(9.25);
+        expect(analyzeProfileData(data, "tracker").averageTurns).toBeNull();
+        expect(analyzeProfileData(data, "tracker").winRate).toBeNull();
+        const noWins = structuredClone(data);
+        for (const match of noWins.matches) match.winner = null;
+        expect(analyzeProfileData(noWins, "cheap").winRate).toBe(0);
+
+        const mirrorWin = structuredClone(data);
+        mirrorWin.matches[2].winner = 2;
+        mirrorWin.matches[2].finishReason = "baseDestroyed";
+        expect(analyzeProfileData(mirrorWin, "cheap")).toMatchObject({
+            matchCount: 4,
+            winRate: 0.75,
+            winsByPlayer: { 1: 1, 2: 2 },
+            winsByFinishReason: { baseDestroyed: 2, monstersEliminated: 1 },
+            draws: 0,
+        });
+    });
+
+    it("ne masque les détails que si un match du profil a un historique absent", () => {
+        const batch = runSimulations({
+            games: 2,
+            seed: 33,
+            maxTurns: 1,
+            profile1: "cheap",
+            profile2: "support",
+        });
+        const data = parseSimulationData(batch);
+        if (!data) throw new Error("Export de simulation attendu comme valide.");
+        data.matches[0].profiles = { 1: "cheap", 2: "cheap" };
+        data.matches[1].profiles = { 1: "support", 2: "support" };
+        data.matches[1].history = [];
+
+        expect(analyzeProfileData(data, "cheap").hasDetailedHistory).toBe(true);
+        const light = analyzeProfileData(data, "support");
+        expect(light.hasDetailedHistory).toBe(false);
+        expect(light.monsters.every(({ resourceCosts }) => resourceCosts === null)).toBe(true);
     });
 });

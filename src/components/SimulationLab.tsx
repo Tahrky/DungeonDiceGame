@@ -11,6 +11,7 @@ interface SimulationLabProps {
     readonly sessionId: string;
     readonly configuration: GameConfiguration;
     readonly onBack: () => void;
+    readonly backLabel: string;
 }
 
 const TABS = [
@@ -19,7 +20,7 @@ const TABS = [
     { id: "balance", label: "Équilibrage des monstres" },
 ] as const;
 
-export function SimulationLab({ sessionId, configuration, onBack }: SimulationLabProps) {
+export function SimulationLab({ sessionId, configuration, onBack, backLabel }: SimulationLabProps) {
     const [activeTab, setActiveTab] = useState<(typeof TABS)[number]["id"]>("run");
     const [isRunning, setIsRunning] = useState(false);
     const [generatedResult, setGeneratedResult] = useState<SimulationBatchResult | null>(null);
@@ -34,6 +35,7 @@ export function SimulationLab({ sessionId, configuration, onBack }: SimulationLa
             screenClassName="simulation-screen"
             isBackDisabled={isRunning}
             onBack={onBack}
+            backLabel={backLabel}
             eyebrow="OUTIL D’ÉQUILIBRAGE"
             title="Laboratoire de simulation"
         >

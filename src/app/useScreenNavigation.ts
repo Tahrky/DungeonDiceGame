@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type RefObject } from "react";
+import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 
 import { clearGameSession } from "../persistence/gameSession";
 import { getRecoverableScreen, saveActiveScreen } from "../persistence/recoveryScreen";
@@ -19,6 +19,10 @@ export function useScreenNavigation(
     activeGameRef: RefObject<ActiveGame | null>,
 ) {
     const [screen, setScreen] = useState<AppScreenName>(() => getRecoverableScreen() ?? "menu");
+    const screenRef = useRef(screen);
+    const [simulationReturnScreen, setSimulationReturnScreen] = useState<"menu" | "options-menu">(
+        "menu",
+    );
     const [recoveryError, setRecoveryError] = useState("");
 
     const navigateTo = useCallback(
@@ -33,6 +37,12 @@ export function useScreenNavigation(
             } catch (error) {
                 report("Impossible de mémoriser l’écran actif.")(error);
             }
+            if (nextScreen === "simulation") {
+                setSimulationReturnScreen(
+                    screenRef.current === "options-menu" ? "options-menu" : "menu",
+                );
+            }
+            screenRef.current = nextScreen;
             setScreen(nextScreen);
             if (nextScreen !== "game") {
                 activeGameRef.current = null;
@@ -64,5 +74,5 @@ export function useScreenNavigation(
         return () => window.removeEventListener("keydown", handleMenuShortcut);
     }, [navigateTo, screen]);
 
-    return { screen, navigateTo, recoveryError, setRecoveryError };
+    return { screen, simulationReturnScreen, navigateTo, recoveryError, setRecoveryError };
 }

@@ -1,8 +1,7 @@
 import type { CSSProperties } from "react";
 import { GAME_CONFIG } from "../../config";
 import { getMonsterSymbol, getUniqueMonsterSymbols } from "../../game/monsterSymbols";
-import type { GameConfiguration } from "../../game/gameConfiguration";
-import type { AnalyzableMatch } from "../../simulation/analysis";
+import type { AnalyzableMatch, SimulationAnalysisConfiguration } from "../../simulation/analysis";
 import type { PlayerId } from "../../types/GameTypes";
 import { getCellLabel, getMonsterSpriteStyle, getTileClass } from "./simulationBoardStyles";
 
@@ -10,7 +9,7 @@ type FinalMonster = AnalyzableMatch["finalMonsters"][number];
 
 interface SimulationBoardProps {
     readonly match: AnalyzableMatch;
-    readonly configuration: GameConfiguration;
+    readonly configuration: SimulationAnalysisConfiguration;
 }
 
 interface BoardCellProps {

@@ -12,6 +12,7 @@ import { formatFailure } from "../../utils/errors";
 import { JsonFileButton } from "../common/JsonFileButton";
 import { GeneralStatistics } from "./GeneralStatistics";
 import { MatchInspector } from "./MatchInspector";
+import { ProfileStatistics } from "./ProfileStatistics";
 
 interface ResultsAnalysisPanelProps {
     readonly generatedResult: SimulationBatchResult | null;
@@ -24,6 +25,7 @@ interface Analysis {
 
 const TABS = [
     { id: "general", label: "Statistiques générales" },
+    { id: "profile", label: "Statistiques par profil" },
     { id: "match", label: "Statistiques d’une partie" },
 ] as const;
 
@@ -45,8 +47,15 @@ export function ResultsAnalysisPanel({ generatedResult }: ResultsAnalysisPanelPr
     }
 
     useEffect(() => {
-        const parsed = generatedResult && parseSimulationData(generatedResult);
-        if (parsed) loadData(parsed, "Dernière simulation");
+        if (!generatedResult) return;
+        const parsed = parseSimulationData(generatedResult);
+        if (parsed) {
+            loadData(parsed, "Dernière simulation");
+        } else {
+            setAnalysis(null);
+            setFileName("");
+            setError("Impossible d’analyser le résultat de la simulation.");
+        }
     }, [generatedResult]);
 
     async function importJson(file: File): Promise<void> {
@@ -101,7 +110,7 @@ export function ResultsAnalysisPanel({ generatedResult }: ResultsAnalysisPanelPr
                     {error}
                 </output>
             )}
-            {analysis && !hasDetailedHistory && (
+            {analysis && activeTab !== "profile" && !hasDetailedHistory && (
                 <p className="simulation-description" role="status">
                     Les résultats légers ne conservent pas les actions détaillées. Les statistiques
                     d’attaques, de dégâts et de déplacements par monstre ne sont pas disponibles.
@@ -138,6 +147,8 @@ export function ResultsAnalysisPanel({ generatedResult }: ResultsAnalysisPanelPr
                                 analytics={analysis.analytics}
                                 hasDetailedHistory={hasDetailedHistory}
                             />
+                        ) : activeTab === "profile" ? (
+                            <ProfileStatistics data={analysis.data} />
                         ) : (
                             <MatchInspector
                                 matches={analysis.data.matches}

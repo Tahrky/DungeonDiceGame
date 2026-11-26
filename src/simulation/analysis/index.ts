@@ -10,6 +10,7 @@ import type { AnalyzableMatch, SimulationAnalytics, SimulationData } from "./typ
 export type * from "./types";
 export { analyzeMatchMonsters } from "./monsters";
 export { parseSimulationData } from "./parse";
+export { analyzeProfileData } from "./profiles";
 export { calculateWilsonInterval } from "../statistics";
 export type { OutcomeRate, WilsonInterval } from "../statistics";
 

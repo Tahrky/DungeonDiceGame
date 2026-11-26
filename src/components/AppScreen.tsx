@@ -19,6 +19,7 @@ const SimulationLab = lazy(() =>
 
 interface AppScreenProps {
     readonly screen: AppScreenName;
+    readonly simulationReturnScreen: "menu" | "options-menu";
     readonly sessionId: string;
     readonly canPlay: boolean;
     readonly isGameLoading: boolean;
@@ -41,6 +42,7 @@ interface AppScreenProps {
 
 export function AppScreen({
     screen,
+    simulationReturnScreen,
     sessionId,
     canPlay,
     isGameLoading,
@@ -83,7 +85,12 @@ export function AppScreen({
                         <SimulationLab
                             sessionId={sessionId}
                             configuration={gameConfiguration}
-                            onBack={goTo("menu")}
+                            onBack={goTo(simulationReturnScreen)}
+                            backLabel={
+                                simulationReturnScreen === "options-menu"
+                                    ? "Retour aux options"
+                                    : "Retour à l’accueil"
+                            }
                         />
                     </Suspense>
                 )}
@@ -110,6 +117,7 @@ export function AppScreen({
                         onBack={goTo("menu")}
                         onConfigureRules={goTo("settings")}
                         onConfigureMonsters={goTo("monster-settings")}
+                        onOpenSimulation={goTo("simulation")}
                     />
                 )}
                 {screen === "deck" && (

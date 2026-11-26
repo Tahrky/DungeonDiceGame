@@ -1,11 +1,10 @@
-import type { GameConfiguration } from "../../game/gameConfiguration";
-import type { AnalyzableMatch } from "../../simulation/analysis";
+import type { AnalyzableMatch, SimulationAnalysisConfiguration } from "../../simulation/analysis";
 import { SelectField } from "../common/FormFields";
 import { MatchDetails } from "./MatchDetails";
 
 interface MatchInspectorProps {
     readonly matches: readonly AnalyzableMatch[];
-    readonly configuration: GameConfiguration;
+    readonly configuration: SimulationAnalysisConfiguration;
     readonly selectedMatchId: string;
     readonly onMatchChange: (id: string) => void;
 }

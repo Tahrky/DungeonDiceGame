@@ -415,6 +415,8 @@ JSON. Il permet une confrontation entre profils ou un tournoi des 42 paires orie
 statistiques par joueur, état final et historique d’actions sont enregistrés dans chaque rapport.
 Les rapports s’archivent actuellement par export/import JSON manuel : il n’existe pas encore
 d’historique de campagnes consultable dans l’application.
+Pour l’analyse, la configuration historique est vérifiée sur les informations nécessaires à
+l’affichage des monstres, sans appliquer les limites actuelles d’édition des règles jouables.
 
 Le tableau théorique est dérivé des caractéristiques de monstres et d’hypothèses fixes dans
 `src/simulation/monsterBalance/options.ts` : plateau 19 × 13, cinq ressources par tour, densités d’alliés et
@@ -435,6 +437,10 @@ et leurs intervalles de Wilson à 95 % par joueur, profil et joueur de départ. 
 matchs nuls au dénominateur, présentés séparément. Les événements d’action fournissent aussi les
 premiers tours d’invocation et coûts par type de monstre quand l’historique contient tous les coûts;
 sinon ces coûts sont affichés comme indisponibles.
+
+La vue par profil filtre les actions et invocations selon le joueur associé au profil dans chaque
+match. Un match entre deux bots du même profil est compté une fois pour les résultats, la durée et
+les apparitions par match, et les actions et invocations des deux joueurs sont cumulées.
 
 Les alertes de fiabilité sont des repères d’échantillon, pas une déclaration d’équilibrage. Un
 intervalle de Wilson sur des matchs agrégés ne corrige pas les biais de composition, de profil,
