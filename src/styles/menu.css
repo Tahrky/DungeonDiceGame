@@ -24,6 +24,10 @@
     justify-content: center;
 }
 
+.options-reset {
+    margin-top: 24px;
+}
+
 .menu-card {
     display: flex;
     min-height: 220px;

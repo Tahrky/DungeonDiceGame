@@ -1,5 +1,10 @@
+import { useState } from "react";
+import { resetLocalData } from "../persistence/resetLocalData";
+import { formatFailure } from "../utils/errors";
 import { ChoiceIcon, MenuCard } from "./common/MenuCard";
 import { MenuScreen } from "./common/MenuScreen";
+import { Notice } from "./common/Notice";
+import { ResetLocalDataDialog } from "./settings/ResetLocalDataDialog";
 
 interface OptionsMenuProps {
     readonly onBack: () => void;
@@ -14,8 +19,43 @@ export function OptionsMenu({
     onConfigureMonsters,
     onOpenSimulation,
 }: OptionsMenuProps) {
+    const [confirmReset, setConfirmReset] = useState(false);
+    const [isResetting, setIsResetting] = useState(false);
+    const [resetError, setResetError] = useState("");
+
+    async function reset(): Promise<void> {
+        setIsResetting(true);
+        setResetError("");
+        try {
+            await resetLocalData();
+            window.location.reload();
+        } catch (error) {
+            setResetError(
+                formatFailure(
+                    "Suppression incomplète ; certaines données ont peut-être été effacées",
+                    error,
+                ),
+            );
+            setConfirmReset(false);
+            setIsResetting(false);
+        }
+    }
+
     return (
-        <MenuScreen isLive onBack={onBack} title="Options">
+        <MenuScreen
+            isLive
+            onBack={onBack}
+            title="Options"
+            dialog={
+                confirmReset && (
+                    <ResetLocalDataDialog
+                        isResetting={isResetting}
+                        onConfirm={() => void reset()}
+                        onCancel={() => setConfirmReset(false)}
+                    />
+                )
+            }
+        >
             <div className="menu-card-grid">
                 <MenuCard
                     icon={<ChoiceIcon>⚙</ChoiceIcon>}
@@ -43,6 +83,16 @@ export function OptionsMenu({
                     label="Simulations"
                     onClick={onOpenSimulation}
                 />
+            </div>
+            <div className="options-reset">
+                <button
+                    className="secondary-button"
+                    type="button"
+                    onClick={() => setConfirmReset(true)}
+                >
+                    Effacer les données locales
+                </button>
+                {resetError && <Notice role="alert">{resetError}</Notice>}
             </div>
         </MenuScreen>
     );

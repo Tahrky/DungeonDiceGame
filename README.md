@@ -42,6 +42,11 @@ dissipe les effets de statut de la cible. `highAltitude: true` réserve le monst
 distance ou aux attaques des monstres volants; `flying: true` seul ne protège pas des attaques au
 corps à corps.
 
+Dans **Options → Effacer les données locales**, confirmez pour supprimer les réglages, le deck et
+les sauvegardes de parties et simulations, puis recharger les valeurs de la version servie.
+Fermez d’abord les autres onglets du jeu. Cette action ne met pas à jour le dépôt Git et ne vide
+pas le cache HTTP du navigateur.
+
 ## Simulations
 
 Le laboratoire de simulation est accessible depuis **Options → Simulations** ou avec la touche

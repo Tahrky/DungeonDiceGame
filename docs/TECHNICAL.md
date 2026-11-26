@@ -144,6 +144,12 @@ monstres restent définis dans `src/data/monsters.ts`. Une seed de simulation à
 l’heure courante ; une valeur numérique fixe la seed. Les préférences déjà enregistrées restent
 prioritaires sur les valeurs par défaut.
 
+Dans **Options → Effacer les données locales**, une confirmation supprime le deck, la configuration
+et toutes les sauvegardes de reprise de parties et de simulations du jeu, puis recharge la page.
+Fermer les autres onglets du jeu évite qu’ils réécrivent leurs données. Le rechargement utilise la
+version actuellement servie ; il ne met pas à jour le dépôt Git et ne vide pas le cache HTTP du
+navigateur. Les autres données du site ne sont pas supprimées.
+
 | Donnée        | Stockage navigateur          | Détail                                  |
 | ------------- | ---------------------------- | --------------------------------------- |
 | Deck          | `dungeon-dice.deck`          | Nombre configuré d’identifiants de monstres distincts |

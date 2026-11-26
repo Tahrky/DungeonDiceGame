@@ -24,3 +24,8 @@ export function saveActiveScreen(screen: RecoverableScreen | null): void {
         sessionStorage.setItem(ACTIVE_SCREEN_KEY, screen);
     }
 }
+
+export function clearRecoveryScreen(): void {
+    sessionStorage.removeItem(SESSION_ID_KEY);
+    sessionStorage.removeItem(ACTIVE_SCREEN_KEY);
+}

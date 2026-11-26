@@ -108,3 +108,19 @@ export async function deleteRecord(storeName: string, key: IDBValidKey): Promise
         },
     );
 }
+
+export async function clearAllRecoveryData(): Promise<void> {
+    const stores = [GAME_SESSION_STORE, SIMULATION_RUN_STORE, SIMULATION_CHUNK_STORE];
+    await runTransaction(
+        stores,
+        "readwrite",
+        {
+            error: "Impossible d’effacer les sauvegardes de reprise.",
+            abort: "L’effacement des sauvegardes de reprise a été interrompu.",
+        },
+        (transaction) => {
+            for (const store of stores) transaction.objectStore(store).clear();
+            return undefined;
+        },
+    );
+}
