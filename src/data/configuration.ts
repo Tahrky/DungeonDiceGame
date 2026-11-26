@@ -28,7 +28,7 @@ export const GAME_OPTIONS = {
     testBoard: { default: false },
     initialPlayerHealth: { default: 4, min: 1, max: 20 },
     allowBaseAttackOnSummonTurn: { default: false },
-    removeInvocationDiceWhenNoMonsters: { default: false },
+    removeInvocationDiceWhenNoMonsters: { default: true },
     protectFirstDeployment: { default: true },
     maxMonstersPerPlayer: { default: 8, min: 1, max: 20 },
     maxSummonsPerMonster: { default: 2, min: 1, max: 20 },

@@ -21,8 +21,8 @@ export const MONSTERS: Monster[] = [
             */
             {
                 name: "Coup au corps à corps",
-                damage: 1,
-                cost: 2,
+                damage: 2,
+                cost: 1,
                 pattern: { type: "adjacent" },
             },
         ],
@@ -74,7 +74,7 @@ export const MONSTERS: Monster[] = [
             },
             {
                 name: "Tir puissant",
-                damage: 5,
+                damage: 4,
                 cost: 2,
                 pattern: { type: "radius", range: 4 },
                 animation: "alternativeAttack1",
