@@ -25,6 +25,7 @@ export abstract class GameSceneState extends GameSceneData {
             playerHealth: this.playerHealth,
             playerMaxHealth: this.gameConfiguration.initialPlayerHealth,
             maxMonstersPerPlayer: this.gameConfiguration.maxMonstersPerPlayer,
+            maxSummonsPerMonster: this.gameConfiguration.maxSummonsPerMonster,
             monstersKilledForVictory: this.gameConfiguration.monstersKilledForVictory,
             availableMonsters: this.getDeckMonsters(this.currentPlayer),
             computerOpponent: this.computerOpponent,

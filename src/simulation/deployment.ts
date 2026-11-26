@@ -1,6 +1,6 @@
 import type { GameConfiguration } from "../game/gameConfiguration";
 import type { BoardDefinition } from "../game/boards";
-import { getInvokedMonsterCount } from "../game/matchRules";
+import { canInvokeMonster, getInvokedMonsterCount } from "../game/matchRules";
 import type { PatternPlacement } from "../game/placement";
 import { shuffle } from "../game/random";
 import type { Monster } from "../types/GameTypes";
@@ -148,8 +148,10 @@ export function createDeploymentDecider(
         ) {
             return null;
         }
-        const affordableMonsters = deckMonsters.filter((monster) =>
-            canSpend(state, player, "invocation", monster.cost),
+        const affordableMonsters = deckMonsters.filter(
+            (monster) =>
+                canSpend(state, player, "invocation", monster.cost) &&
+                canInvokeMonster(state.monsters, player, monster.id, configuration),
         );
         if (affordableMonsters.length === 0) return null;
         const placement = state.summonPlacementPairs ? null : findPlacement(state, board, player);
@@ -166,6 +168,9 @@ export function executeDeployment(
     profile: BotProfile,
     { summon, candidateCount }: DeploymentDecision,
 ): boolean {
+    if (!canInvokeMonster(state.monsters, state.currentPlayer, summon.monster.id, configuration)) {
+        return false;
+    }
     if (!spend(state, state.currentPlayer, "invocation", summon.monster.cost)) return false;
     summonMonster(state, configuration, profile, summon, candidateCount);
     return true;

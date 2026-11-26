@@ -5,7 +5,8 @@ import type { BoardDefinition } from "../game/boards";
 import type { GameConfiguration } from "../game/gameConfiguration";
 import { createCrossProfilePairs } from "./workerPool";
 import { NodeSimulationWorkerPool, startNodeSimulationWorker } from "./nodeWorkerPool";
-import { BOT_PROFILES, DEFAULT_MAX_TURNS, type SimulationBatchResult } from "./types";
+import { SIMULATION_CLI_DEFAULTS, SIMULATION_DEFAULTS, TRAINING_DEFAULTS } from "../data/configuration";
+import { BOT_PROFILES, type SimulationBatchResult } from "./types";
 import { formatElapsedDuration } from "./formatElapsedDuration";
 import { getOptionalValue, parseSimulationArguments } from "./cli/arguments";
 import { loadConfiguration, loadStrategyWeights, writeJsonFile } from "./cli/files";
@@ -17,11 +18,11 @@ Usage :
   npm run simulate -- [options]
 
 Options :
-  --games <n>          Nombre de matchs (défaut : 100)
-  --seed <n>           Graine aléatoire reproductible
-  --max-turns <n>      Limite de tours par match (défaut : ${DEFAULT_MAX_TURNS})
-  --profile1 <profil>  Profil du joueur 1
-  --profile2 <profil>  Profil du joueur 2
+  --games <n>          Nombre de matchs (défaut : ${SIMULATION_CLI_DEFAULTS.games})
+  --seed <n>           Graine aléatoire reproductible (défaut : ${SIMULATION_DEFAULTS.seed ?? "heure courante"})
+  --max-turns <n>      Limite de tours par match (défaut : ${SIMULATION_DEFAULTS.maxTurns})
+  --profile1 <profil>  Profil du joueur 1 (défaut : ${SIMULATION_CLI_DEFAULTS.profile})
+  --profile2 <profil>  Profil du joueur 2 (défaut : ${SIMULATION_CLI_DEFAULTS.profile})
   --deck1 <ids>        Deck J1 (ids séparés par des virgules)
   --deck2 <ids>        Deck J2 (ids séparés par des virgules)
   --config <fichier>   Configuration de jeu JSON à simuler
@@ -41,11 +42,11 @@ Options :
   --previous-weights <fichier> Rapport de poids précédent à comparer ou reprendre
   --allow-incompatible-transfer Force le transfert d'un rapport legacy/incompatible
   --training-groups <groupes> Groupes à entraîner, séparés par des virgules
-  --training-seeds     Nombre de seeds d’entraînement (défaut : 3)
-  --selection-seeds    Nombre de seeds de sélection indépendantes (défaut : 3)
-  --validation-seeds   Nombre de seeds de validation (défaut : 3)
-  --generations        Générations de réglage (défaut : 2)
-  --population         Candidats évalués par génération (défaut : 3)
+  --training-seeds     Nombre de seeds d’entraînement (défaut : ${TRAINING_DEFAULTS.trainingSeedCount})
+  --selection-seeds    Nombre de seeds de sélection indépendantes (défaut : ${TRAINING_DEFAULTS.selectionSeedCount})
+  --validation-seeds   Nombre de seeds de validation (défaut : ${TRAINING_DEFAULTS.validationSeedCount})
+  --generations        Générations de réglage (défaut : ${TRAINING_DEFAULTS.generations})
+  --population         Candidats par génération (défaut : ${TRAINING_DEFAULTS.populationSize}, hybrid : ${TRAINING_DEFAULTS.hybridPopulationSize})
   --help               Afficher cette aide
 
 Profils disponibles : ${BOT_PROFILES.join(", ")}

@@ -1,4 +1,5 @@
 import { resolve } from "node:path";
+import { TRAINING_DEFAULTS } from "../../data/configuration";
 import type { BoardDefinition } from "../../game/boards";
 import type { GameConfiguration } from "../../game/gameConfiguration";
 import { trainBotStrategies, type TrainedProfileReport } from "../training";
@@ -33,23 +34,27 @@ export async function runBotTraining(
     board: BoardDefinition,
     simulationRunner: TrainingSimulationRunner,
 ): Promise<void> {
-    const initializationMode = parseTrainingMode(readOption(args, "--training-mode", "default"));
+    const initializationMode = parseTrainingMode(
+        readOption(args, "--training-mode", TRAINING_DEFAULTS.initializationMode),
+    );
     const profiles = parseProfileList(
         readOption(args, "--training-profiles", BOT_PROFILES.join(",")),
     );
     const previousWeights = await loadPreviousWeights(getOptionalValue(args, "--previous-weights"));
     const groupsValue = getOptionalValue(args, "--training-groups");
     const report = await trainBotStrategies({
-        seed: readIntegerOption(args, "--seed", 731, 0, 0xffff_ffff),
-        maxTurns: readIntegerOption(args, "--max-turns", 10, 1, 10000),
-        trainingSeedCount: readIntegerOption(args, "--training-seeds", 3, 1, 100),
-        selectionSeedCount: readIntegerOption(args, "--selection-seeds", 3, 1, 100),
-        validationSeedCount: readIntegerOption(args, "--validation-seeds", 3, 1, 100),
-        generations: readIntegerOption(args, "--generations", 2, 0, 100),
+        seed: readIntegerOption(args, "--seed", TRAINING_DEFAULTS.seed, 0, 0xffff_ffff),
+        maxTurns: readIntegerOption(args, "--max-turns", TRAINING_DEFAULTS.maxTurns, 1, 10000),
+        trainingSeedCount: readIntegerOption(args, "--training-seeds", TRAINING_DEFAULTS.trainingSeedCount, 1, 100),
+        selectionSeedCount: readIntegerOption(args, "--selection-seeds", TRAINING_DEFAULTS.selectionSeedCount, 1, 100),
+        validationSeedCount: readIntegerOption(args, "--validation-seeds", TRAINING_DEFAULTS.validationSeedCount, 1, 100),
+        generations: readIntegerOption(args, "--generations", TRAINING_DEFAULTS.generations, 0, 100),
         populationSize: readIntegerOption(
             args,
             "--population",
-            initializationMode === "hybrid" ? 5 : 3,
+            initializationMode === "hybrid"
+                ? TRAINING_DEFAULTS.hybridPopulationSize
+                : TRAINING_DEFAULTS.populationSize,
             1,
             100,
         ),

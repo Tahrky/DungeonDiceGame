@@ -186,6 +186,7 @@ describe("disposition du panneau d’invocation", () => {
                 diceReserves: { 1: { invocation: 20 } },
                 placedMonsters: [],
                 maxMonstersPerPlayer: 8,
+                maxSummonsPerMonster: 2,
                 availableMonsters: MONSTERS,
                 invocationMenuOpen: true,
                 selectedMonster: MONSTERS[5],

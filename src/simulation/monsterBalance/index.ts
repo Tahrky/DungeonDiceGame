@@ -6,7 +6,7 @@ import {
     getMonsterArmor,
 } from "./durability";
 import { calculateEconomy } from "./economy";
-import { BALANCE_WEIGHTS } from "./options";
+import { BALANCE_WEIGHTS } from "../../data/configuration";
 import { simulatePlan } from "./plan";
 import {
     calculateActionEconomyScore,
@@ -24,7 +24,7 @@ export {
     calculateMonsterAverageAttacks,
     getMonsterArmor,
 } from "./durability";
-export { BALANCE_WEIGHTS } from "./options";
+export { BALANCE_WEIGHTS } from "../../data/configuration";
 export {
     calculateActionEconomyScore,
     calculateMobilityScore,

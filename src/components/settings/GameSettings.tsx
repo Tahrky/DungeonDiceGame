@@ -1,5 +1,7 @@
 import { parseGameConfiguration, serializeGameConfiguration } from "../../game/gameConfiguration";
 import type { GameConfiguration } from "../../game/gameConfiguration";
+import { getMinimumDeckSize } from "../../game/decks";
+import { MAX_AVAILABLE_DECK_SIZE } from "../../data/configuration";
 import { downloadBlob } from "../../utils/browser";
 import { NumberField, ToggleField } from "../common/FormFields";
 import { JsonFileButton } from "../common/JsonFileButton";
@@ -44,8 +46,25 @@ export function GameSettings({
         key: NumberSettingKey | ToggleSettingKey,
         value: number | boolean,
     ): void {
-        setConfiguration((current) => ({ ...current, [key]: value }));
+        setConfiguration((current) => {
+            const next = { ...current, [key]: value };
+            const minimum = getMinimumDeckSize(
+                next.maxMonstersPerPlayer,
+                next.maxSummonsPerMonster,
+            );
+            return key === "maxMonstersPerPlayer" || key === "maxSummonsPerMonster"
+                ? {
+                      ...next,
+                      deckSize: Math.min(MAX_AVAILABLE_DECK_SIZE, Math.max(next.deckSize, minimum)),
+                  }
+                : next;
+        });
     }
+
+    const minimumDeckSize = getMinimumDeckSize(
+        configuration.maxMonstersPerPlayer,
+        configuration.maxSummonsPerMonster,
+    );
 
     function exportConfiguration(): void {
         const validConfiguration = parseGameConfiguration(configuration);
@@ -94,11 +113,24 @@ export function GameSettings({
                 {NUMBER_SETTINGS.map(({ key, min, max, label }) => (
                     <NumberField
                         key={key}
-                        label={label}
-                        min={min}
+                        label={
+                            key === "deckSize"
+                                ? `Monstres différents par deck (${minimumDeckSize} minimum, ${max} disponibles)`
+                                : label
+                        }
+                        min={key === "deckSize" ? Math.min(minimumDeckSize, max) : min}
                         max={max}
                         value={configuration[key]}
-                        onChange={(value) => updateSetting(key, clampInteger(value, min, max))}
+                        onChange={(value) =>
+                            updateSetting(
+                                key,
+                                clampInteger(
+                                    value,
+                                    key === "deckSize" ? Math.min(minimumDeckSize, max) : min,
+                                    max,
+                                ),
+                            )
+                        }
                     />
                 ))}
                 {TOGGLE_SETTINGS.map(({ key, label }) => (
@@ -111,6 +143,13 @@ export function GameSettings({
                 ))}
             </div>
 
+            {minimumDeckSize > MAX_AVAILABLE_DECK_SIZE && (
+                <Notice>
+                    Il faut {minimumDeckSize} monstres différents, mais seulement{" "}
+                    {MAX_AVAILABLE_DECK_SIZE} sont disponibles. Réduisez le nombre total
+                    d’invocations ou augmentez la limite par monstre.
+                </Notice>
+            )}
             <div className="deck-actions">
                 <button className="secondary-button" onClick={exportConfiguration}>
                     Exporter JSON

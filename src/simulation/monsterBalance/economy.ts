@@ -1,6 +1,6 @@
 import type { Monster } from "../../types/GameTypes";
 import { getMovementActions, getMovementCost, isUsableFromStart } from "./monsterStats";
-import { OPTIONS } from "./options";
+import { MONSTER_BALANCE_OPTIONS as OPTIONS } from "../../data/configuration";
 import type { Plan } from "./plan";
 import type { MonsterAttackBalance, MonsterEconomy } from "./types";
 

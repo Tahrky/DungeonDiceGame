@@ -1,5 +1,6 @@
 import type { BotProfile } from "../../game/botStrategy";
-import { DEFAULT_MAX_TURNS, type SimulationOptions } from "../../simulation/types";
+import { SIMULATION_DEFAULTS } from "../../data/configuration";
+import type { SimulationOptions } from "../../simulation/types";
 import { createCrossProfilePairs } from "../../simulation/workerPool";
 import { isIntegerInRange } from "../../utils/guards";
 
@@ -25,15 +26,15 @@ export type SimulationOptionsResult =
 
 export function createInitialFormValues(): SimulationFormValues {
     return {
-        profile1: "cheap",
-        profile2: "offensive",
-        crossProfileMode: false,
-        gameCount: "100",
-        repetitionCount: "1",
-        seed: String(Date.now() >>> 0),
-        maxTurns: String(DEFAULT_MAX_TURNS),
-        debug: false,
-        recordDecisionTraces: false,
+        profile1: SIMULATION_DEFAULTS.profile1,
+        profile2: SIMULATION_DEFAULTS.profile2,
+        crossProfileMode: SIMULATION_DEFAULTS.crossProfileMode,
+        gameCount: String(SIMULATION_DEFAULTS.gameCount),
+        repetitionCount: String(SIMULATION_DEFAULTS.repetitionCount),
+        seed: String(SIMULATION_DEFAULTS.seed ?? (Date.now() >>> 0)),
+        maxTurns: String(SIMULATION_DEFAULTS.maxTurns),
+        debug: SIMULATION_DEFAULTS.debug,
+        recordDecisionTraces: SIMULATION_DEFAULTS.recordDecisionTraces,
     };
 }
 

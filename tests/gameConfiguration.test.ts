@@ -3,12 +3,15 @@ import { describe, expect, it, vi } from "vitest";
 import { MONSTERS } from "../src/data/monsters";
 import {
     DEFAULT_DECK_SIZE,
-    GAME_CONFIGURATION_STORAGE_KEY,
     GAME_OPTIONS,
-    getDefaultGameConfiguration,
-    getSavedGameConfiguration,
     MAX_AVAILABLE_DECK_SIZE,
     MIN_DECK_SIZE,
+} from "../src/data/configuration";
+import {
+    GAME_CONFIGURATION_STORAGE_KEY,
+    GAME_CONFIGURATION_VERSION,
+    getDefaultGameConfiguration,
+    getSavedGameConfiguration,
     parseGameConfiguration,
     serializeGameConfiguration,
 } from "../src/game/gameConfiguration";
@@ -226,7 +229,7 @@ describe("configuration des règles de partie", () => {
 
         const migrated = parseGameConfiguration(legacyConfiguration);
 
-        expect(migrated?.version).toBe(8);
+        expect(migrated?.version).toBe(GAME_CONFIGURATION_VERSION);
         expect(migrated?.deckSize).toBe(DEFAULT_DECK_SIZE);
         expect(migrated?.diceCount).toBe(3);
         expect(migrated?.monstersKilledForVictory).toBe(7);
@@ -270,7 +273,7 @@ describe("configuration des règles de partie", () => {
 
         const migrated = parseGameConfiguration(legacyConfiguration);
 
-        expect(migrated?.version).toBe(8);
+        expect(migrated?.version).toBe(GAME_CONFIGURATION_VERSION);
         expect(
             migrated?.monsters.find((monster) => monster.id === "shaman")?.attacks,
         ).toMatchObject([
@@ -288,7 +291,7 @@ describe("configuration des règles de partie", () => {
         delete legacyConfiguration.deckSize;
 
         expect(parseGameConfiguration(legacyConfiguration)).toMatchObject({
-            version: 8,
+            version: GAME_CONFIGURATION_VERSION,
             deckSize: DEFAULT_DECK_SIZE,
             monstersKilledForVictory: 7,
         });
@@ -302,7 +305,7 @@ describe("configuration des règles de partie", () => {
         delete legacyConfiguration.deckSize;
 
         expect(parseGameConfiguration(legacyConfiguration)).toMatchObject({
-            version: 8,
+            version: GAME_CONFIGURATION_VERSION,
             deckSize: DEFAULT_DECK_SIZE,
         });
     });
@@ -315,7 +318,7 @@ describe("configuration des règles de partie", () => {
         delete legacyConfiguration.protectFirstDeployment;
 
         expect(parseGameConfiguration(legacyConfiguration)).toMatchObject({
-            version: 8,
+            version: GAME_CONFIGURATION_VERSION,
             protectFirstDeployment: true,
         });
 
@@ -510,15 +513,16 @@ describe("configuration des règles de partie", () => {
 
     it("refuse les configurations de version ou de limites invalides", () => {
         const configuration = getDefaultGameConfiguration();
-        expect(parseGameConfiguration({ ...configuration, version: 9 })).toBeNull();
+        expect(parseGameConfiguration({ ...configuration, version: GAME_CONFIGURATION_VERSION + 1 })).toBeNull();
         expect(
             parseGameConfiguration({ ...configuration, deckSize: MIN_DECK_SIZE - 1 }),
         ).toBeNull();
         expect(
             parseGameConfiguration({ ...configuration, deckSize: MAX_AVAILABLE_DECK_SIZE + 1 }),
         ).toBeNull();
+        expect(parseGameConfiguration({ ...configuration, deckSize: MIN_DECK_SIZE })).toBeNull();
         expect(
-            parseGameConfiguration({ ...configuration, deckSize: MIN_DECK_SIZE })?.deckSize,
+            parseGameConfiguration({ ...configuration, deckSize: MIN_DECK_SIZE, maxSummonsPerMonster: 3 })?.deckSize,
         ).toBe(MIN_DECK_SIZE);
         expect(
             parseGameConfiguration({

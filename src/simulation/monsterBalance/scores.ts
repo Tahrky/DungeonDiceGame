@@ -7,7 +7,7 @@ import {
     isUsableFromStart,
 } from "./monsterStats";
 import { getMonsterArmor } from "./durability";
-import { OPTIONS } from "./options";
+import { MONSTER_BALANCE_OPTIONS as OPTIONS } from "../../data/configuration";
 import type { Plan } from "./plan";
 import { addPassiveSupportValue } from "./support";
 

@@ -9,7 +9,7 @@ import {
 } from "../game/placement";
 import { isBoardCell } from "../game/boards";
 import { isSamePosition } from "../game/geometry";
-import { getInvokedMonsterCount, opposingPlayer } from "../game/matchRules";
+import { canInvokeMonster, getInvokedMonsterCount, opposingPlayer } from "../game/matchRules";
 import type {
     BoardCellHeight,
     BoardHeightChange,
@@ -64,7 +64,12 @@ export abstract class GameSceneInvocation extends GameSceneState {
         );
         if (
             !monster ||
-            this.hasReachedMonsterLimit() ||
+            !canInvokeMonster(
+                this.placedMonsters,
+                this.currentPlayer,
+                monster.id,
+                this.gameConfiguration,
+            ) ||
             this.actionMode.type !== "idle" ||
             this.getAvailableSymbols("invocation") < monster.cost
         ) {
@@ -208,7 +213,16 @@ export abstract class GameSceneInvocation extends GameSceneState {
             this.handleBoardAction(position);
             return;
         }
-        if (!this.selectedMonster || this.hasReachedMonsterLimit()) return;
+        if (
+            !this.selectedMonster ||
+            !canInvokeMonster(
+                this.placedMonsters,
+                this.currentPlayer,
+                this.selectedMonster.id,
+                this.gameConfiguration,
+            )
+        )
+            return;
 
         if (this.pendingCells) {
             this.confirmPlacement(this.selectedMonster, this.pendingCells, position);
@@ -231,7 +245,17 @@ export abstract class GameSceneInvocation extends GameSceneState {
             !cells.some((cell) =>
                 this.obstacles.some((obstacle) => isSamePosition(obstacle.position, cell)),
             );
-        if (!isValidPosition || !this.spendCurrentSymbol("invocation", monster.cost)) return;
+        if (
+            !isValidPosition ||
+            !canInvokeMonster(
+                this.placedMonsters,
+                this.currentPlayer,
+                monster.id,
+                this.gameConfiguration,
+            ) ||
+            !this.spendCurrentSymbol("invocation", monster.cost)
+        )
+            return;
 
         this.placedMonsters.push(
             this.createPlacedMonster(monster, this.currentPlayer, position, cells),

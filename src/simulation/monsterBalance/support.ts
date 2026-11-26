@@ -1,5 +1,5 @@
 import type { MonsterAttack } from "../../types/GameTypes";
-import { OPTIONS } from "./options";
+import { MONSTER_BALANCE_OPTIONS as OPTIONS } from "../../data/configuration";
 
 type SupportKey =
     | "healAmount"

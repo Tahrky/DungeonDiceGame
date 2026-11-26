@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { GAME_CONFIG } from "../../config";
+import { GAME_CONFIG } from "../../data/configuration";
 import { getMonsterSymbol, getUniqueMonsterSymbols } from "../../game/monsterSymbols";
 import type { AnalyzableMatch, SimulationAnalysisConfiguration } from "../../simulation/analysis";
 import type { PlayerId } from "../../types/GameTypes";

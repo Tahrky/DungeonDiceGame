@@ -3,7 +3,7 @@ import { parseBoardDefinition } from "../game/boards";
 import { parseBotDecisionOptions } from "../game/botConfiguration";
 import { parseBotStrategyWeightMap } from "../game/botStrategy";
 import { parseDeck, type GameSetup } from "../game/decks";
-import { parseGameConfiguration } from "../game/gameConfiguration";
+import { parseSavedMatchConfiguration } from "../game/gameConfiguration";
 import { isGameSnapshot } from "../scenes/GameSceneProtocol";
 import type { GameSnapshot } from "../types/GameTypes";
 import { isRecord } from "../utils/guards";
@@ -41,7 +41,7 @@ export function parseGameSetup(value: unknown): GameSetup | null {
         return null;
     }
 
-    const configuration = parseGameConfiguration(value.configuration);
+    const configuration = parseSavedMatchConfiguration(value.configuration);
     const board = parseBoardDefinition(value.board);
     if (!configuration || !board) return null;
     const playerDeck = parseDeck(value.playerDeck, configuration.deckSize);

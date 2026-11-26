@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 
-import { GAME_CONFIG } from "../../config";
+import { GAME_CONFIG } from "../../data/configuration";
 import { MONSTER_SPRITES } from "../../data/monsterSprites";
 import { getBoardOrigin, isBoardCell, type BoardDefinition } from "../../game/boards";
 import { FACING_VECTORS } from "../../game/geometry";

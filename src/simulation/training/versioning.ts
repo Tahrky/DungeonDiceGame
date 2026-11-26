@@ -7,9 +7,9 @@ import { BOT_STRATEGY_WEIGHT_KEYS, type BotProfile } from "../../game/botStrateg
 
 export const TRAINING_REPORT_SCHEMA_VERSION = 2;
 export const WEIGHTS_SCHEMA_VERSION = "2";
-export const RULES_ENGINE_VERSION = "2";
+export const RULES_ENGINE_VERSION = "3";
 export const EVALUATION_VERSION = "11";
-export const SIMULATOR_VERSION = "12";
+export const SIMULATOR_VERSION = "13";
 
 export const BOT_WEIGHT_GROUPS = {
     combat: ["baseDamage", "damage", "statusDamage", "kills", "support", "friendlyDamage"],
@@ -169,6 +169,7 @@ export function createTrainingFingerprint(
         removeInvocationDiceWhenNoMonsters: configuration.removeInvocationDiceWhenNoMonsters,
         protectFirstDeployment: configuration.protectFirstDeployment,
         maxMonstersPerPlayer: configuration.maxMonstersPerPlayer,
+        maxSummonsPerMonster: configuration.maxSummonsPerMonster,
         monstersKilledForVictory: configuration.monstersKilledForVictory,
     };
     const conversion = SYMBOL_CONVERSION_RULES;

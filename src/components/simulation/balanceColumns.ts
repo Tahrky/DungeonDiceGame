@@ -1,4 +1,5 @@
 import type { MonsterBalance } from "../../simulation/monsterBalance";
+import { BALANCE_WEIGHTS } from "../../data/configuration";
 import { nameColumn } from "./monsterColumns";
 import type { SortableColumn } from "./SortableTable";
 
@@ -24,7 +25,13 @@ export const BALANCE_COLUMNS: SortableColumn<MonsterBalance>[] = [
         key: "total",
         label: "Score global / 10",
         headerTitle:
-            "Moyenne pondérée des cinq indicateurs principaux, chacun ramené sur 10 :\n\nRobustesse : 4/17\nAttaque : 5/17\nMobilité : 3/17\nUtilité : 3/17\nÉconomie d’actions : 2/17\n\nLa portée et les zones restent affichées à part; leurs effets sur les cibles attendues sont déjà intégrés à l’offensive.",
+            `Moyenne pondérée des cinq indicateurs principaux, chacun ramené sur 10 :\n\n` +
+            `Robustesse : ${(BALANCE_WEIGHTS.durability * 100).toFixed(1)} %\n` +
+            `Attaque : ${(BALANCE_WEIGHTS.offense * 100).toFixed(1)} %\n` +
+            `Mobilité : ${(BALANCE_WEIGHTS.mobility * 100).toFixed(1)} %\n` +
+            `Utilité : ${(BALANCE_WEIGHTS.utility * 100).toFixed(1)} %\n` +
+            `Économie d’actions : ${(BALANCE_WEIGHTS.actionEconomy * 100).toFixed(1)} %\n\n` +
+            `La portée et les zones restent affichées à part; leurs effets sur les cibles attendues sont déjà intégrés à l’offensive.`,
         getValue: (monster) => monster.scores.total,
     }),
     metricColumn({ key: "summonCost", label: "Coût invoc", getValue: (m) => m.summonCost }),

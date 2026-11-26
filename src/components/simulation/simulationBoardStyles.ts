@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { GAME_CONFIG } from "../../config";
+import { GAME_CONFIG } from "../../data/configuration";
 import { GRID_FACING_TO_SPRITE_FACING, MONSTER_SPRITES } from "../../data/monsterSprites";
 import type { Facing, PlayerId } from "../../types/GameTypes";
 import { toCssColor } from "../../utils/color";

@@ -15,8 +15,6 @@ import type { TrainingFingerprint } from "./training/versioning";
 export { BOT_PROFILES } from "../game/botStrategy";
 export type { BotProfile, BotStrategyWeightMap } from "../game/botStrategy";
 
-export const DEFAULT_MAX_TURNS = 30;
-
 export interface ProfilePair {
     profile1: BotProfile;
     profile2: BotProfile;

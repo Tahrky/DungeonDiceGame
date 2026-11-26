@@ -7,6 +7,7 @@ import { useGameRestoration } from "./app/useGameRestoration";
 import { useOnlineRoom } from "./app/useOnlineRoom";
 import { useScreenNavigation } from "./app/useScreenNavigation";
 import { AppScreen } from "./components/AppScreen";
+import { DEFAULT_OPPONENT_PROFILE } from "./data/configuration";
 import { chooseDeck, type BotProfile } from "./game/botStrategy";
 import type { GameSetup } from "./game/decks";
 import { getSavedGameConfiguration } from "./game/gameConfiguration";
@@ -19,7 +20,7 @@ export function App() {
     const [sessionId] = useState(getRecoverySessionId);
     const activeGameRef = useRef<ActiveGame | null>(null);
     const [gameConfiguration, setGameConfiguration] = useState(getSavedGameConfiguration);
-    const [opponentProfile, setOpponentProfile] = useState<BotProfile>("balanced");
+    const [opponentProfile, setOpponentProfile] = useState<BotProfile>(DEFAULT_OPPONENT_PROFILE);
     const { screen, simulationReturnScreen, navigateTo, recoveryError, setRecoveryError } =
         useScreenNavigation(sessionId, activeGameRef);
     const { game, gameRef, containerRef, isLoading, loadError, initializeGame } = useGameEngine({

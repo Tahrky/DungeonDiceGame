@@ -6,7 +6,11 @@ import {
     getInitialAttackCooldowns,
     getInitialAttackUses,
 } from "../src/game/monsterActions";
-import { createDeploymentDecider, deployMonsters } from "../src/simulation/deployment";
+import {
+    createDeploymentDecider,
+    deployMonsters,
+    executeDeployment,
+} from "../src/simulation/deployment";
 import { createStats, type MatchState } from "../src/simulation/matchState";
 import { createFormationScorer } from "../src/game/formation";
 import {
@@ -73,6 +77,31 @@ function createMatchState(summonPlacementPairs: boolean): MatchState {
 }
 
 describe("invocations tactiques de simulation", () => {
+    it("limite chaque type par joueur, même après élimination, sans payer une invocation interdite", () => {
+        const board = createCustomBoard(9, 9);
+        const configuration = getDefaultGameConfiguration();
+        configuration.maxSummonsPerMonster = 1;
+        const ghost = configuration.monsters.find(({ id }) => id === "ghost")!;
+        const archer = configuration.monsters.find(({ id }) => id === "archer")!;
+        const state = createMatchState(false);
+        state.reserves[1].invocation = 20;
+        state.monsters[0].currentHp = 0;
+        const decide = createDeploymentDecider(state, configuration, board, "expensive", [ghost]);
+        const decision = decide();
+        if (!decision) throw new Error("Invocation attendue.");
+        expect(executeDeployment(state, configuration, "expensive", decision)).toBe(true);
+        state.monsters.find(({ owner }) => owner === 1)!.currentHp = 0;
+        const reserve = state.reserves[1].invocation;
+        expect(decide()).toBeNull();
+        expect(executeDeployment(state, configuration, "expensive", decision)).toBe(false);
+        expect(state.reserves[1].invocation).toBe(reserve);
+        expect(
+            createDeploymentDecider(state, configuration, board, "expensive", [archer])()?.summon
+                .monster.id,
+        ).toBe(archer.id);
+        expect(state.monsters.filter(({ owner }) => owner === 2)).toHaveLength(1);
+    });
+
     it("ne pose pas de route sur un obstacle de scène", () => {
         const board = createCustomBoard(9, 9);
         const state = createMatchState(false);

@@ -49,7 +49,7 @@ src/
     deck/                   Éditeur de deck et cartes de monstres
     settings/               Réglages de partie et de monstres
     simulation/             Laboratoire : lancement, tableaux, inspecteur de matchs, équilibrage
-  data/                     Définitions des monstres, dés, motifs et sprites
+  data/                     Configuration globale, définitions des monstres, dés, motifs et sprites
   game/                     Règles de domaine indépendantes du rendu
     ai/                     Évaluation stratégique, rôles, menaces et couverture des routes
   persistence/              IndexedDB, sessions de jeu et lots de simulation reprenables
@@ -128,15 +128,26 @@ La victoire est déclarée lorsque les points de vie d’un joueur atteignent z�
 a invoqué le nombre maximal de monstres configuré et n’a plus de monstre vivant tandis que
 l’adversaire en possède encore.
 
+Chaque joueur est limité à un nombre d’invocations par type de monstre pour toute la partie, même
+après élimination. La taille du deck doit être au moins `max(3, ceil(limite totale / limite par type))`.
+Les configurations anciennes migrent vers la limite par défaut et leur deck est agrandi si besoin ;
+les parties et simulations en cours conservent l’ancienne absence de limite par type.
+
 ## Données et configuration locale
 
 Les valeurs de jeu sont validées lors du chargement, en particulier les decks, les configurations
 de monstres, les configurations de partie et les définitions de plateau.
 
+Les valeurs par défaut des règles et des cases à cocher, de l’interface de simulation et de la CLI,
+ainsi que les hypothèses d’équilibrage, sont regroupées dans `src/data/configuration.ts`. Les
+monstres restent définis dans `src/data/monsters.ts`. Une seed de simulation à `null` utilise
+l’heure courante ; une valeur numérique fixe la seed. Les préférences déjà enregistrées restent
+prioritaires sur les valeurs par défaut.
+
 | Donnée        | Stockage navigateur          | Détail                                  |
 | ------------- | ---------------------------- | --------------------------------------- |
-| Deck          | `dungeon-dice.deck`          | Cinq identifiants de monstres distincts |
-| Configuration | `dungeon-dice.configuration` | Configuration versionnée (`version: 1`) |
+| Deck          | `dungeon-dice.deck`          | Nombre configuré d’identifiants de monstres distincts |
+| Configuration | `dungeon-dice.configuration` | Configuration versionnée (`version: 9`) |
 
 Si une valeur locale est absente, illisible ou invalide, le jeu utilise le deck ou la configuration
 par défaut. La configuration détermine notamment le nombre de dés, les points de vie de départ,
@@ -418,15 +429,15 @@ d’historique de campagnes consultable dans l’application.
 Pour l’analyse, la configuration historique est vérifiée sur les informations nécessaires à
 l’affichage des monstres, sans appliquer les limites actuelles d’édition des règles jouables.
 
-Le tableau théorique est dérivé des caractéristiques de monstres et d’hypothèses fixes dans
-`src/simulation/monsterBalance/options.ts` : plateau 19 × 13, cinq ressources par tour, densités d’alliés et
-d’ennemis estimées, horizon d’analyse de 12 tours et efficacité de soins estimée. La robustesse
+Le tableau théorique est dérivé des caractéristiques de monstres et des hypothèses dans
+`src/data/configuration.ts` : plateau 19 × 13, cinq ressources par tour, densités d’alliés et
+d’ennemis estimées, horizon d’analyse de 12 tours et efficacité de soins estimée par défaut. La robustesse
 applique théoriquement l’armure séparément à chaque attaque du catalogue; l’offensive estime les
 cibles de zone au lieu d’utiliser systématiquement leur maximum et tient compte des coûts et
 recharges. Mobilité et économie d’action sont des estimations, pas une mesure de trajectoires ou
 d’actions effectivement réalisables en match. Les cinq sous-scores du score global sont robustesse,
-offensive, mobilité, utilité et économie d’action, pondérés respectivement par 4/17, 5/17, 3/17,
-3/17 et 2/17. Portée / zone reste visible comme indicateur complémentaire, hors score global afin
+offensive, mobilité, utilité et économie d’action, pondérés par défaut respectivement par 4/17, 5/17,
+3/17, 3/17 et 2/17. Portée / zone reste visible comme indicateur complémentaire, hors score global afin
 d’éviter son double comptage avec les cibles attendues de l’offensive.
 
 Les rapports fournissent déjà, par match et par joueur, les invocations par type, attaques,

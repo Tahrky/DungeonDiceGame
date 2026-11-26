@@ -1,6 +1,6 @@
 import type { Monster, MonsterAttack } from "../../types/GameTypes";
 import { analyzeAttackGeometry, expectedHits, type AttackGeometry } from "./geometry";
-import { OPTIONS } from "./options";
+import { MONSTER_BALANCE_OPTIONS as OPTIONS } from "../../data/configuration";
 import { getAttackSupportValue } from "./support";
 import type { MonsterAttackBalance } from "./types";
 

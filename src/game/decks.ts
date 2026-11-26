@@ -1,6 +1,6 @@
 import { MONSTERS } from "../data/monsters";
 import type { BoardDefinition, BoardSelection } from "./boards";
-import { DEFAULT_DECK_SIZE, MAX_AVAILABLE_DECK_SIZE, MIN_DECK_SIZE } from "./gameConfiguration";
+import { DEFAULT_DECK_SIZE, MAX_AVAILABLE_DECK_SIZE, MIN_DECK_SIZE } from "../data/configuration";
 import type { GameConfiguration } from "./gameConfiguration";
 import type { PlayerId } from "../types/GameTypes";
 import type { GameSnapshot } from "../types/GameTypes";
@@ -10,6 +10,13 @@ import type { BotDecisionOptions } from "./botConfiguration";
 
 export const DECK_SIZE = DEFAULT_DECK_SIZE;
 export const DECK_STORAGE_KEY = "dungeon-dice.deck";
+
+export function getMinimumDeckSize(
+    maxMonstersPerPlayer: number,
+    maxSummonsPerMonster: number,
+): number {
+    return Math.max(MIN_DECK_SIZE, Math.ceil(maxMonstersPerPlayer / maxSummonsPerMonster));
+}
 
 export interface GameSetup {
     mode: "computer" | "local" | "online";

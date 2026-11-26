@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { GAME_CONFIG } from "../src/config";
+import { GAME_CONFIG } from "../src/data/configuration";
 import {
     createCustomBoard,
     getBoardOrigin,

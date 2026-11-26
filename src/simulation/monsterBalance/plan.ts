@@ -1,6 +1,6 @@
 import type { Monster } from "../../types/GameTypes";
 import { getAttackSlots } from "./monsterStats";
-import { OPTIONS } from "./options";
+import { MONSTER_BALANCE_OPTIONS as OPTIONS } from "../../data/configuration";
 import type { MonsterAttackBalance } from "./types";
 
 export type PlanMode = "offense" | "support" | "combined";

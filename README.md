@@ -31,8 +31,10 @@ Chaque joueur utilise le deck sauvegardé sur son appareil, ou le deck par défa
 ## Règles personnalisées
 
 Dans **Options → Configurer les règles**, le nombre de dés est réglable de 2 à 8. La limite
-d’invocations et le nombre de monstres adverses à tuer pour gagner sont réglables séparément; leur
-valeur par défaut est 8. Les règles et les profils de monstres peuvent être exportés dans un fichier
+totale d’invocations, la limite par type de monstre (2 par défaut) et le nombre de monstres adverses
+à tuer pour gagner sont réglables séparément. La limite par type compte aussi les monstres éliminés.
+Le deck doit contenir au moins le nombre total d’invocations divisé par la limite par type, arrondi
+à l’entier supérieur, avec un minimum de trois types. Les règles et les profils de monstres peuvent être exportés dans un fichier
 JSON séparé, puis réimportés depuis cet écran. La configuration enregistrée est aussi partagée par
 l’hôte au démarrage d’une partie en ligne. Dans un profil JSON, `targetsSelf: true` permet à un sort
 de soutien (`targetsAlliesOnly: true`) de cibler aussi son lanceur; `clearsStatusEffects: true`

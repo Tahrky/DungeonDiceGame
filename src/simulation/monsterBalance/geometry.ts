@@ -1,6 +1,6 @@
 import type { AttackPattern } from "../../types/GameTypes";
 import { clamp } from "../../utils/math";
-import { OPTIONS } from "./options";
+import { MONSTER_BALANCE_OPTIONS as OPTIONS } from "../../data/configuration";
 
 export interface AttackGeometry {
     known: boolean;

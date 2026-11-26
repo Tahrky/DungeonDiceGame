@@ -1,46 +1,12 @@
 import { MONSTERS } from "../data/monsters";
-import { DICE } from "../data/dice";
+import { GAME_OPTIONS } from "../data/configuration";
 import { isIntegerInRange, isPlainRecord } from "../utils/guards";
+import { getMinimumDeckSize } from "./decks";
 import { parseMonsterConfiguration } from "./monsterConfiguration";
 import type { Monster } from "../types/GameTypes";
 
-export const GAME_OPTIONS = {
-    diceCount: { default: 5, min: 2, max: DICE.length },
-    deckSize: {
-        default: 5,
-        min: 3,
-        max: 15,
-        maxAvailable: Math.min(15, MONSTERS.length),
-    },
-    randomBoard: { default: false },
-    testBoard: { default: false },
-    initialPlayerHealth: { default: 4, min: 1, max: 20 },
-    allowBaseAttackOnSummonTurn: { default: false },
-    removeInvocationDiceWhenNoMonsters: { default: false },
-    protectFirstDeployment: { default: true },
-    maxMonstersPerPlayer: { default: 8, min: 1, max: 20 },
-    monstersKilledForVictory: { default: 7, min: 1, max: 20 },
-} as const;
-
 export const GAME_CONFIGURATION_STORAGE_KEY = "dungeon-dice.configuration";
-export const GAME_CONFIGURATION_VERSION = 8;
-export const MIN_DICE_COUNT: number = GAME_OPTIONS.diceCount.min;
-export const MAX_DICE_COUNT: number = GAME_OPTIONS.diceCount.max;
-export const DEFAULT_DICE_COUNT: number = GAME_OPTIONS.diceCount.default;
-export const MIN_DECK_SIZE: number = GAME_OPTIONS.deckSize.min;
-export const MAX_DECK_SIZE: number = GAME_OPTIONS.deckSize.max;
-export const DEFAULT_DECK_SIZE: number = GAME_OPTIONS.deckSize.default;
-export const MAX_AVAILABLE_DECK_SIZE: number = GAME_OPTIONS.deckSize.maxAvailable;
-export const DEFAULT_PLAYER_LIFE: number = GAME_OPTIONS.initialPlayerHealth.default;
-export const MIN_PLAYER_HEALTH: number = GAME_OPTIONS.initialPlayerHealth.min;
-export const MAX_PLAYER_HEALTH: number = GAME_OPTIONS.initialPlayerHealth.max;
-export const DEFAULT_MAX_MONSTERS_PER_PLAYER: number = GAME_OPTIONS.maxMonstersPerPlayer.default;
-export const MIN_MAX_MONSTERS_PER_PLAYER: number = GAME_OPTIONS.maxMonstersPerPlayer.min;
-export const MAX_MAX_MONSTERS_PER_PLAYER: number = GAME_OPTIONS.maxMonstersPerPlayer.max;
-export const DEFAULT_MONSTERS_KILLED_FOR_VICTORY: number =
-    GAME_OPTIONS.monstersKilledForVictory.default;
-export const MIN_MONSTERS_KILLED_FOR_VICTORY: number = GAME_OPTIONS.monstersKilledForVictory.min;
-export const MAX_MONSTERS_KILLED_FOR_VICTORY: number = GAME_OPTIONS.monstersKilledForVictory.max;
+export const GAME_CONFIGURATION_VERSION = 9;
 
 export interface GameConfiguration {
     version: typeof GAME_CONFIGURATION_VERSION;
@@ -53,6 +19,7 @@ export interface GameConfiguration {
     removeInvocationDiceWhenNoMonsters: boolean;
     protectFirstDeployment: boolean;
     maxMonstersPerPlayer: number;
+    maxSummonsPerMonster: number;
     monstersKilledForVictory: number;
     monsters: Monster[];
 }
@@ -65,6 +32,7 @@ const MIGRATED_OPTIONS = [
     "allowBaseAttackOnSummonTurn",
     "removeInvocationDiceWhenNoMonsters",
     "protectFirstDeployment",
+    "maxSummonsPerMonster",
 ] as const;
 
 const LEGACY_PRIEST_HEAL_PATTERN = {
@@ -119,7 +87,13 @@ export function getDefaultGameConfiguration(): GameConfiguration {
     return {
         version: GAME_CONFIGURATION_VERSION,
         diceCount: GAME_OPTIONS.diceCount.default,
-        deckSize: GAME_OPTIONS.deckSize.default,
+        deckSize: Math.max(
+            GAME_OPTIONS.deckSize.default,
+            getMinimumDeckSize(
+                GAME_OPTIONS.maxMonstersPerPlayer.default,
+                GAME_OPTIONS.maxSummonsPerMonster.default,
+            ),
+        ),
         randomBoard: GAME_OPTIONS.randomBoard.default,
         testBoard: GAME_OPTIONS.testBoard.default,
         initialPlayerHealth: GAME_OPTIONS.initialPlayerHealth.default,
@@ -127,6 +101,7 @@ export function getDefaultGameConfiguration(): GameConfiguration {
         removeInvocationDiceWhenNoMonsters: GAME_OPTIONS.removeInvocationDiceWhenNoMonsters.default,
         protectFirstDeployment: GAME_OPTIONS.protectFirstDeployment.default,
         maxMonstersPerPlayer: GAME_OPTIONS.maxMonstersPerPlayer.default,
+        maxSummonsPerMonster: GAME_OPTIONS.maxSummonsPerMonster.default,
         monstersKilledForVictory: GAME_OPTIONS.monstersKilledForVictory.default,
         monsters: MONSTERS.map(cloneMonster),
     };
@@ -203,6 +178,23 @@ function migrateGameConfiguration(value: unknown): unknown {
     }
 
     const monsters = value.version === 1 ? migratePriestHeal(value.monsters) : value.monsters;
+    const maxSummonsPerMonster =
+        value.maxSummonsPerMonster === undefined
+            ? GAME_OPTIONS.maxSummonsPerMonster.default
+            : value.maxSummonsPerMonster;
+    const deckSize = value.deckSize === undefined ? GAME_OPTIONS.deckSize.default : value.deckSize;
+    const migratedDeckSize =
+        value.maxSummonsPerMonster === undefined &&
+        isOptionInRange(value.maxMonstersPerPlayer, GAME_OPTIONS.maxMonstersPerPlayer) &&
+        isOptionInRange(deckSize, GAME_OPTIONS.deckSize)
+            ? Math.max(
+                  deckSize,
+                  getMinimumDeckSize(
+                      value.maxMonstersPerPlayer,
+                      GAME_OPTIONS.maxSummonsPerMonster.default,
+                  ),
+              )
+            : deckSize;
     return {
         ...value,
         version: GAME_CONFIGURATION_VERSION,
@@ -212,6 +204,8 @@ function migrateGameConfiguration(value: unknown): unknown {
                 value[key] === undefined ? GAME_OPTIONS[key].default : value[key],
             ]),
         ),
+        deckSize: migratedDeckSize,
+        maxSummonsPerMonster,
         monsters: migratePriestBuffer(monsters),
     };
 }
@@ -252,6 +246,9 @@ export function parseGameConfiguration(value: unknown): GameConfiguration | null
         typeof migrated.removeInvocationDiceWhenNoMonsters !== "boolean" ||
         typeof migrated.protectFirstDeployment !== "boolean" ||
         !isOptionInRange(migrated.maxMonstersPerPlayer, GAME_OPTIONS.maxMonstersPerPlayer) ||
+        !isOptionInRange(migrated.maxSummonsPerMonster, GAME_OPTIONS.maxSummonsPerMonster) ||
+        migrated.deckSize <
+            getMinimumDeckSize(migrated.maxMonstersPerPlayer, migrated.maxSummonsPerMonster) ||
         !isOptionInRange(
             migrated.monstersKilledForVictory,
             GAME_OPTIONS.monstersKilledForVictory,
@@ -277,9 +274,25 @@ export function parseGameConfiguration(value: unknown): GameConfiguration | null
         removeInvocationDiceWhenNoMonsters: migrated.removeInvocationDiceWhenNoMonsters,
         protectFirstDeployment: migrated.protectFirstDeployment,
         maxMonstersPerPlayer: migrated.maxMonstersPerPlayer,
+        maxSummonsPerMonster: migrated.maxSummonsPerMonster,
         monstersKilledForVictory: migrated.monstersKilledForVictory,
         monsters,
     };
+}
+
+export function parseSavedMatchConfiguration(value: unknown): GameConfiguration | null {
+    if (
+        isPlainRecord(value) &&
+        typeof value.version === "number" &&
+        value.version <= 8 &&
+        value.maxSummonsPerMonster === undefined
+    ) {
+        return parseGameConfiguration({
+            ...value,
+            maxSummonsPerMonster: value.maxMonstersPerPlayer,
+        });
+    }
+    return parseGameConfiguration(value);
 }
 
 export function serializeGameConfiguration(configuration: GameConfiguration): string {

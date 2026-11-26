@@ -1,5 +1,6 @@
 import type { PlacedMonster, PlayerId } from "../types/GameTypes";
-import { DEFAULT_MONSTERS_KILLED_FOR_VICTORY } from "./gameConfiguration";
+import type { GameConfiguration } from "./gameConfiguration";
+import { DEFAULT_MONSTERS_KILLED_FOR_VICTORY } from "../data/configuration";
 
 export { DEFAULT_MONSTERS_KILLED_FOR_VICTORY };
 
@@ -18,6 +19,27 @@ export function getInvokedMonsterCount(
     player: PlayerId,
 ): number {
     return monsters.filter((monster) => monster.owner === player).length;
+}
+
+export function getMonsterInvocationCount(
+    monsters: readonly PlacedMonster[],
+    player: PlayerId,
+    monsterId: string,
+): number {
+    return monsters.filter((placed) => placed.owner === player && placed.monster.id === monsterId)
+        .length;
+}
+
+export function canInvokeMonster(
+    monsters: readonly PlacedMonster[],
+    player: PlayerId,
+    monsterId: string,
+    limits: Pick<GameConfiguration, "maxMonstersPerPlayer" | "maxSummonsPerMonster">,
+): boolean {
+    return (
+        getInvokedMonsterCount(monsters, player) < limits.maxMonstersPerPlayer &&
+        getMonsterInvocationCount(monsters, player, monsterId) < limits.maxSummonsPerMonster
+    );
 }
 
 export function getMonsterEliminationWinner(

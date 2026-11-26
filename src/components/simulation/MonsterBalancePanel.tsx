@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { MONSTERS } from "../../data/monsters";
+import { MONSTER_BALANCE_OPTIONS } from "../../data/configuration";
 import { analyzeMonsters } from "../../simulation/monsterBalance";
 import { SelectField } from "../common/FormFields";
 import { BalanceComparison } from "./BalanceComparison";
@@ -79,8 +80,11 @@ export function MonsterBalancePanel() {
 
             <BalanceComparison first={selected} second={comparison} />
             <p className="simulation-footnote">
-                Estimations basées sur un plateau 19 × 13, 5 ressources par tour, 15 % d’ennemis, 10
-                % d’alliés et un horizon de 12 tours.
+                Estimations basées sur un plateau {MONSTER_BALANCE_OPTIONS.boardWidth} ×{" "}
+                {MONSTER_BALANCE_OPTIONS.boardHeight}, {MONSTER_BALANCE_OPTIONS.resourcesPerTurn}{" "}
+                ressources par tour, {MONSTER_BALANCE_OPTIONS.enemyDensity * 100} % d’ennemis,{" "}
+                {MONSTER_BALANCE_OPTIONS.allyDensity * 100} % d’alliés et un horizon de{" "}
+                {MONSTER_BALANCE_OPTIONS.analysisHorizon} tours.
             </p>
         </section>
     );

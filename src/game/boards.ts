@@ -1,4 +1,4 @@
-import { GAME_CONFIG } from "../config";
+import { DEFAULT_BOARD_PRESET_ID, GAME_CONFIG } from "../data/configuration";
 import type { Position, PlayerId } from "../types/GameTypes";
 import { PLACEMENT_PATTERNS } from "../data/placementPatterns";
 import { hasValidPlacement } from "./placement";
@@ -6,8 +6,6 @@ import { getOrthogonalNeighbors, positionKey } from "./geometry";
 
 export const MIN_BOARD_DIMENSION = 7;
 export const MAX_BOARD_DIMENSION = 23;
-export const DEFAULT_BOARD_PRESET_ID = "wide-arena";
-
 export interface BoardDefinition {
     readonly id: string;
     readonly width: number;
@@ -43,7 +41,7 @@ function createCornerMask(width: number, height: number, cut: number): Position[
 
 const BOARD_PRESETS: readonly BoardDefinition[] = [
     {
-        id: DEFAULT_BOARD_PRESET_ID,
+        id: "wide-arena",
         width: GAME_CONFIG.boardWidth,
         height: GAME_CONFIG.boardHeight,
         blockedCells: [],

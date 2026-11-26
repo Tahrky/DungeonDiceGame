@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 
-import { GAME_CONFIG } from "../config";
+import { GAME_CONFIG } from "../data/configuration";
 import type { MonsterSpriteAction } from "../data/monsterSprites";
 import { BoardView } from "./game/BoardView";
 import { GameHud } from "./game/GameHud";

@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { GAME_CONFIG } from "../config";
+import { GAME_CONFIG } from "../data/configuration";
 import {
     getAvailableSymbolCount,
     createEmptyDiceReserve,

@@ -37,6 +37,27 @@ describe("reprise des options de simulation", () => {
 });
 
 describe("reprise de la configuration du bot en jeu", () => {
+    it("conserve l’ancienne règle et le deck d’une partie en cours", () => {
+        const configuration: Record<string, unknown> = {
+            ...getDefaultGameConfiguration(),
+            version: 8,
+            deckSize: 3,
+            maxMonstersPerPlayer: 8,
+        };
+        delete configuration.maxSummonsPerMonster;
+        const setup = {
+            mode: "local",
+            board: getDefaultBoard(),
+            configuration,
+            playerDeck: getDefaultDeck(3),
+            opponentDeck: getDefaultDeck(3),
+        };
+        expect(parseGameSetup(setup)).toMatchObject({
+            configuration: { deckSize: 3, maxMonstersPerPlayer: 8, maxSummonsPerMonster: 8 },
+            playerDeck: setup.playerDeck,
+        });
+    });
+
     it("conserve les profils, les options, les poids et la graine", () => {
         const configuration = getDefaultGameConfiguration();
         const setup = {

@@ -5,18 +5,20 @@ import {
     MAX_MAX_MONSTERS_PER_PLAYER,
     MAX_MONSTERS_KILLED_FOR_VICTORY,
     MAX_PLAYER_HEALTH,
+    GAME_OPTIONS,
     MIN_DECK_SIZE,
     MIN_DICE_COUNT,
     MIN_MAX_MONSTERS_PER_PLAYER,
     MIN_MONSTERS_KILLED_FOR_VICTORY,
     MIN_PLAYER_HEALTH,
-} from "../../game/gameConfiguration";
+} from "../../data/configuration";
 
 export type NumberSettingKey =
     | "diceCount"
     | "deckSize"
     | "initialPlayerHealth"
     | "maxMonstersPerPlayer"
+    | "maxSummonsPerMonster"
     | "monstersKilledForVictory";
 
 export type ToggleSettingKey =
@@ -55,6 +57,12 @@ export const NUMBER_SETTINGS: readonly {
         min: MIN_MAX_MONSTERS_PER_PLAYER,
         max: MAX_MAX_MONSTERS_PER_PLAYER,
         label: `Monstres invocables par joueur (${MIN_MAX_MONSTERS_PER_PLAYER} à ${MAX_MAX_MONSTERS_PER_PLAYER})`,
+    },
+    {
+        key: "maxSummonsPerMonster",
+        min: GAME_OPTIONS.maxSummonsPerMonster.min,
+        max: GAME_OPTIONS.maxSummonsPerMonster.max,
+        label: `Invocations maximum par type de monstre (${GAME_OPTIONS.maxSummonsPerMonster.min} à ${GAME_OPTIONS.maxSummonsPerMonster.max})`,
     },
     {
         key: "monstersKilledForVictory",

@@ -1,5 +1,5 @@
 import { parseBoardDefinition, type BoardDefinition } from "../game/boards";
-import { parseGameConfiguration, type GameConfiguration } from "../game/gameConfiguration";
+import { parseSavedMatchConfiguration, type GameConfiguration } from "../game/gameConfiguration";
 import type { BotProfile, SimulationBatchResult, SimulationOptions } from "../simulation/types";
 import type { SimulationChunk } from "../simulation/workerPool";
 import { isRecord } from "../utils/guards";
@@ -134,7 +134,7 @@ export async function loadSimulationRun(sessionId: string): Promise<SavedSimulat
         throw new Error("La simulation à reprendre est invalide ou incompatible.");
     }
     const { chunks, totalGames } = parseChunks(value.chunks);
-    const configuration = parseGameConfiguration(value.configuration);
+    const configuration = parseSavedMatchConfiguration(value.configuration);
     const board = parseBoardDefinition(value.board);
     if (!configuration || !board || totalGames !== options.games) {
         throw new Error("La configuration de la simulation à reprendre est invalide.");

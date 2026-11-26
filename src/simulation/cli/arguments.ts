@@ -1,8 +1,8 @@
 import { parseDeck } from "../../game/decks";
+import { SIMULATION_CLI_DEFAULTS, SIMULATION_DEFAULTS } from "../../data/configuration";
 import type { GameConfiguration } from "../../game/gameConfiguration";
 import {
     BOT_PROFILES,
-    DEFAULT_MAX_TURNS,
     type BotProfile,
     type BotStrategyWeightMap,
     type SimulationOptions,
@@ -117,7 +117,7 @@ export function parseTrainingMode(value: string): TrainingMode {
 }
 
 function readProfile(args: string[], name: string): BotProfile {
-    const value = readOption(args, name, "balanced");
+    const value = readOption(args, name, SIMULATION_CLI_DEFAULTS.profile);
     if (BOT_PROFILES.includes(value as BotProfile)) return value as BotProfile;
     throw new Error(`${name} doit être l'un de : ${BOT_PROFILES.join(", ")}.`);
 }
@@ -149,9 +149,9 @@ export function parseSimulationArguments(
     const profile1 = readProfile(args, "--profile1");
     const profile2 = readProfile(args, "--profile2");
     const options: SimulationOptions = {
-        games: readIntegerOption(args, "--games", 100, 1, 10000),
-        seed: readIntegerOption(args, "--seed", Date.now() >>> 0, 0, 0xffff_ffff),
-        maxTurns: readIntegerOption(args, "--max-turns", DEFAULT_MAX_TURNS, 1, 10000),
+        games: readIntegerOption(args, "--games", SIMULATION_CLI_DEFAULTS.games, 1, 10000),
+        seed: readIntegerOption(args, "--seed", SIMULATION_DEFAULTS.seed ?? (Date.now() >>> 0), 0, 0xffff_ffff),
+        maxTurns: readIntegerOption(args, "--max-turns", SIMULATION_DEFAULTS.maxTurns, 1, 10000),
         profile1,
         profile2,
         debug: args.includes("--debug"),

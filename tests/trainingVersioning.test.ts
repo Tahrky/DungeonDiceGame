@@ -35,6 +35,8 @@ describe("empreintes et compatibilité des entraînements", () => {
         changedRules.initialPlayerHealth++;
         const changedFirstDeployment = getDefaultGameConfiguration();
         changedFirstDeployment.protectFirstDeployment = false;
+        const changedSummonLimit = getDefaultGameConfiguration();
+        changedSummonLimit.maxSummonsPerMonster = 3;
 
         expect(createTrainingFingerprint(changedMonster, board).monstersHash).not.toBe(
             baseline.monstersHash,
@@ -43,6 +45,9 @@ describe("empreintes et compatibilité des entraînements", () => {
             baseline.rulesHash,
         );
         expect(createTrainingFingerprint(changedFirstDeployment, board).rulesHash).not.toBe(
+            baseline.rulesHash,
+        );
+        expect(createTrainingFingerprint(changedSummonLimit, board).rulesHash).not.toBe(
             baseline.rulesHash,
         );
         expect(

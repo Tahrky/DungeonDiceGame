@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import type Phaser from "phaser";
 
-import { GAME_CONFIG } from "../config";
+import { GAME_CONFIG } from "../data/configuration";
 import { saveGameSession } from "../persistence/gameSession";
 import type { GameSnapshot } from "../types/GameTypes";
 import { formatFailure, getErrorMessage } from "../utils/errors";

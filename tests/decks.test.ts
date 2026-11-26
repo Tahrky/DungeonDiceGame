@@ -9,7 +9,7 @@ import {
     parseDeck,
     serializeDeck,
 } from "../src/game/decks";
-import { MAX_AVAILABLE_DECK_SIZE, MIN_DECK_SIZE } from "../src/game/gameConfiguration";
+import { MAX_AVAILABLE_DECK_SIZE, MIN_DECK_SIZE } from "../src/data/configuration";
 
 describe("sélections de monstres", () => {
     it("choisit les cinq monstres les moins chers par défaut", () => {

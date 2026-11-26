@@ -1,7 +1,11 @@
 import type Phaser from "phaser";
 import { DICE_SYMBOL_PRESENTATION } from "../../data/dice";
 import { getAvailableSymbolCount } from "../../game/diceResources";
-import { getInvokedMonsterCount } from "../../game/matchRules";
+import {
+    canInvokeMonster,
+    getInvokedMonsterCount,
+    getMonsterInvocationCount,
+} from "../../game/matchRules";
 import type { Monster } from "../../types/GameTypes";
 import { GameHudReserves } from "./GameHudReserves";
 import type { GameViewState } from "./GameViewState";
@@ -37,9 +41,13 @@ export abstract class GameHudInvocation extends GameHudReserves {
         );
         const invokedCount = getInvokedMonsterCount(state.placedMonsters, state.currentPlayer);
         const hasCapacity = invokedCount < state.maxMonstersPerPlayer;
-        const canInvokeMonster =
+        const canInvokeAnyMonster =
             hasCapacity &&
-            state.availableMonsters.some((monster) => monster.cost <= availableCount);
+            state.availableMonsters.some(
+                (monster) =>
+                    monster.cost <= availableCount &&
+                    canInvokeMonster(state.placedMonsters, state.currentPlayer, monster.id, state),
+            );
 
         this.addButton(
             `INVOCATION ${DICE_SYMBOL_PRESENTATION.invocation.emoji} (${availableCount}) ${state.invocationMenuOpen ? "▲" : "▼"}`,
@@ -49,7 +57,7 @@ export abstract class GameHudInvocation extends GameHudReserves {
             {
                 ...WIDE_BUTTON_OPTIONS,
                 enabled: state.actionMode.type === "idle" && !state.pendingCells,
-                muted: !canInvokeMonster,
+                muted: !canInvokeAnyMonster,
             },
         );
 
@@ -109,7 +117,14 @@ export abstract class GameHudInvocation extends GameHudReserves {
                     panelX,
                     rowsY + index * (rowHeight + rowGap),
                     rowHeight,
-                    hasCapacity && availableCount >= monster.cost,
+                    hasCapacity &&
+                        availableCount >= monster.cost &&
+                        canInvokeMonster(
+                            state.placedMonsters,
+                            state.currentPlayer,
+                            monster.id,
+                            state,
+                        ),
                 ),
             );
 
@@ -153,7 +168,7 @@ export abstract class GameHudInvocation extends GameHudReserves {
         }
 
         const cost = this.addText(
-            `${monster.cost} 🐍`,
+            `${getMonsterInvocationCount(state.placedMonsters, state.currentPlayer, monster.id)}/${state.maxSummonsPerMonster} · ${monster.cost} 🐍`,
             x + INVOCATION_PANEL_WIDTH - 6,
             y + height / 2,
             affordable ? COST_COLOR : UNAVAILABLE_TEXT_COLOR,

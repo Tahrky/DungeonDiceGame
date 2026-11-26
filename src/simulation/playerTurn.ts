@@ -10,7 +10,7 @@ import {
 } from "../game/botStrategy";
 import { convertReservedSymbols, rollDieSymbol } from "../game/diceResources";
 import type { GameConfiguration } from "../game/gameConfiguration";
-import { getInvokedMonsterCount, opposingPlayer } from "../game/matchRules";
+import { canInvokeMonster, getInvokedMonsterCount, opposingPlayer } from "../game/matchRules";
 import {
     canUseActionThisTurn,
     getMovementActionsPerTurn,
@@ -66,6 +66,7 @@ function getInvocableMonsters(
         .filter((monster) => monster.owner === player)
         .map((monster) => monster.monster.cost);
     const canDeploy = (monster: Monster) =>
+        canInvokeMonster(state.monsters, player, monster.id, configuration) &&
         canDeployMonsterForProfile(monster, state.profiles[player], deployedCosts);
     if (hasAvailablePlacement(state, board, player)) return deckMonsters[player].filter(canDeploy);
 
