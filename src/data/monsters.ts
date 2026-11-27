@@ -7,27 +7,47 @@ export const MONSTERS: Monster[] = [
         symbol: "G",
         color: 0xffffff,
         cost: 1,
-        hp: 2,
+        hp: 3,
         attacks: [
-            /*
-            {
-                name: "Saut écrasant",
-                damage: 1,
-                cost: 3,
-                pattern: { type: "jumpArea", range: 5, width: 2, depth: 2 },
-                hitsAllies: true,
-                movesToZone: true,
-            },
-            */
             {
                 name: "Coup au corps à corps",
+                damage: 3,
+                cost: 1,
+                pattern: { type: "adjacent" },
+            },
+        ],
+        movementRange: 2,
+        canPassHostiles: true,
+    },
+
+    {
+        id: "slime",
+        name: "Slime",
+        symbol: "A",
+        color: 0x1f2cff,
+        cost: 1,
+        hp: 2,
+        attacks: [
+            {
+                name: "Saut écrasant",
+                damage: 2,
+                cost: 2,
+                pattern: { type: "jumpArea", range: 4, width: 2, depth: 2 },
+                hitsAllies: true,
+                movesToZone: true,
+                usesPerTurn: 1,
+                cooldownTurns: 2,
+                initialCooldownTurns: 1,
+            },
+            {
+                name: "Coup de tête",
                 damage: 2,
                 cost: 1,
                 pattern: { type: "adjacent" },
             },
         ],
         movementRange: 1,
-        canPassHostiles: true,
+        attackActionsPerTurn: 2,
     },
 
     {
@@ -37,6 +57,7 @@ export const MONSTERS: Monster[] = [
         color: 0x8e10de,
         cost: 2,
         hp: 3,
+        armor: 1,
         attacks: [
             {
                 name: "Coup au corps à corps",
@@ -91,7 +112,7 @@ export const MONSTERS: Monster[] = [
         symbol: "P",
         color: 0x993f00,
         cost: 3,
-        hp: 4,
+        hp: 3,
         armor: 1,
         attacks: [
             {
@@ -190,10 +211,9 @@ export const MONSTERS: Monster[] = [
                 animation: "alternativeAttack1",
             },
         ],
-        movementRange: 1,
+        movementRange: 2,
         attackActionsPerTurn: 2,
-        movementCost: 1,
-        movementActionsPerTurn: 2,
+        movementCost: 2,
     },
 
     {
@@ -304,5 +324,32 @@ export const MONSTERS: Monster[] = [
             },
         ],
         movementRange: 2,
+    },
+
+    {
+        id: "arbalétrier",
+        name: "Arbalétrier",
+        symbol: "X",
+        color: 0x888888,
+        cost: 4,
+        hp: 5,
+        attacks: [
+            {
+                name: "Tir simple",
+                damage: 5,
+                cost: 2,
+                pattern: { type: "radius", range: 6 },
+            },
+            {
+                name: "Tir puissant",
+                damage: 8,
+                cost: 3,
+                pattern: { type: "radius", range: 6 },
+                animation: "alternativeAttack1",
+                cooldownTurns: 1,
+                initialCooldownTurns: 1,
+            },
+        ],
+        movementRange: 1,
     },
 ];
