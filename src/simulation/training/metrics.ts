@@ -123,7 +123,7 @@ function addMatch(
     accumulator: OutcomeAccumulator,
     result: MatchResult,
     player: PlayerId,
-    configuration: GameConfiguration,
+    supportMonsterIds: ReadonlySet<string>,
 ): number {
     const stats = result.statistics[player];
     accumulator.matches++;
@@ -138,8 +138,7 @@ function addMatch(
     for (const [monsterId, amount] of Object.entries(stats.summonedByMonster)) {
         accumulator.summonedByMonster[monsterId] =
             (accumulator.summonedByMonster[monsterId] ?? 0) + amount;
-        const monster = configuration.monsters.find(({ id }) => id === monsterId);
-        if (monster?.attacks.some((attack) => attack.targetsAlliesOnly)) {
+        if (supportMonsterIds.has(monsterId)) {
             accumulator.supportSummonsByMonster[monsterId] =
                 (accumulator.supportSummonsByMonster[monsterId] ?? 0) + amount;
         }
@@ -163,6 +162,11 @@ export async function evaluateWeights(
     const totals = createAccumulator();
     const matchupTotals = new Map(opponents.map((opponent) => [opponent, createAccumulator()]));
     const pairedScores = new Map<string, number>();
+    const supportMonsterIds = new Set(
+        configuration.monsters
+            .filter(({ attacks }) => attacks.some((attack) => attack.targetsAlliesOnly))
+            .map(({ id }) => id),
+    );
 
     const evaluations = opponents.flatMap((opponent) => seeds.map((seed) => ({ opponent, seed })));
     for (let offset = 0; offset < evaluations.length; offset += EVALUATION_BATCH_SIZE) {
@@ -189,8 +193,8 @@ export async function evaluateWeights(
         for (const { opponent, seed, result } of batch) {
             const matchup = matchupTotals.get(opponent)!;
             for (const [index, match] of result.matches.entries()) {
-                const score = addMatch(totals, match, 1, configuration);
-                addMatch(matchup, match, 1, configuration);
+                const score = addMatch(totals, match, 1, supportMonsterIds);
+                addMatch(matchup, match, 1, supportMonsterIds);
                 pairedScores.set(`${opponent}:${seed}:${index}`, score);
             }
         }

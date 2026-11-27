@@ -9,6 +9,7 @@ import {
     getCellIndex,
     getDistanceMap,
     getEdgeCost,
+    getUnitDistance,
     toPosition,
     type RouteGrid,
 } from "./routeGrid";
@@ -237,8 +238,7 @@ export function getShortestRouteDistance(
 ): number | null {
     assertRouteEndpoints(board, start, goal);
     const grid = createRouteGrid(board, start, goal, blockedCells);
-    const distance = getDistanceMap(grid, getCellIndex(board, start))[getCellIndex(board, goal)]!;
-    return Number.isFinite(distance) ? distance : null;
+    return getUnitDistance(grid, getCellIndex(board, start), getCellIndex(board, goal));
 }
 
 export function analyzeLegalMovementRoutes(options: MovementOptions): LegalMovementRoutes {

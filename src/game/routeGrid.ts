@@ -65,7 +65,10 @@ export function createRouteGrid(
     cellCosts?: ReadonlyMap<string, number>,
 ): RouteGrid {
     const blocked = new Uint8Array(board.width * board.height);
-    for (const cell of [...board.blockedCells, ...extraBlockedCells]) {
+    for (const cell of board.blockedCells) {
+        if (isInsideBoard(board, cell)) blocked[getCellIndex(board, cell)] = 1;
+    }
+    for (const cell of extraBlockedCells) {
         if (isInsideBoard(board, cell)) blocked[getCellIndex(board, cell)] = 1;
     }
     blocked[getCellIndex(board, start)] = 0;
@@ -119,6 +122,38 @@ export function getDistanceMap(grid: RouteGrid, startIndex: number): Float64Arra
     if (grid.costs) fillWeightedDistances(grid, distances, startIndex);
     else fillUnitDistances(grid, distances, startIndex);
     return distances;
+}
+
+export function getUnitDistance(
+    { blocked, neighbors }: RouteGrid,
+    startIndex: number,
+    goalIndex: number,
+): number | null {
+    if (startIndex === goalIndex) return 0;
+
+    const visited = new Uint8Array(blocked.length);
+    const queue = new Uint32Array(blocked.length);
+    visited[startIndex] = 1;
+    queue[0] = startIndex;
+    let head = 0;
+    let tail = 1;
+    let distance = 0;
+
+    while (head < tail) {
+        const levelEnd = tail;
+        distance++;
+        while (head < levelEnd) {
+            const current = queue[head++]!;
+            for (const neighbor of neighbors[current]!) {
+                if (blocked[neighbor] || visited[neighbor]) continue;
+                if (neighbor === goalIndex) return distance;
+                visited[neighbor] = 1;
+                queue[tail++] = neighbor;
+            }
+        }
+    }
+
+    return null;
 }
 
 export function countShortestPaths(

@@ -69,7 +69,7 @@ export const MONSTERS: Monster[] = [
                 name: "Matière nébuleuse",
                 damage: 2,
                 cost: 2,
-                pattern: { type: "selfRadius", range: 2 },
+                pattern: { type: "selfRadius", range: 1 },
                 hitsAllies: true,
                 animation: "alternativeAttack1",
             },
@@ -84,8 +84,8 @@ export const MONSTERS: Monster[] = [
         name: "Archer Squelette",
         symbol: "A",
         color: 0x888888,
-        cost: 3,
-        hp: 3,
+        cost: 2,
+        hp: 2,
         attacks: [
             {
                 name: "Flèche simple",
@@ -311,14 +311,14 @@ export const MONSTERS: Monster[] = [
                 name: "Boule de Givre",
                 damage: 5,
                 cost: 1,
-                pattern: { type: "line", range: 5, length: 3, allDirections: true },
+                pattern: { type: "line", range: 4, length: 3, allDirections: true },
                 hitsAllies: true,
             },
             {
                 name: "Explosion de Givre",
-                damage: 8,
+                damage: 7,
                 cost: 2,
-                pattern: { type: "selfRadius", range: 3 },
+                pattern: { type: "selfRadius", range: 2 },
                 hitsAllies: true,
                 animation: "alternativeAttack1",
             },
@@ -351,5 +351,25 @@ export const MONSTERS: Monster[] = [
             },
         ],
         movementRange: 1,
+    },
+
+    {
+        id: "reaper",
+        name: "Faucheur",
+        symbol: "R",
+        color: 0x993f00,
+        cost: 5,
+        hp: 6,
+        armor: 1,
+        attacks: [
+            {
+                name: "La faux",
+                damage: 5,
+                cost: 1,
+                pattern: { type: "directionalArea", width: 5, depth: 2 },
+                hitsAllies: true,
+            },
+        ],
+        movementRange: 2,
     },
 ];

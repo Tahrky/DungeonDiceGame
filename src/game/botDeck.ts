@@ -1,4 +1,6 @@
 import type { Monster } from "../types/GameTypes";
+import { GAME_CONFIG, MONSTER_BALANCE_OPTIONS } from "../data/configuration";
+import { getAttackZones } from "./attackZones";
 import { getSupportValue } from "./ai/monsterValue";
 import { pickIndex } from "./random";
 import {
@@ -8,9 +10,76 @@ import {
     type BotStrategyWeights,
 } from "./botProfiles";
 
+interface DirectionalAreaGeometry {
+    averageCoverageCells: number;
+    averageMaxAffectedCells: number;
+}
+
+const directionalAreaGeometryCache = new Map<string, DirectionalAreaGeometry>();
+
+function getDirectionalAreaGeometry(width: number, depth: number): DirectionalAreaGeometry {
+    const key = `${width}:${depth}`;
+    const cached = directionalAreaGeometryCache.get(key);
+    if (cached) return cached;
+
+    let coverageTotal = 0;
+    let maxAffectedTotal = 0;
+    const pattern = { type: "directionalArea" as const, width, depth };
+    for (let y = 0; y < GAME_CONFIG.boardHeight; y++) {
+        for (let x = 0; x < GAME_CONFIG.boardWidth; x++) {
+            const zones = getAttackZones({ x, y }, "north", pattern).map((zone) =>
+                zone.filter(
+                    (cell) =>
+                        cell.x >= 0 &&
+                        cell.x < GAME_CONFIG.boardWidth &&
+                        cell.y >= 0 &&
+                        cell.y < GAME_CONFIG.boardHeight,
+                ),
+            );
+            coverageTotal += new Set(
+                zones.flat().map(({ x: cellX, y: cellY }) => `${cellX},${cellY}`),
+            ).size;
+            maxAffectedTotal += Math.max(0, ...zones.map((zone) => zone.length));
+        }
+    }
+
+    const boardArea = GAME_CONFIG.boardWidth * GAME_CONFIG.boardHeight;
+    const geometry = {
+        averageCoverageCells: coverageTotal / boardArea,
+        averageMaxAffectedCells: maxAffectedTotal / boardArea,
+    };
+    directionalAreaGeometryCache.set(key, geometry);
+    return geometry;
+}
+
+function expectedAreaHits(geometry: DirectionalAreaGeometry, density: number): number {
+    if (geometry.averageCoverageCells <= 0) return 0;
+    const atLeastOneTarget = 1 - (1 - density) ** geometry.averageCoverageCells;
+    const expectedTargets = geometry.averageMaxAffectedCells * density;
+    return (
+        atLeastOneTarget * Math.min(geometry.averageMaxAffectedCells, Math.max(1, expectedTargets))
+    );
+}
+
+function getAreaMultiplier(attack: Monster["attacks"][number]): number {
+    if (attack.pattern.type !== "directionalArea") {
+        return attack.hitsAllies ? 1.5 : 1;
+    }
+
+    const geometry = getDirectionalAreaGeometry(attack.pattern.width, attack.pattern.depth);
+    const { enemyDensity, allyDensity, friendlyFireWeight } = MONSTER_BALANCE_OPTIONS;
+    const expectedEnemyHits = expectedAreaHits(geometry, enemyDensity);
+    const expectedFriendlyHits = attack.hitsAllies
+        ? geometry.averageMaxAffectedCells * allyDensity
+        : 0;
+    const netHits = Math.max(0, expectedEnemyHits - expectedFriendlyHits * friendlyFireWeight);
+
+    return Math.max(1.5, Math.sqrt(netHits / enemyDensity));
+}
+
 function offenseValue(monster: Monster): number {
     return monster.attacks.reduce((score, attack) => {
-        const area = attack.pattern.type === "directionalArea" || attack.hitsAllies ? 1.5 : 1;
+        const area = getAreaMultiplier(attack);
         const statusDamage = attack.statusEffect?.damagePerTurn ?? 0;
         return score + ((attack.damage + statusDamage) * area) / Math.max(1, attack.cost);
     }, 0);

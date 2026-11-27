@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
     analyzeLegalMovementRoutes,
     analyzePotentialRoutes,
+    getShortestRouteDistance,
 } from "../src/game/routeAnalysis";
 import type { BoardDefinition } from "../src/game/boards";
 import type { MovementOptions } from "../src/game/monsterActions";
@@ -15,6 +16,29 @@ function createBoard(
 }
 
 describe("analyse des routes stratégiques", () => {
+    it("arrête la recherche dès que la distance cible est connue", () => {
+        expect(getShortestRouteDistance(createBoard(7, 3), { x: 0, y: 1 }, { x: 6, y: 1 })).toBe(
+            6,
+        );
+        expect(
+            getShortestRouteDistance(
+                createBoard(5, 3, [{ x: 2, y: 1 }]),
+                { x: 0, y: 1 },
+                { x: 4, y: 1 },
+            ),
+        ).toBe(6);
+        expect(
+            getShortestRouteDistance(
+                createBoard(5, 3, Array.from({ length: 3 }, (_, y) => ({ x: 2, y }))),
+                { x: 0, y: 1 },
+                { x: 4, y: 1 },
+            ),
+        ).toBeNull();
+        expect(getShortestRouteDistance(createBoard(3, 3), { x: 1, y: 1 }, { x: 1, y: 1 })).toBe(
+            0,
+        );
+    });
+
     it("mesure la distance d'une route droite", () => {
         const result = analyzePotentialRoutes(createBoard(7, 3), { x: 0, y: 1 }, { x: 6, y: 1 });
         expect(result.shortestDistance).toBe(6);

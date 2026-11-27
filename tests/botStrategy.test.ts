@@ -146,6 +146,30 @@ describe("stratégie des bots", () => {
         ).toBeGreaterThan(scoreMonsterForProfile(ghost, "offensive"));
     });
 
+    it("valorise une attaque directionnelle selon son empreinte sur le plateau", () => {
+        const ghost = getDefaultGameConfiguration().monsters.find(
+            (monster) => monster.id === "ghost",
+        );
+        if (!ghost) throw new Error("Monstre de test introuvable.");
+
+        const createMonsterWithArea = (width: number, depth: number) => ({
+            ...ghost,
+            attacks: [
+                {
+                    ...ghost.attacks[0]!,
+                    damage: 5,
+                    cost: 1,
+                    pattern: { type: "directionalArea" as const, width, depth },
+                    hitsAllies: true,
+                },
+            ],
+        });
+
+        expect(scoreMonsterForProfile(createMonsterWithArea(50, 10), "offensive")).toBeGreaterThan(
+            scoreMonsterForProfile(createMonsterWithArea(3, 1), "offensive"),
+        );
+    });
+
     it("continue vers l’objectif au-delà de la frontière de son territoire", () => {
         const deployedCells = [
             { x: 14, y: 7 },
