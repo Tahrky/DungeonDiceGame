@@ -235,7 +235,7 @@ export const MONSTERS: Monster[] = [
                 name: "Foulée bénie",
                 damage: 0,
                 cost: 1,
-                pattern: { type: "radius", range: 5},
+                pattern: { type: "radius", range: 5 },
                 targetsAlliesOnly: true,
                 targetsSelf: true,
                 movementRangeBonus: 1,
@@ -247,7 +247,7 @@ export const MONSTERS: Monster[] = [
                 name: "Force sacrée",
                 damage: 0,
                 cost: 1,
-                pattern: { type: "radius", range: 5},
+                pattern: { type: "radius", range: 5 },
                 targetsAlliesOnly: true,
                 attackDamageBonus: 1,
                 attackCostReduction: 1,
@@ -277,7 +277,7 @@ export const MONSTERS: Monster[] = [
                 name: "Soin",
                 damage: 0,
                 cost: 1,
-                pattern: { type: "radius", range: 5},
+                pattern: { type: "radius", range: 5 },
                 targetsAlliesOnly: true,
                 targetsSelf: true,
                 clearsStatusEffects: true,
@@ -288,7 +288,7 @@ export const MONSTERS: Monster[] = [
                 name: "Récupération de sorts",
                 damage: 0,
                 cost: 1,
-                pattern: { type: "radius", range: 5},
+                pattern: { type: "radius", range: 5 },
                 animation: "alternativeAttack1",
                 targetsAlliesOnly: true,
                 cooldownReduction: 1,
@@ -297,6 +297,33 @@ export const MONSTERS: Monster[] = [
         ],
         movementRange: 2,
         attackActionsPerTurn: 2,
+    },
+
+    {
+        id: "arbalétrier",
+        name: "Arbalétrier",
+        symbol: "X",
+        color: 0x888888,
+        cost: 4,
+        hp: 5,
+        attacks: [
+            {
+                name: "Tir simple",
+                damage: 4,
+                cost: 1,
+                pattern: { type: "radius", range: 4 },
+            },
+            {
+                name: "Tir endormant",
+                damage: 6,
+                cost: 2,
+                pattern: { type: "radius", range: 5 },
+                animation: "alternativeAttack1",
+                cooldownTurns: 1,
+                initialCooldownTurns: 1,
+            },
+        ],
+        movementRange: 1,
     },
 
     {
@@ -324,33 +351,6 @@ export const MONSTERS: Monster[] = [
             },
         ],
         movementRange: 2,
-    },
-
-    {
-        id: "arbalétrier",
-        name: "Arbalétrier",
-        symbol: "X",
-        color: 0x888888,
-        cost: 4,
-        hp: 5,
-        attacks: [
-            {
-                name: "Tir simple",
-                damage: 5,
-                cost: 2,
-                pattern: { type: "radius", range: 6 },
-            },
-            {
-                name: "Tir puissant",
-                damage: 8,
-                cost: 3,
-                pattern: { type: "radius", range: 6 },
-                animation: "alternativeAttack1",
-                cooldownTurns: 1,
-                initialCooldownTurns: 1,
-            },
-        ],
-        movementRange: 1,
     },
 
     {
