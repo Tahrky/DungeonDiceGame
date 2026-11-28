@@ -161,6 +161,8 @@ function createMatch(
             state.summonPlacementPairs =
                 options.playerOptions?.[player]?.summonPlacementPairs ??
                 options.summonPlacementPairs === true;
+            state.expectiminimax =
+                options.playerOptions?.[player]?.expectiminimax ?? options.expectiminimax === true;
             const startedAt = turnDurationsMs ? performance.now() : 0;
             playPlayerTurn(context, player);
             if (turnDurationsMs) turnDurationsMs[player].push(performance.now() - startedAt);
@@ -205,7 +207,9 @@ function validateSimulationOptions(options: SimulationOptions, startIndex: numbe
                     !isPlainRecord(value) ||
                     Object.entries(value).some(
                         ([key, enabled]) =>
-                            (key !== "movementAttackCombos" && key !== "summonPlacementPairs") ||
+                            (key !== "movementAttackCombos" &&
+                                key !== "summonPlacementPairs" &&
+                                key !== "expectiminimax") ||
                             typeof enabled !== "boolean",
                     ),
             )

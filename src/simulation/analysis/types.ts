@@ -31,6 +31,12 @@ export interface AnalyzablePlayerStats {
     decisionTimeMs?: number;
     positionsExplored?: number;
     branchesExplored?: number;
+    maxSearchDepthReached?: number;
+    searchDecisions?: number;
+    decisionsChangedBySearch?: number;
+    searchNodes?: number;
+    searchBudgetReached?: number;
+    transpositionsUsed?: number;
 }
 
 export type AnalyzableFinalMonster = Pick<

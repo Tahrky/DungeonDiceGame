@@ -22,6 +22,12 @@ export interface MatchState {
     broaderAttackCandidates?: boolean;
     movementAttackCombos?: boolean;
     summonPlacementPairs?: boolean;
+    expectiminimax?: boolean;
+    expectiminimaxConfig?: {
+        maxDepth: number;
+        branchWidth: number;
+        nodeBudget: number;
+    };
     nextTurnDice?: {
         count: number;
         removeInvocationDiceWhenNoMonsters: boolean;
@@ -83,6 +89,8 @@ export function createStats(): PlayerSimulationStats {
         decisionsChangedBySearch: 0,
         searchNodes: 0,
         nodesBeyondFirstThree: 0,
+        searchBudgetReached: 0,
+        transpositionsUsed: 0,
     };
 }
 
@@ -105,6 +113,7 @@ export function cloneMatchState(state: MatchState): MatchState {
         ...state.statistics[player],
         summonedByMonster: { ...state.statistics[player].summonedByMonster },
         symbolsSpent: { ...state.statistics[player].symbolsSpent },
+        actionsSkippedByReason: { ...state.statistics[player].actionsSkippedByReason },
     });
 
     return {
@@ -114,6 +123,21 @@ export function cloneMatchState(state: MatchState): MatchState {
         health: { ...state.health },
         reserves: byPlayer((player) => ({ ...state.reserves[player] })),
         monsters: state.monsters.map(cloneMonster),
+        obstacles: state.obstacles ? [...state.obstacles] : undefined,
+        movementStagnation: { ...state.movementStagnation },
+        placementProtectionCache: state.placementProtectionCache
+            ? { ...state.placementProtectionCache }
+            : undefined,
+        strategyWeights: state.strategyWeights
+            ? byPlayer((player) => ({ ...state.strategyWeights![player] }))
+            : undefined,
+        nextTurnDice: state.nextTurnDice ? { ...state.nextTurnDice } : undefined,
+        expectiminimaxConfig: state.expectiminimaxConfig
+            ? { ...state.expectiminimaxConfig }
+            : undefined,
+        actionRandom: state.actionRandom
+            ? byPlayer((player) => state.actionRandom![player])
+            : undefined,
         history: [],
         statistics: byPlayer(cloneStats),
     };

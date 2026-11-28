@@ -79,6 +79,36 @@ export function SimulationSettingsFields({ values, onChange }: SimulationSetting
                 checked={values.debug}
                 onChange={bind("debug")}
             />
+            <ToggleField
+                label="Activer la recherche Minimax/Expectiminimax"
+                checked={values.expectiminimax}
+                onChange={bind("expectiminimax")}
+            />
+            {values.expectiminimax && (
+                <div className="settings-grid">
+                    <NumberField
+                        label="Profondeur de recherche (1–10 tours)"
+                        min={1}
+                        max={10}
+                        value={values.expectiminimaxMaxDepth}
+                        onChange={bind("expectiminimaxMaxDepth")}
+                    />
+                    <NumberField
+                        label="Largeur des branches (1–50)"
+                        min={1}
+                        max={50}
+                        value={values.expectiminimaxBranchWidth}
+                        onChange={bind("expectiminimaxBranchWidth")}
+                    />
+                    <NumberField
+                        label="Budget de nœuds (1–100 000)"
+                        min={1}
+                        max={100000}
+                        value={values.expectiminimaxNodeBudget}
+                        onChange={bind("expectiminimaxNodeBudget")}
+                    />
+                </div>
+            )}
             {recordDecisionTraces && (
                 <p className="simulation-description">
                     Les attaques examinées, leurs scores et les choix retenus seront inclus dans

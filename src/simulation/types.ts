@@ -23,6 +23,7 @@ export interface ProfilePair {
 export interface PlayerSimulationOptions {
     movementAttackCombos?: boolean;
     summonPlacementPairs?: boolean;
+    expectiminimax?: boolean;
 }
 
 export interface SimulationOptions extends BotDecisionOptions {
@@ -112,6 +113,8 @@ export interface PlayerSimulationStats {
     decisionsChangedBySearch: number;
     searchNodes: number;
     nodesBeyondFirstThree: number;
+    searchBudgetReached: number;
+    transpositionsUsed: number;
 }
 
 export interface FinalBoard {

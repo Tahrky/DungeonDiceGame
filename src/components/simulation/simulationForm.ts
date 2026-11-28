@@ -14,6 +14,10 @@ export interface SimulationFormValues {
     readonly maxTurns: string;
     readonly debug: boolean;
     readonly recordDecisionTraces: boolean;
+    readonly expectiminimax: boolean;
+    readonly expectiminimaxMaxDepth: string;
+    readonly expectiminimaxBranchWidth: string;
+    readonly expectiminimaxNodeBudget: string;
 }
 
 export type SimulationFormChange = <Key extends keyof SimulationFormValues>(
@@ -35,6 +39,10 @@ export function createInitialFormValues(): SimulationFormValues {
         maxTurns: String(SIMULATION_DEFAULTS.maxTurns),
         debug: SIMULATION_DEFAULTS.debug,
         recordDecisionTraces: SIMULATION_DEFAULTS.recordDecisionTraces,
+        expectiminimax: SIMULATION_DEFAULTS.expectiminimax,
+        expectiminimaxMaxDepth: String(SIMULATION_DEFAULTS.expectiminimaxMaxDepth),
+        expectiminimaxBranchWidth: String(SIMULATION_DEFAULTS.expectiminimaxBranchWidth),
+        expectiminimaxNodeBudget: String(SIMULATION_DEFAULTS.expectiminimaxNodeBudget),
     };
 }
 
@@ -52,6 +60,10 @@ export function getFormValuesFromOptions(options: SimulationOptions): Simulation
         maxTurns: String(options.maxTurns),
         debug: options.debug ?? false,
         recordDecisionTraces: options.recordDecisionTraces ?? false,
+        expectiminimax: options.expectiminimax ?? true,
+        expectiminimaxMaxDepth: String(options.expectiminimaxMaxDepth ?? 2),
+        expectiminimaxBranchWidth: String(options.expectiminimaxBranchWidth ?? 5),
+        expectiminimaxNodeBudget: String(options.expectiminimaxNodeBudget ?? 250),
     };
 }
 
@@ -71,6 +83,18 @@ export function buildSimulationOptions(values: SimulationFormValues): Simulation
     if (!isIntegerInRange(maxTurns, 1, 1000)) {
         return { error: "La limite doit être comprise entre 1 et 1 000 tours." };
     }
+    const expectiminimaxMaxDepth = Number(values.expectiminimaxMaxDepth);
+    const expectiminimaxBranchWidth = Number(values.expectiminimaxBranchWidth);
+    const expectiminimaxNodeBudget = Number(values.expectiminimaxNodeBudget);
+    if (!isIntegerInRange(expectiminimaxMaxDepth, 1, 10)) {
+        return { error: "La profondeur doit être comprise entre 1 et 10 tours." };
+    }
+    if (!isIntegerInRange(expectiminimaxBranchWidth, 1, 50)) {
+        return { error: "La largeur des branches doit être comprise entre 1 et 50." };
+    }
+    if (!isIntegerInRange(expectiminimaxNodeBudget, 1, 100000)) {
+        return { error: "Le budget doit être compris entre 1 et 100 000 nœuds." };
+    }
 
     const profilePairs = crossProfileMode ? createCrossProfilePairs() : undefined;
     return {
@@ -83,6 +107,10 @@ export function buildSimulationOptions(values: SimulationFormValues): Simulation
             ...(profilePairs === undefined ? {} : { profilePairs }),
             debug: values.debug,
             recordDecisionTraces: values.recordDecisionTraces,
+            expectiminimax: values.expectiminimax,
+            expectiminimaxMaxDepth,
+            expectiminimaxBranchWidth,
+            expectiminimaxNodeBudget,
         },
     };
 }

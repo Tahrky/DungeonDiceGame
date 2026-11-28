@@ -66,6 +66,10 @@ export const SIMULATION_DEFAULTS = {
     maxTurns: 40,
     debug: false,
     recordDecisionTraces: true,
+    expectiminimax: true,
+    expectiminimaxMaxDepth: 10,
+    expectiminimaxBranchWidth: 5,
+    expectiminimaxNodeBudget: 500,
 } as const satisfies {
     profile1: BotProfile;
     profile2: BotProfile;
@@ -76,6 +80,10 @@ export const SIMULATION_DEFAULTS = {
     maxTurns: number;
     debug: boolean;
     recordDecisionTraces: boolean;
+    expectiminimax: boolean;
+    expectiminimaxMaxDepth: number;
+    expectiminimaxBranchWidth: number;
+    expectiminimaxNodeBudget: number;
 };
 
 export const SIMULATION_CLI_DEFAULTS = {

@@ -15,6 +15,10 @@ const simulationDefaults = vi.hoisted(() => {
         maxTurns: 47,
         debug: true,
         recordDecisionTraces: true,
+        expectiminimax: true,
+        expectiminimaxMaxDepth: 2,
+        expectiminimaxBranchWidth: 5,
+        expectiminimaxNodeBudget: 250,
     };
 });
 
@@ -66,6 +70,10 @@ describe("configuration centralisée", () => {
             maxTurns: "47",
             debug: true,
             recordDecisionTraces: true,
+            expectiminimax: true,
+            expectiminimaxMaxDepth: "2",
+            expectiminimaxBranchWidth: "5",
+            expectiminimaxNodeBudget: "250",
         });
     });
 

@@ -10,7 +10,7 @@ import {
     serializeAttackChoice,
 } from "./attackChoices";
 import { executeAttack } from "./attackExecution";
-import { searchBestAttack } from "./tacticalSearch";
+import { searchBestAttack, searchBestAttackExpectiminimax } from "./tacticalSearch";
 import type { BotAction } from "../botAction";
 
 function recordAttackDecision(
@@ -52,6 +52,9 @@ function selectAttack(
         bestChoice.features.baseDamage >= state.health[opposingPlayer(player)]
     ) {
         return bestChoice;
+    }
+    if (state.expectiminimax) {
+        return searchBestAttackExpectiminimax(state, board, choices, bestChoice);
     }
     return searchBestAttack(state, board, choices, bestChoice);
 }

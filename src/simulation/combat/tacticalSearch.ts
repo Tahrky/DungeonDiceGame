@@ -14,6 +14,7 @@ import {
     evaluatePosition,
     TACTICAL_SEARCH_CONFIGURATION,
 } from "./searchState";
+import { chanceValue, minValue } from "./expectiminimax";
 
 const ROOT_FOLLOW_UP_WEIGHT = 0.1;
 const DEEP_FOLLOW_UP_WEIGHT = 0.05;
@@ -224,4 +225,116 @@ export function searchBestAttack(
         }
     }
     return recordSearchResult(state, search, bestChoice, selected);
+}
+
+export function searchBestAttackExpectiminimax(
+    state: MatchState,
+    board: BoardDefinition,
+    choices: readonly AttackChoice[],
+    bestChoice: AttackChoice,
+): AttackChoice {
+    const rootPlayer = state.currentPlayer;
+    const opponent = opposingPlayer(rootPlayer);
+    const config = state.expectiminimaxConfig ?? TACTICAL_SEARCH_CONFIGURATION;
+    const maxDepth =
+        "maxDepth" in config ? config.maxDepth : config.depth;
+    const stats = state.statistics[rootPlayer];
+    const candidates = getTacticalSearchCandidates(
+        state,
+        board,
+        rootPlayer,
+        choices,
+    ).slice(0, config.branchWidth);
+    const cache = new Map<string, number>();
+    let nodes = 0;
+    let budgetReached = false;
+    let selected = bestChoice;
+    let selectedScore = Number.NEGATIVE_INFINITY;
+
+    stats.searchDecisions++;
+    stats.positionsExplored += candidates.length;
+    stats.branchesExplored += candidates.length;
+    stats.nodesBeyondFirstThree += Math.max(0, candidates.length - 3);
+    stats.maxSearchDepthReached = Math.max(stats.maxSearchDepthReached, 1);
+
+    for (const candidate of candidates) {
+        if (nodes >= config.nodeBudget) {
+            budgetReached = true;
+            break;
+        }
+        nodes++;
+        const rootBranch = applyChoiceToClone(state, board, candidate);
+        if (!rootBranch) continue;
+        if (rootBranch.winner !== null) {
+            const decisive = getDecisiveScore(rootBranch.winner, rootPlayer);
+            if (decisive !== undefined && decisive > selectedScore) {
+                selected = candidate;
+                selectedScore = decisive;
+            }
+            continue;
+        }
+
+        const score = chanceValue(
+            getExpectedAttackDiceOutcomes(rootBranch, opponent).map((outcome) => ({
+                outcome,
+                probability: outcome.probability,
+            })),
+            ({ attackDice }) => {
+                const replyState = cloneMatchState(rootBranch);
+                prepareAttackPhase(replyState, opponent, attackDice);
+                const replyChoices = getAvailableAttackChoices(replyState, board, undefined, false);
+                const replyCandidates = getTacticalSearchCandidates(
+                    replyState,
+                    board,
+                    opponent,
+                    replyChoices,
+                ).slice(0, config.branchWidth);
+                if (replyCandidates.length === 0) {
+                    return evaluatePosition(replyState, board, rootPlayer);
+                }
+
+                return minValue(replyCandidates, (reply) => {
+                    if (nodes >= config.nodeBudget) {
+                        budgetReached = true;
+                        return evaluatePosition(replyState, board, rootPlayer);
+                    }
+                    nodes++;
+                    const replyBranch = applyChoiceToClone(replyState, board, reply);
+                    if (!replyBranch) return evaluatePosition(replyState, board, rootPlayer);
+                    if (replyBranch.winner !== null) {
+                        return getDecisiveScore(replyBranch.winner, rootPlayer) ??
+                            evaluatePosition(replyBranch, board, rootPlayer);
+                    }
+
+                    const cacheKey = createSearchCacheKey(replyBranch, rootPlayer, 2);
+                    const cached = cache.get(cacheKey);
+                    if (cached !== undefined) {
+                        stats.transpositionsUsed++;
+                        return cached;
+                    }
+                    const evaluated = evaluatePosition(replyBranch, board, rootPlayer);
+                    cache.set(cacheKey, evaluated);
+                    stats.positionsExplored++;
+                    return evaluated;
+                });
+            },
+        );
+
+        if (score > selectedScore) {
+            selected = candidate;
+            selectedScore = score;
+        }
+    }
+
+    stats.searchNodes += nodes;
+    stats.branchesExplored += nodes;
+    stats.maxSearchDepthReached = Math.max(stats.maxSearchDepthReached, maxDepth);
+    if (budgetReached) stats.searchBudgetReached++;
+    if (
+        selected.attacker.id !== bestChoice.attacker.id ||
+        selected.attackIndex !== bestChoice.attackIndex
+    ) {
+        stats.decisionsChangedBySearch++;
+    }
+    return selected;
 }

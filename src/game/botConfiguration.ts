@@ -7,6 +7,10 @@ export interface BotDecisionOptions {
     movementAttackCombos?: boolean;
     nextTurnDiceExpectation?: boolean;
     summonPlacementPairs?: boolean;
+    expectiminimax?: boolean;
+    expectiminimaxMaxDepth?: number;
+    expectiminimaxBranchWidth?: number;
+    expectiminimaxNodeBudget?: number;
 }
 
 const OPTION_KEYS = new Set([
@@ -15,16 +19,27 @@ const OPTION_KEYS = new Set([
     "movementAttackCombos",
     "nextTurnDiceExpectation",
     "summonPlacementPairs",
+    "expectiminimax",
+    "expectiminimaxMaxDepth",
+    "expectiminimaxBranchWidth",
+    "expectiminimaxNodeBudget",
 ]);
 
 export function parseBotDecisionOptions(value: unknown): BotDecisionOptions | null {
-    if (
-        !isPlainRecord(value) ||
-        Object.entries(value).some(
-            ([key, enabled]) => !OPTION_KEYS.has(key) || typeof enabled !== "boolean",
-        )
-    ) {
+    if (!isPlainRecord(value)) {
         return null;
+    }
+    for (const [key, option] of Object.entries(value)) {
+        if (!OPTION_KEYS.has(key)) return null;
+        if (
+            key === "expectiminimaxMaxDepth" ||
+            key === "expectiminimaxBranchWidth" ||
+            key === "expectiminimaxNodeBudget"
+        ) {
+            if (!Number.isInteger(option) || (option as number) < 1) return null;
+        } else if (typeof option !== "boolean") {
+            return null;
+        }
     }
     return {
         ...(value.completeAttackPhases === undefined
@@ -42,6 +57,18 @@ export function parseBotDecisionOptions(value: unknown): BotDecisionOptions | nu
         ...(value.summonPlacementPairs === undefined
             ? {}
             : { summonPlacementPairs: value.summonPlacementPairs === true }),
+        ...(value.expectiminimax === undefined
+            ? {}
+            : { expectiminimax: value.expectiminimax === true }),
+        ...(value.expectiminimaxMaxDepth === undefined
+            ? {}
+            : { expectiminimaxMaxDepth: value.expectiminimaxMaxDepth as number }),
+        ...(value.expectiminimaxBranchWidth === undefined
+            ? {}
+            : { expectiminimaxBranchWidth: value.expectiminimaxBranchWidth as number }),
+        ...(value.expectiminimaxNodeBudget === undefined
+            ? {}
+            : { expectiminimaxNodeBudget: value.expectiminimaxNodeBudget as number }),
     };
 }
 
@@ -62,5 +89,11 @@ export function createBotDecisionSettings(
                   maxMonstersPerPlayer: configuration.maxMonstersPerPlayer,
               }
             : undefined,
+        expectiminimax: options.expectiminimax !== false,
+        expectiminimaxConfig: {
+            maxDepth: options.expectiminimaxMaxDepth ?? 2,
+            branchWidth: options.expectiminimaxBranchWidth ?? 5,
+            nodeBudget: options.expectiminimaxNodeBudget ?? 250,
+        },
     };
 }

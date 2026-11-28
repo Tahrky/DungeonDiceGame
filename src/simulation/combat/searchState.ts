@@ -57,6 +57,9 @@ export function createSearchCacheKey(
                     .sort()
                     .join(","),
                 monster.turnBuffs ? Object.values(monster.turnBuffs).join(",") : "",
+                monster.movementsUsedThisTurn,
+                monster.summonedOnTurn,
+                monster.isCamouflaged === true ? "camouflaged" : "",
             ].join(":"),
         )
         .sort()
@@ -69,6 +72,15 @@ export function createSearchCacheKey(
         state.health[2],
         state.reserves[1].attack,
         state.reserves[2].attack,
+        state.reserves[1].movement,
+        state.reserves[2].movement,
+        state.reserves[1].invocation,
+        state.reserves[2].invocation,
+        state.profiles[1],
+        state.profiles[2],
+        state.tactics[1],
+        state.tactics[2],
+        state.nextMonsterId,
         depth,
         monsters,
     ].join(":");
