@@ -14,10 +14,10 @@ import { canInvokeMonster, getInvokedMonsterCount, opposingPlayer } from "../gam
 import {
     canUseActionThisTurn,
     getMovementActionsPerTurn,
-    getMovementCost,
 } from "../game/monsterActions";
 import type { DiceSymbol, Monster, PlayerId } from "../types/GameTypes";
 import { finishPlayerTurn, getLegalAttackCosts } from "./combat";
+import { getMonsterMovementCost, isMonsterAsleep } from "../game/statusEffects";
 import { decideAttacks } from "./combat/attackDecision";
 import { executeAttack } from "./combat/attackExecution";
 import { resolveAttackChoice } from "./combat/attackChoices";
@@ -84,14 +84,13 @@ function getInvocableMonsters(
 function getUsableMovementCosts(state: MatchState, player: PlayerId): number[] {
     return getPlayerMonsters(state, player)
         .filter((monster) =>
-            canUseActionThisTurn(
-                monster.movementsUsedThisTurn,
-                getMovementActionsPerTurn(monster.monster),
-            ),
+            !isMonsterAsleep(monster) &&
+                canUseActionThisTurn(
+                    monster.movementsUsedThisTurn,
+                    getMovementActionsPerTurn(monster.monster),
+                ),
         )
-        .map((monster) =>
-            getMovementCost(monster.monster, monster.turnBuffs?.movementCostReduction ?? 0),
-        );
+        .map(getMonsterMovementCost);
 }
 
 export function createConversionDecider(

@@ -128,24 +128,32 @@ export interface MonsterAttack {
     movesToZone?: boolean;
 }
 
-export interface StatusEffectDefinition {
-    type: "damageOverTime";
-    damagePerTurn: number;
-    duration: number | "untilDeath";
-    color: StatusEffectColor;
-}
+export type StatusEffectDefinition =
+    | {
+          type: "damageOverTime";
+          damagePerTurn: number;
+          duration: number | "untilDeath";
+          color: StatusEffectColor;
+      }
+    | { type: "sleep"; duration: number; color: StatusEffectColor }
+    | {
+          type: "movementSlow";
+          movementRangeBonus: number;
+          movementCostReduction: number;
+          color: StatusEffectColor;
+      };
 
 export type StatusEffectColor = "green" | "red" | "blue" | "yellow" | "white" | "violet" | "gray";
 
-export interface MonsterStatusEffect extends StatusEffectDefinition {
-    remainingTurns: number | "untilDeath";
+export type MonsterStatusEffect = StatusEffectDefinition & {
+    remainingTurns: number | "untilDeath" | "untilMove" | "untilTurnEnd";
     source?: {
         id: string;
         monsterId: string;
         name: string;
         owner: PlayerId;
     };
-}
+};
 
 export interface MonsterTurnBuffs {
     movementRangeBonus?: number;

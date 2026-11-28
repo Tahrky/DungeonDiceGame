@@ -16,6 +16,7 @@ import type {
     PlacedMonster,
     RemoteGameCommand,
 } from "../types/GameTypes";
+import { isMonsterAsleep } from "../game/statusEffects";
 
 export abstract class GameSceneState extends GameSceneData {
     protected get viewState(): GameViewState {
@@ -89,6 +90,7 @@ export abstract class GameSceneState extends GameSceneData {
 
     private cannotActInCurrentMode(monster: PlacedMonster): boolean {
         if (monster.currentHp <= 0 || monster.owner !== this.currentPlayer) return false;
+        if (isMonsterAsleep(monster)) return true;
         switch (this.actionMode.type) {
             case "attack":
                 return !canUseActionThisTurn(

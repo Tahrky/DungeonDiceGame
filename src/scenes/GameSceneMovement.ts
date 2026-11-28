@@ -8,13 +8,17 @@ import {
     applyMonsterMovement,
     getGridDistance,
     getMonsterMovementPath,
-    getMovementRange,
     getMovementActionsPerTurn,
     type MovementOptions,
 } from "../game/monsterActions";
 import { ACTION_LOG_VISIBLE_COUNT } from "./game/hudLayout";
 import type { PlacedMonster, Position } from "../types/GameTypes";
-import { beginMonsterTurn } from "../game/statusEffects";
+import {
+    beginMonsterTurn,
+    finishMonsterTurn,
+    getMonsterMovementRange as calculateMonsterMovementRange,
+    isMonsterAsleep,
+} from "../game/statusEffects";
 import { getMonsterEliminationWinner, opposingPlayer } from "../game/matchRules";
 import { createMonsterMovementOptions } from "../game/movementRules";
 
@@ -72,6 +76,7 @@ export abstract class GameSceneMovement extends GameSceneCombat {
         return (
             monster.owner === this.currentPlayer &&
             monster.currentHp > 0 &&
+            !isMonsterAsleep(monster) &&
             canUseActionThisTurn(
                 monster.movementsUsedThisTurn,
                 getMovementActionsPerTurn(monster.monster),
@@ -111,8 +116,8 @@ export abstract class GameSceneMovement extends GameSceneCombat {
         return candidates;
     }
 
-    private getMonsterMovementRange({ monster, turnBuffs }: PlacedMonster): number {
-        return getMovementRange(monster, turnBuffs?.movementRangeBonus ?? 0);
+    private getMonsterMovementRange(monster: PlacedMonster): number {
+        return calculateMonsterMovementRange(monster);
     }
 
     protected cancelBoardAction(): void {
@@ -137,6 +142,9 @@ export abstract class GameSceneMovement extends GameSceneCombat {
 
     protected endTurn(): void {
         const previousPlayer = this.currentPlayer;
+        for (const monster of this.placedMonsters) {
+            if (monster.owner === previousPlayer) finishMonsterTurn(monster);
+        }
         this.currentPlayer = opposingPlayer(previousPlayer);
         this.lockedPreviewCell = null;
         this.hasLeftLockedPreviewBoard = false;

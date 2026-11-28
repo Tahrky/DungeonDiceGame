@@ -24,8 +24,8 @@ const OPTIONAL_ATTACK_FIELDS: readonly OptionalField<MonsterAttack>[] = [
     ["clearsStatusEffects"],
     ["healAmount", 1, 50],
     ["cooldownReduction", 1, 50],
-    ["movementRangeBonus", 1, 23],
-    ["movementCostReduction", 1, 20],
+    ["movementRangeBonus", -23, 23],
+    ["movementCostReduction", -20, 20],
     ["attackDamageBonus", 1, 50],
     ["attackCostReduction", 1, 20],
     ["movesToZone"],
@@ -48,6 +48,12 @@ function areOptionalFieldsValid<T>(value: UnknownRecord, fields: readonly Option
     return fields.every(([key, min, max]) => {
         const field = value[key];
         if (field === undefined) return true;
+        if (
+            (key === "movementRangeBonus" || key === "movementCostReduction") &&
+            field === 0
+        ) {
+            return false;
+        }
         return min === undefined || max === undefined
             ? typeof field === "boolean"
             : isIntegerInRange(field, min, max);
@@ -124,12 +130,17 @@ function parseAttackPattern(value: unknown): AttackPattern | null {
 
 function parseStatusEffect(value: unknown): StatusEffectDefinition | undefined | null {
     if (value === undefined) return undefined;
+    if (!isPlainRecord(value) || !isStatusEffectColor(value.color)) return null;
+    if (value.type === "sleep") {
+        const duration = value.duration === undefined ? 2 : value.duration;
+        return isIntegerInRange(duration, 1, 50)
+            ? { type: "sleep", duration, color: value.color }
+            : null;
+    }
     if (
-        !isPlainRecord(value) ||
         value.type !== "damageOverTime" ||
         !isIntegerInRange(value.damagePerTurn, 1, 50) ||
-        (value.duration !== "untilDeath" && !isIntegerInRange(value.duration, 1, 50)) ||
-        !isStatusEffectColor(value.color)
+        (value.duration !== "untilDeath" && !isIntegerInRange(value.duration, 1, 50))
     ) {
         return null;
     }
@@ -144,7 +155,10 @@ function parseStatusEffect(value: unknown): StatusEffectDefinition | undefined |
 
 // Support effects (heal, recharge, turn buff) are exclusive and only target allies.
 function hasConsistentSupportEffect(value: UnknownRecord): boolean {
-    const hasBuff = hasTurnBuff(value);
+    const hasBuff =
+        hasTurnBuff(value) &&
+        ["movementRangeBonus", "movementCostReduction", "attackDamageBonus", "attackCostReduction"]
+            .some((key) => typeof value[key] === "number" && value[key] > 0);
     const hasHealOrRecharge =
         value.healAmount !== undefined || value.cooldownReduction !== undefined;
     const hasSupportEffect = hasHealOrRecharge || hasBuff;

@@ -1,5 +1,5 @@
 import { getAvailableSymbolCount } from "../../game/diceResources";
-import { getMovementRange } from "../../game/monsterActions";
+import { getMonsterMovementRange } from "../../game/statusEffects";
 import type { BoardActionMode } from "../../types/GameTypes";
 import { GameHudInvocation } from "./GameHudInvocation";
 import type { GameViewState } from "./GameViewState";
@@ -98,10 +98,7 @@ export abstract class GameHudActionsPanel extends GameHudInvocation {
             (monster) => monster.id === actionMode.monsterId,
         );
         const movementRange = movingMonster
-            ? getMovementRange(
-                  movingMonster.monster,
-                  movingMonster.turnBuffs?.movementRangeBonus ?? 0,
-              )
+            ? getMonsterMovementRange(movingMonster)
             : DEFAULT_MOVEMENT_RANGE;
         this.addInstructionWithCancel(
             actionMode.monsterId

@@ -6,11 +6,14 @@ import {
     clearCamouflageForMovement,
     consumeMovementTurnBuff,
     getMovementActionsPerTurn,
-    getMovementCost,
     getMovementPathMap,
     isAreaAttack,
 } from "../game/monsterActions";
-import { beginMonsterTurn } from "../game/statusEffects";
+import {
+    beginMonsterTurn,
+    getMonsterMovementCost,
+    isMonsterAsleep,
+} from "../game/statusEffects";
 import { DEFEAT_REPLY_PENALTY, scoreReplyThreat } from "../game/replyThreat";
 import type { PlayerId } from "../types/GameTypes";
 import { getAvailableAttackChoices } from "./combat/attackChoices";
@@ -70,10 +73,8 @@ export function getPlacementReplyPenalty(
         if (monster.owner !== opponent || monster.currentHp <= 0) continue;
         worst = Math.max(worst, attackPenalty(monster.id));
         if (worst >= DEFEAT_REPLY_PENALTY) return worst;
-        const cost = getMovementCost(
-            monster.monster,
-            monster.turnBuffs?.movementCostReduction ?? 0,
-        );
+        if (isMonsterAsleep(monster)) continue;
+        const cost = getMonsterMovementCost(monster);
         if (
             !canUseActionThisTurn(0, getMovementActionsPerTurn(monster.monster)) ||
             reply.reserves[opponent].movement < cost

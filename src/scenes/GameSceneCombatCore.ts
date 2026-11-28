@@ -1,6 +1,7 @@
 import { GameSceneAttackExecution } from "./GameSceneAttackExecution";
 import { canUseActionThisTurn, getAttackActionsPerTurn } from "../game/monsterActions";
 import type { DiceSymbol, PlacedMonster, Position } from "../types/GameTypes";
+import { isMonsterAsleep } from "../game/statusEffects";
 
 interface UsableAttack {
     index: number;
@@ -92,6 +93,7 @@ export abstract class GameSceneCombatCore extends GameSceneAttackExecution {
     protected selectAttackMonster(monster: PlacedMonster | undefined): void {
         if (
             monster?.owner !== this.currentPlayer ||
+            isMonsterAsleep(monster) ||
             !canUseActionThisTurn(
                 monster.attacksUsedThisTurn,
                 getAttackActionsPerTurn(monster.monster),

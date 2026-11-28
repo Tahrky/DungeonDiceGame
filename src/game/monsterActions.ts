@@ -98,11 +98,15 @@ export function createPlacedMonster(
 }
 
 export function getMovementRange(monster: Pick<Monster, "movementRange">, bonus = 0): number {
-    return monster.movementRange + bonus;
+    return Math.max(0, monster.movementRange + bonus);
 }
 
 export function getMovementCost(monster: Pick<Monster, "movementCost">, reduction = 0): number {
     return Math.max(0, (monster.movementCost ?? 1) - reduction);
+}
+
+export function getMonsterArmor(monster: Pick<Monster, "armor">): number {
+    return Number.isFinite(monster.armor) ? Math.max(0, monster.armor ?? 0) : 0;
 }
 
 export function getAttackCost(attack: Pick<MonsterAttack, "cost">, reduction = 0): number {
@@ -189,6 +193,7 @@ export function applyMonsterMovement(
     }
     const from = monster.position;
     consumeMovementTurnBuff(monster);
+    monster.statusEffects = monster.statusEffects.filter((effect) => effect.type !== "movementSlow");
     const camouflageCleared = clearCamouflageForMovement(monster, path);
     monster.movementsUsedThisTurn++;
     monster.facing = getFacingFromMovement(from, destination, monster.facing);

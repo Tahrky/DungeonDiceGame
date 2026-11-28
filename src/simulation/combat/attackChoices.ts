@@ -3,6 +3,7 @@ import {
     canAttackEnemyBase,
     canTargetMonster,
     findLivingMonsterAt,
+    getDamageAfterArmor,
     getEnemyStart,
     isAttackCellInRange,
     isReachableAttackZone,
@@ -16,6 +17,7 @@ import {
 } from "../../game/botStrategy";
 import { isBehind, isSamePosition } from "../../game/geometry";
 import { opposingPlayer } from "../../game/matchRules";
+import { isMonsterAsleep } from "../../game/statusEffects";
 import {
     canUseActionThisTurn,
     canUseMonsterAttackThisTurn,
@@ -129,15 +131,19 @@ function evaluateAttack(
             backstabBonus > 0 &&
             isBehind(victim.position, attacker.position, victim.facing);
         const damage = baseDamage + (isBackstab ? backstabBonus : 0);
-        const effectiveDamage = Math.min(victim.currentHp, damage);
+        const damageAfterArmor = getDamageAfterArmor(damage, victim);
+        const effectiveDamage = Math.min(victim.currentHp, damageAfterArmor);
         if (victim.owner === context.currentPlayer) {
             if (attack.hitsAllies) value.friendlyDamage += effectiveDamage;
             continue;
         }
         value.damage += effectiveDamage;
-        if (damage >= victim.currentHp) value.kills++;
+        if (damageAfterArmor >= victim.currentHp) value.kills++;
         const effect = attack.statusEffect;
-        if (effect && !victim.statusEffects.some((existing) => existing.type === effect.type)) {
+        if (
+            effect?.type === "damageOverTime" &&
+            !victim.statusEffects.some((existing) => existing.type === effect.type)
+        ) {
             value.statusDamage +=
                 effect.damagePerTurn *
                 Math.min(2, typeof effect.duration === "number" ? effect.duration : 2);
@@ -179,6 +185,7 @@ function getLegalAttackOptions(
 
 function getReadyAttacks(attacker: PlacedMonster) {
     if (
+        isMonsterAsleep(attacker) ||
         !canUseActionThisTurn(
             attacker.attacksUsedThisTurn,
             getAttackActionsPerTurn(attacker.monster),

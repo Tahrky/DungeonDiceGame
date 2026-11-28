@@ -7,6 +7,7 @@ import {
     getAttackZoneOptions,
     isAreaAttack,
 } from "../monsterActions";
+import { getDamageAfterArmor } from "../attackRules";
 import { opposingPlayer } from "../matchRules";
 import type { PlacedMonster } from "../../types/GameTypes";
 
@@ -25,8 +26,13 @@ function getAttackerThreats(
         if (!canAttackMonster(attacker.monster, attack, target.monster)) continue;
 
         const damage =
-            getAttackDamage(attack, attacker.turnBuffs?.attackDamageBonus ?? 0) +
-            (attack.statusEffect?.damagePerTurn ?? 0);
+            getDamageAfterArmor(
+                getAttackDamage(attack, attacker.turnBuffs?.attackDamageBonus ?? 0),
+                target,
+            ) +
+            (attack.statusEffect?.type === "damageOverTime"
+                ? attack.statusEffect.damagePerTurn
+                : 0);
         const zones = getAttackZoneOptions(
             attacker.position,
             attacker.facing,

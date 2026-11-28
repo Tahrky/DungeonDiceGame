@@ -51,8 +51,8 @@ export function createSearchCacheKey(
                 monster.attackCooldowns.join(","),
                 monster.statusEffects
                     .map(
-                        ({ type, remainingTurns, damagePerTurn }) =>
-                            `${type}:${remainingTurns}:${damagePerTurn ?? 0}`,
+                        (effect) =>
+                            `${effect.type}:${effect.remainingTurns}:${effect.type === "damageOverTime" ? effect.damagePerTurn : 0}`,
                     )
                     .sort()
                     .join(","),

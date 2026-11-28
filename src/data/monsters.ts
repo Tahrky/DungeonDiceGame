@@ -23,7 +23,7 @@ export const MONSTERS: Monster[] = [
     {
         id: "slime",
         name: "Slime",
-        symbol: "A",
+        symbol: "Z",
         color: 0x1f2cff,
         cost: 1,
         hp: 2,
@@ -312,6 +312,8 @@ export const MONSTERS: Monster[] = [
                 damage: 4,
                 cost: 1,
                 pattern: { type: "radius", range: 4 },
+                movementRangeBonus: -1,
+                movementCostReduction: -1,
             },
             {
                 name: "Tir endormant",
@@ -321,6 +323,7 @@ export const MONSTERS: Monster[] = [
                 animation: "alternativeAttack1",
                 cooldownTurns: 1,
                 initialCooldownTurns: 1,
+                statusEffect: { type: "sleep", duration: 2, color: "violet" },
             },
         ],
         movementRange: 1,
@@ -356,7 +359,7 @@ export const MONSTERS: Monster[] = [
     {
         id: "reaper",
         name: "Faucheur",
-        symbol: "R",
+        symbol: "Y",
         color: 0x993f00,
         cost: 5,
         hp: 6,

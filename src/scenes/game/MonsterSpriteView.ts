@@ -19,6 +19,7 @@ import {
     updateGrayscale,
     updateStatusTint,
 } from "./MonsterSpriteEffects";
+import { isMonsterAsleep } from "../../game/statusEffects";
 import { createMonsterPreview } from "./MonsterSpritePreview";
 import { createMonsterSprite } from "./MonsterSpriteFactory";
 import { createMonsterSpriteState, type MonsterSpriteState } from "./MonsterSpriteState";
@@ -52,6 +53,44 @@ export class MonsterSpriteView {
         actions: readonly MonsterSpriteAction[],
     ): number {
         return preloadMonsterSprites(scene, monsterIds, actions);
+    }
+
+    private updateSleepIndicator(state: MonsterSpriteState, sleeping: boolean): void {
+        if (!sleeping) {
+            if (state.sleepIndicator) {
+                this.scene.tweens.killTweensOf(state.sleepIndicator);
+                state.sleepIndicator.destroy();
+                state.sleepIndicator = null;
+            }
+            return;
+        }
+
+        if (!state.sleepIndicator) {
+            state.sleepIndicator = this.scene.add
+                .text(0, 0, "Zzzz", {
+                    fontFamily: "monospace",
+                    fontSize: "11px",
+                    color: "#d8b4ff",
+                    stroke: "#2b1240",
+                    strokeThickness: 2,
+                })
+                .setOrigin(0.5, 1);
+            this.scene.tweens.add({
+                targets: state.sleepIndicator,
+                y: "-=8",
+                alpha: 0.6,
+                duration: 750,
+                ease: "Sine.InOut",
+                yoyo: true,
+                repeat: -1,
+            });
+        }
+        this.positionSleepIndicator(state);
+    }
+
+    private positionSleepIndicator(state: MonsterSpriteState): void {
+        state.sleepIndicator?.setPosition(state.sprite.x, state.sprite.y - 18);
+        state.sleepIndicator?.setDepth(state.sprite.depth + 0.1);
     }
 
     constructor(scene: Phaser.Scene, toScreen: (position: Position) => Position) {
@@ -91,6 +130,7 @@ export class MonsterSpriteView {
 
         for (const [id, state] of this.sprites) {
             if (!activeIds.has(id)) {
+                state.sleepIndicator?.destroy();
                 state.sprite.destroy();
                 this.sprites.delete(id);
             }
@@ -101,6 +141,7 @@ export class MonsterSpriteView {
             state.shouldBeGrayscale = grayscaleMonsterIds.has(monster.id);
             state.shouldBeCamouflaged = camouflagedMonsterIds.has(monster.id);
             if (state.isDead) {
+                this.updateSleepIndicator(state, false);
                 updateDeadAppearance(state);
                 continue;
             }
@@ -111,6 +152,7 @@ export class MonsterSpriteView {
             state.facing = monster.facing;
             this.placeSprite(state, monster.position);
             this.updateSpriteDepth(state);
+            this.updateSleepIndicator(state, isMonsterAsleep(monster));
             if (state.action === "idle") this.play(state, "idle");
         }
     }
@@ -181,7 +223,10 @@ export class MonsterSpriteView {
                 y: spritePosition.y,
                 duration: 350,
                 ease: "Linear",
-                onUpdate: () => this.updateSpriteDepth(state),
+                onUpdate: () => {
+                    this.updateSpriteDepth(state);
+                    this.positionSleepIndicator(state);
+                },
                 onComplete: () => {
                     state.position = { ...destination };
                     this.updateSpriteDepth(state);
@@ -217,7 +262,10 @@ export class MonsterSpriteView {
         const state = this.sprites.get(id);
         if (!state || state.isDead) return;
         const animation = currentHp <= 0 ? "death" : "hit";
-        if (currentHp <= 0) updateStatusTint(state, null);
+        if (currentHp <= 0) {
+            updateStatusTint(state, null);
+            this.updateSleepIndicator(state, false);
+        }
         if (!MONSTER_SPRITES[state.monster.id]?.animations[animation]) return;
 
         this.scene.tweens.killTweensOf(state.sprite);

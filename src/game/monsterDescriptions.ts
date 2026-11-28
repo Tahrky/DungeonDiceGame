@@ -3,6 +3,7 @@ import {
     getAttackActionsPerTurn,
     getMovementActionsPerTurn,
     getMovementCost,
+    getMonsterArmor,
 } from "./monsterActions";
 
 import type {
@@ -14,6 +15,12 @@ import type {
 
 export function describeMonsterStatusEffect(effect: MonsterStatusEffect): string {
     if (effect.type === "damageOverTime") return `-${effect.damagePerTurn} PV / Tour`;
+    if (effect.type === "sleep") {
+        return typeof effect.remainingTurns === "number"
+            ? `Endormi (${effect.remainingTurns} tour${effect.remainingTurns === 1 ? "" : "s"})`
+            : "Endormi";
+    }
+    if (effect.type === "movementSlow") return "Déplacement ralenti";
     return "";
 }
 
@@ -25,9 +32,7 @@ export function formatHitPoints(hitPoints: number): string {
     return `${hitPoints} PV`;
 }
 
-export function getMonsterArmor(monster: Monster): number {
-    return Number.isFinite(monster.armor) ? Math.max(0, monster.armor ?? 0) : 0;
-}
+export { getMonsterArmor } from "./monsterActions";
 
 export function formatMonsterArmor(monster: Monster): string {
     return `Armure : ${getMonsterArmor(monster)}`;
@@ -96,6 +101,35 @@ function describeTurnBuff(attack: MonsterAttack): string | undefined {
         : undefined;
 }
 
+function describeAttackEffect(attack: MonsterAttack): string {
+    if (attack.healAmount !== undefined) return `soigne ${attack.healAmount} PV`;
+    if (attack.cooldownReduction !== undefined) {
+        return `réduit les recharges de ${attack.cooldownReduction} tour${attack.cooldownReduction === 1 ? "" : "s"}`;
+    }
+    if (
+        (attack.movementRangeBonus ?? 0) < 0 ||
+        (attack.movementCostReduction ?? 0) < 0
+    ) {
+        return `${attack.damage} dégâts, ralentit la cible jusqu'à son prochain déplacement`;
+    }
+    if (attack.statusEffect?.type === "sleep") {
+        const { duration } = attack.statusEffect;
+        return `${attack.damage} dégâts et endort la cible pendant ${duration} tour${duration === 1 ? "" : "s"}`;
+    }
+
+    const turnBuff = describeTurnBuff(attack);
+    if (turnBuff) return turnBuff;
+    const effect = attack.statusEffect;
+    if (effect?.type === "damageOverTime") {
+        const duration =
+            effect.duration === "untilDeath"
+                ? "jusqu'à sa mort"
+                : `${effect.duration} tour${effect.duration === 1 ? "" : "s"}`;
+        return `${attack.damage} dégât initial, puis ${effect.damagePerTurn} dégâts au début du tour de la cible (${duration})`;
+    }
+    return `${attack.damage} dégâts`;
+}
+
 export function describeMonsterAttack(attack: MonsterAttack): string {
     const special = attack.movesToZone && attack.pattern.type !== "jumpArea" ? ", saut" : "";
     const initialCooldown =
@@ -116,15 +150,7 @@ export function describeMonsterAttack(attack: MonsterAttack): string {
     const targetRestriction = attack.targetsAlliesOnly
         ? `, cible uniquement les alliés${attack.targetsSelf ? " (peut se cibler)" : ""}`
         : "";
-    const effect =
-        attack.healAmount !== undefined
-            ? `soigne ${attack.healAmount} PV`
-            : attack.cooldownReduction !== undefined
-              ? `réduit les recharges de ${attack.cooldownReduction} tour${attack.cooldownReduction === 1 ? "" : "s"}`
-              :               (describeTurnBuff(attack) ??
-                (attack.statusEffect?.type === "damageOverTime"
-                    ? `${attack.damage} dégât initial, puis ${attack.statusEffect.damagePerTurn} dégâts au début du tour de la cible (${attack.statusEffect.duration === "untilDeath" ? "jusqu'à sa mort" : `${attack.statusEffect.duration} tour${attack.statusEffect.duration === 1 ? "" : "s"}`})`
-                    : `${attack.damage} dégâts`));
+    const effect = describeAttackEffect(attack);
     return `${formatCost(attack.cost, DICE_SYMBOL_PRESENTATION.attack.emoji)} ${attack.name} : ${effect} (${getAttackPatternDescription(
         attack.pattern,
     )}${special}${friendlyFire}${statusCleanup}${targetRestriction}${usesPerTurn})${cooldown}`;

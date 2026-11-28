@@ -15,6 +15,7 @@ export interface MonsterSpriteState {
     readonly ownerGlow: Phaser.FX.Glow;
     readonly monster: Monster;
     readonly owner: PlayerId;
+    sleepIndicator: Phaser.GameObjects.Text | null;
     grayscaleEffect: Phaser.FX.ColorMatrix | null;
     deadEffect: Phaser.FX.ColorMatrix | null;
     deadOutline: Phaser.FX.Glow | null;
@@ -40,6 +41,7 @@ export function createMonsterSpriteState(
         ownerGlow,
         monster: placed.monster,
         owner: placed.owner,
+        sleepIndicator: null,
         grayscaleEffect: null,
         deadEffect: null,
         deadOutline: null,

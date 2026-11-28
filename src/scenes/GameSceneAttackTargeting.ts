@@ -16,6 +16,7 @@ import {
     type AttackZoneOption,
 } from "../game/monsterActions";
 import type { MonsterAttack, PlacedMonster, Position } from "../types/GameTypes";
+import { isMonsterAsleep } from "../game/statusEffects";
 
 interface UsableAttack {
     attacker: PlacedMonster;
@@ -97,6 +98,7 @@ export abstract class GameSceneAttackTargeting extends GameSceneInvocation {
             attack !== undefined &&
             attacker.owner === this.currentPlayer &&
             attacker.currentHp > 0 &&
+            !isMonsterAsleep(attacker) &&
             canUseActionThisTurn(
                 attacker.attacksUsedThisTurn,
                 getAttackActionsPerTurn(attacker.monster),

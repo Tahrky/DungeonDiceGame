@@ -4,8 +4,8 @@ import {
     consumeMovementTurnBuff,
     clearCamouflageForMovement,
     getMovementActionsPerTurn,
-    getMovementCost,
 } from "../game/monsterActions";
+import { getMonsterMovementCost, isMonsterAsleep } from "../game/statusEffects";
 import {
     getFacingFromMovement,
     getGridDistance,
@@ -358,17 +358,14 @@ export function* decideMovements(
     // Shared dice: don't let the first summoned unit consume movement every round.
     for (let index = 0; index < ownMonsters.length; index++) {
         const monster = ownMonsters[(index + state.turn - 1) % ownMonsters.length]!;
-        if (monster.currentHp <= 0) continue;
+        if (monster.currentHp <= 0 || isMonsterAsleep(monster)) continue;
         while (
             canUseActionThisTurn(
                 monster.movementsUsedThisTurn,
                 getMovementActionsPerTurn(monster.monster),
             )
         ) {
-            const cost = getMovementCost(
-                monster.monster,
-                monster.turnBuffs?.movementCostReduction ?? 0,
-            );
+            const cost = getMonsterMovementCost(monster);
             if (!canSpend(state, player, "movement", cost)) break;
 
             const step = yield* decideMonsterMovement(context, monster, cost);

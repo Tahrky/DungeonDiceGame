@@ -20,7 +20,11 @@ export function getOffenseValue(monster: Monster): number {
     return monster.attacks.reduce(
         (total, attack) =>
             total +
-            (attack.damage + (attack.statusEffect?.damagePerTurn ?? 0)) / Math.max(1, attack.cost),
+            (attack.damage +
+                (attack.statusEffect?.type === "damageOverTime"
+                    ? attack.statusEffect.damagePerTurn
+                    : 0)) /
+                Math.max(1, attack.cost),
         0,
     );
 }

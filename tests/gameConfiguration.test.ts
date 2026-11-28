@@ -18,6 +18,38 @@ import {
 import { parseMonsterConfiguration } from "../src/game/monsterConfiguration";
 
 describe("configuration des règles de partie", () => {
+    it("accepte les modificateurs négatifs et le statut de sommeil de l'arbalétrier", () => {
+        const crossbowman = MONSTERS.find((monster) => monster.id === "arbalétrier");
+        if (!crossbowman) throw new Error("Profil de l'arbalétrier indisponible.");
+
+        const parsed = parseMonsterConfiguration(crossbowman, crossbowman.id);
+
+        expect(parsed?.attacks[0]).toMatchObject({
+            movementRangeBonus: -1,
+            movementCostReduction: -1,
+        });
+        expect(parsed?.attacks[1]?.statusEffect).toEqual({
+            type: "sleep",
+            duration: 2,
+            color: "violet",
+        });
+        const threeTurnSleep = parseMonsterConfiguration(
+            {
+                ...crossbowman,
+                attacks: crossbowman.attacks.map((attack, index) =>
+                    index === 1
+                        ? {
+                              ...attack,
+                              statusEffect: { ...attack.statusEffect, duration: 3 },
+                          }
+                        : attack,
+                ),
+            },
+            crossbowman.id,
+        );
+        expect(threeTurnSleep?.attacks[1]?.statusEffect).toMatchObject({ duration: 3 });
+    });
+
     it("regroupe les options de l'IHM et utilise leurs valeurs par défaut", () => {
         const configuration = getDefaultGameConfiguration();
         expect(configuration).toMatchObject({
@@ -458,12 +490,12 @@ describe("configuration des règles de partie", () => {
                 color: "green",
             },
         });
-        expect(
-            parseGameConfiguration(
-                JSON.parse(serializeGameConfiguration(configuration)),
-            )?.monsters.find((monster) => monster.id === "swamp-thing")?.attacks[0].statusEffect
-                ?.duration,
-        ).toBe("untilDeath");
+        const parsedEffect = parseGameConfiguration(
+            JSON.parse(serializeGameConfiguration(configuration)),
+        )?.monsters.find((monster) => monster.id === "swamp-thing")?.attacks[0].statusEffect;
+        expect(parsedEffect?.type === "damageOverTime" ? parsedEffect.duration : undefined).toBe(
+            "untilDeath",
+        );
 
         for (const color of ["green", "red", "blue", "yellow", "white", "violet", "gray"]) {
             const parsed = parseMonsterConfiguration(

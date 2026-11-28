@@ -7,6 +7,7 @@ import {
     canAttackMonster,
     canDirectlyTargetMonster,
     canTargetMonsterOwner,
+    getMonsterArmor,
     type AttackZoneOption,
 } from "./monsterActions";
 import { applyAttackStatusEffect } from "./statusEffects";
@@ -34,6 +35,10 @@ export function getEnemyStart(context: AttackContext): Position {
     return context.startingPositions[opposingPlayer(context.currentPlayer)];
 }
 
+export function getDamageAfterArmor(damage: number, target: PlacedMonster): number {
+    return Math.max(0, damage - getMonsterArmor(target.monster));
+}
+
 export function canAttackEnemyBase(context: AttackContext, attacker: PlacedMonster): boolean {
     return canAttackBaseThisTurn(
         attacker.summonedOnTurn,
@@ -59,16 +64,17 @@ export function applyMonsterHit(
     target: PlacedMonster,
     damage: number,
 ): { effectiveDamage: number; overkillDamage: number; camouflageSuppressed: boolean; camouflageTriggered: boolean } {
-    const effectiveDamage = Math.min(damage, target.currentHp);
+    const damageAfterArmor = getDamageAfterArmor(damage, target);
+    const effectiveDamage = Math.min(damageAfterArmor, target.currentHp);
     const camouflageSuppressed = target.isCamouflaged === true;
     if (camouflageSuppressed) target.isCamouflaged = false;
-    target.currentHp -= damage;
+    target.currentHp -= damageAfterArmor;
     const camouflageTriggered = target.currentHp <= 0 && attacker.monster.id === "thief";
     if (camouflageTriggered) attacker.isCamouflaged = true;
     applyAttackStatusEffect(target, attack, attacker);
     return {
         effectiveDamage,
-        overkillDamage: damage - effectiveDamage,
+        overkillDamage: damageAfterArmor - effectiveDamage,
         camouflageSuppressed,
         camouflageTriggered,
     };

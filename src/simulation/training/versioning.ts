@@ -126,13 +126,7 @@ function normalizeMonsterForGameplay(monster: GameConfiguration["monsters"][numb
             damage: attack.damage,
             cost: attack.cost,
             pattern: attack.pattern,
-            statusEffect: attack.statusEffect
-                ? {
-                      type: attack.statusEffect.type,
-                      damagePerTurn: attack.statusEffect.damagePerTurn,
-                      duration: attack.statusEffect.duration,
-                  }
-                : null,
+            statusEffect: attack.statusEffect ?? null,
             cooldownTurns: attack.cooldownTurns ?? 0,
             initialCooldownTurns: attack.initialCooldownTurns ?? attack.cooldownTurns ?? 0,
             usesPerTurn: attack.usesPerTurn ?? 1,

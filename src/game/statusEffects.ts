@@ -2,6 +2,8 @@ import type { MonsterAttack, PlacedMonster, StatusEffectColor } from "../types/G
 import {
     applyMonsterTurnBuff,
     hasTurnBuff,
+    getMovementCost,
+    getMovementRange,
     reduceAttackCooldowns,
     resetAttackTurnState,
 } from "./monsterActions";
@@ -40,18 +42,47 @@ export function applyAttackStatusEffect(
     }
     if (attack.clearsStatusEffects) clearStatusEffects(target);
     const effect = attack.statusEffect;
-    if (!effect) return;
-    target.statusEffects = [
-        ...target.statusEffects.filter((existing) => existing.type !== effect.type),
-        {
-            ...effect,
-            remainingTurns: effect.duration,
-            source: {
-                id: source.id,
-                monsterId: source.monster.id,
-                name: source.monster.name,
-                owner: source.owner,
+    const sourceInfo = {
+        id: source.id,
+        monsterId: source.monster.id,
+        name: source.monster.name,
+        owner: source.owner,
+    };
+    if (effect) {
+        target.statusEffects = [
+            ...target.statusEffects.filter((existing) => existing.type !== effect.type),
+            {
+                ...effect,
+                remainingTurns: effect.type === "movementSlow" ? "untilMove" : effect.duration,
+                source: sourceInfo,
             },
+        ];
+    }
+
+    const rangeSlow = Math.min(0, attack.movementRangeBonus ?? 0);
+    const costSlow = Math.min(0, attack.movementCostReduction ?? 0);
+    if (rangeSlow === 0 && costSlow === 0) return;
+    const movementRangeBonus =
+        target.monster.movementRange === 1
+            ? 0
+            : rangeSlow !== 0
+              ? rangeSlow
+              : costSlow;
+    const movementCostReduction =
+        target.monster.movementRange === 1
+            ? costSlow !== 0
+                ? costSlow
+                : rangeSlow
+            : 0;
+    target.statusEffects = [
+        ...target.statusEffects.filter((existing) => existing.type !== "movementSlow"),
+        {
+            type: "movementSlow",
+            movementRangeBonus,
+            movementCostReduction,
+            color: "violet",
+            remainingTurns: "untilMove",
+            source: sourceInfo,
         },
     ];
 }
@@ -106,9 +137,15 @@ export function applyStatusEffectsAtTurnStart(monster: PlacedMonster): number {
     let damage = 0;
     const activeEffects = [];
     for (const effect of monster.statusEffects) {
+        if (effect.type === "sleep") {
+            activeEffects.push(effect);
+            continue;
+        }
         if (effect.type === "damageOverTime") damage += effect.damagePerTurn;
 
         if (effect.remainingTurns === "untilDeath") {
+            activeEffects.push(effect);
+        } else if (effect.remainingTurns === "untilMove" || effect.remainingTurns === "untilTurnEnd") {
             activeEffects.push(effect);
         } else if (effect.remainingTurns > 1) {
             activeEffects.push({ ...effect, remainingTurns: effect.remainingTurns - 1 });
@@ -126,4 +163,52 @@ export function beginMonsterTurn(monster: PlacedMonster): number {
     resetAttackTurnState(monster);
     monster.movementsUsedThisTurn = 0;
     return damage;
+}
+
+export function isMonsterAsleep(monster: Pick<PlacedMonster, "statusEffects">): boolean {
+    return monster.statusEffects.some((effect) => effect.type === "sleep");
+}
+
+export function finishMonsterTurn(monster: PlacedMonster): void {
+    const activeEffects = [];
+    for (const effect of monster.statusEffects) {
+        if (effect.type !== "sleep") {
+            activeEffects.push(effect);
+        } else if (typeof effect.remainingTurns === "number" && effect.remainingTurns > 1) {
+            activeEffects.push({ ...effect, remainingTurns: effect.remainingTurns - 1 });
+        }
+    }
+    monster.statusEffects = activeEffects;
+}
+
+function getMovementStatusBonuses(monster: Pick<PlacedMonster, "statusEffects">) {
+    return monster.statusEffects.reduce(
+        (bonuses, effect) => {
+            if (effect.type !== "movementSlow") return bonuses;
+            bonuses.movementRangeBonus += effect.movementRangeBonus;
+            bonuses.movementCostReduction += effect.movementCostReduction;
+            return bonuses;
+        },
+        { movementRangeBonus: 0, movementCostReduction: 0 },
+    );
+}
+
+export function getMonsterMovementRange(
+    monster: Pick<PlacedMonster, "monster" | "turnBuffs" | "statusEffects">,
+): number {
+    const statusBonuses = getMovementStatusBonuses(monster);
+    return getMovementRange(
+        monster.monster,
+        (monster.turnBuffs?.movementRangeBonus ?? 0) + statusBonuses.movementRangeBonus,
+    );
+}
+
+export function getMonsterMovementCost(
+    monster: Pick<PlacedMonster, "monster" | "turnBuffs" | "statusEffects">,
+): number {
+    const statusBonuses = getMovementStatusBonuses(monster);
+    return getMovementCost(
+        monster.monster,
+        (monster.turnBuffs?.movementCostReduction ?? 0) + statusBonuses.movementCostReduction,
+    );
 }

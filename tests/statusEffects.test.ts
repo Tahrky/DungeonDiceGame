@@ -5,13 +5,23 @@ import {
     applyStatusEffectsAtTurnStart,
     applySupportEffect,
     beginMonsterTurn,
+    finishMonsterTurn,
+    getMonsterMovementCost,
+    getMonsterMovementRange,
     healMonster,
+    isMonsterAsleep,
 } from "../src/game/statusEffects";
 import { MONSTERS } from "../src/data/monsters";
 import { applyMonsterHit } from "../src/game/attackRules";
-import { getDefaultBoard } from "../src/game/boards";
+import { getDefaultBoard, getStartingPositions } from "../src/game/boards";
+import { resolveAttack } from "../src/game/combatResolution";
 import { getDefaultGameConfiguration } from "../src/game/gameConfiguration";
-import { getInitialAttackCooldowns, getInitialAttackUses } from "../src/game/monsterActions";
+import { describeMonsterAttack } from "../src/game/monsterDescriptions";
+import {
+    applyMonsterMovement,
+    getInitialAttackCooldowns,
+    getInitialAttackUses,
+} from "../src/game/monsterActions";
 import { beginTurn, performAttacks } from "../src/simulation/combat";
 import { createStats, type MatchState } from "../src/simulation/matchState";
 import type { PlacedMonster } from "../src/types/GameTypes";
@@ -128,10 +138,100 @@ describe("effets de statut au début du tour", () => {
         applyAttackStatusEffect(target, attack, source);
 
         expect(target.statusEffects).toHaveLength(1);
-        expect(target.statusEffects[0]?.remainingTurns).toBe(attack.statusEffect?.duration);
+        expect(target.statusEffects[0]?.remainingTurns).toBe(
+            attack.statusEffect?.type === "damageOverTime" ? attack.statusEffect.duration : undefined,
+        );
         expect(target.statusEffects[0]?.source?.id).toBe(source.id);
         applyAttackStatusEffect(target, { ...attack, statusEffect: undefined }, source);
         expect(target.statusEffects).toEqual([]);
+    });
+
+    it("ralentit le déplacement jusqu'à ce que la cible bouge, selon sa portée de base", () => {
+        const source = createPlacedMonster("archer", "arbalétrier", 1, { x: 5, y: 7 });
+        const attack = source.monster.attacks[0]!;
+        expect(describeMonsterAttack(attack)).toContain(
+            "4 dégâts, ralentit la cible jusqu'à son prochain déplacement",
+        );
+        const fastTarget = createPlacedMonster("fast", "black-knight", 2, { x: 6, y: 7 });
+        fastTarget.monster = {
+            ...fastTarget.monster,
+            movementRange: 2,
+            movementCost: 1,
+        };
+        const slowTarget = createPlacedMonster("slow", "ghost", 2, { x: 6, y: 8 });
+        slowTarget.monster = {
+            ...slowTarget.monster,
+            movementRange: 1,
+            movementCost: 1,
+        };
+
+        applyAttackStatusEffect(fastTarget, attack, source);
+        applyAttackStatusEffect(slowTarget, attack, source);
+
+        expect(getMonsterMovementRange(fastTarget)).toBe(1);
+        expect(getMonsterMovementCost(fastTarget)).toBe(1);
+        expect(getMonsterMovementRange(slowTarget)).toBe(1);
+        expect(getMonsterMovementCost(slowTarget)).toBe(2);
+        expect(slowTarget.statusEffects[0]?.color).toBe("violet");
+
+        applyMonsterMovement(fastTarget, [fastTarget.position, { x: 7, y: 7 }]);
+        expect(fastTarget.statusEffects).toEqual([]);
+    });
+
+    it("endort la cible pendant son tour et permet au soin de dissiper le sommeil", () => {
+        const source = createPlacedMonster("archer", "arbalétrier", 1, { x: 5, y: 7 });
+        const target = createPlacedMonster("target", "ghost", 2, { x: 6, y: 7 });
+
+        expect(describeMonsterAttack(source.monster.attacks[1]!)).toContain(
+            "6 dégâts et endort la cible pendant 2 tours",
+        );
+        applyAttackStatusEffect(target, source.monster.attacks[1]!, source);
+        expect(isMonsterAsleep(target)).toBe(true);
+        expect(target.statusEffects[0]?.remainingTurns).toBe(2);
+        beginMonsterTurn(target);
+        expect(isMonsterAsleep(target)).toBe(true);
+        finishMonsterTurn(target);
+        expect(isMonsterAsleep(target)).toBe(true);
+        expect(target.statusEffects[0]?.remainingTurns).toBe(1);
+        beginMonsterTurn(target);
+        expect(isMonsterAsleep(target)).toBe(true);
+        finishMonsterTurn(target);
+        expect(isMonsterAsleep(target)).toBe(false);
+
+        applyAttackStatusEffect(target, source.monster.attacks[1]!, source);
+        healMonster(target, 1, true);
+        expect(isMonsterAsleep(target)).toBe(false);
+    });
+
+    it("laisse le Faucheur à 1 PV après un tir endormant de 6 dégâts", () => {
+        const attacker = createPlacedMonster("archer", "arbalétrier", 1, { x: 5, y: 7 });
+        const reaper = createPlacedMonster("reaper", "reaper", 2, { x: 6, y: 7 });
+        attacker.attackCooldowns[1] = 0;
+        const board = getDefaultBoard();
+
+        const result = resolveAttack(
+            {
+                board,
+                startingPositions: getStartingPositions(board),
+                monsters: [attacker, reaper],
+                currentPlayer: 1,
+                turn: 2,
+                allowBaseAttackOnSummonTurn: true,
+            },
+            attacker,
+            1,
+            reaper.position,
+            [reaper.position],
+        );
+
+        expect(result.hits).toHaveLength(1);
+        expect(result.hits[0]).toMatchObject({
+            damage: 5,
+            effectiveDamage: 5,
+            overkillDamage: 0,
+        });
+        expect(reaper.currentHp).toBe(1);
+        expect(isMonsterAsleep(reaper)).toBe(true);
     });
 
     it("inflige les dégâts et conserve un effet jusqu'à la mort", () => {

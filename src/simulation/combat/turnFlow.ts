@@ -1,7 +1,7 @@
 import type { GameConfiguration } from "../../game/gameConfiguration";
 import { getMonsterEliminationWinner } from "../../game/matchRules";
 import { clearMonsterTurnBuff } from "../../game/monsterActions";
-import { beginMonsterTurn } from "../../game/statusEffects";
+import { beginMonsterTurn, finishMonsterTurn } from "../../game/statusEffects";
 import type { PlacedMonster, PlayerId } from "../../types/GameTypes";
 import { addEvent, type MatchState } from "../matchState";
 
@@ -55,7 +55,10 @@ export function beginTurn(
 
 export function finishPlayerTurn(state: MatchState, player: PlayerId): void {
     for (const monster of state.monsters) {
-        if (monster.owner === player) clearMonsterTurnBuff(monster);
+        if (monster.owner === player) {
+            clearMonsterTurnBuff(monster);
+            finishMonsterTurn(monster);
+        }
     }
     addEvent(state, {
         turn: state.turn,

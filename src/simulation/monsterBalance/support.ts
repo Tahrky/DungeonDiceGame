@@ -63,7 +63,7 @@ function addEffects(
     let result = total;
     for (const { key, value, buffedUses } of effects) {
         const amount = Number(attack[key]);
-        if (amount) result += amount * value * buffedUses * scale;
+        if (amount > 0) result += amount * value * buffedUses * scale;
     }
     return result;
 }

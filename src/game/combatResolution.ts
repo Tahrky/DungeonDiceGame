@@ -3,6 +3,7 @@ import {
     applyMonsterHit,
     canAttackEnemyBase,
     findLivingMonsterAt,
+    getDamageAfterArmor,
     getEnemyStart,
     getJumpLanding,
     isAttackCellInRange,
@@ -91,7 +92,7 @@ export function resolveAttack(
         const dealt = damage + criticalDamageBonus;
         result.hits.push({
             target: victim,
-            damage: dealt,
+            damage: getDamageAfterArmor(dealt, victim),
             criticalDamageBonus,
             ...applyMonsterHit(attacker, attack, victim, dealt),
         });

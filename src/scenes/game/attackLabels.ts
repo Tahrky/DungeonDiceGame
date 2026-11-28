@@ -69,6 +69,15 @@ function getAttackEffectLabel(attack: MonsterAttack, attacker: PlacedMonster): s
     if (attack.cooldownReduction !== undefined) {
         return `recharge -${attack.cooldownReduction} tour`;
     }
+    if (
+        (attack.movementRangeBonus ?? 0) < 0 ||
+        (attack.movementCostReduction ?? 0) < 0
+    ) {
+        return `${getAttackDamage(attack, attacker.turnBuffs?.attackDamageBonus ?? 0)} dég. · ralentit jusqu'au déplacement`;
+    }
+    if (attack.statusEffect?.type === "sleep") {
+        return `${getAttackDamage(attack, attacker.turnBuffs?.attackDamageBonus ?? 0)} dég. · endort jusqu'au tour`;
+    }
     const effects: string[] = [];
     if (attack.movementRangeBonus !== undefined) {
         effects.push(`déplacement +${attack.movementRangeBonus}`);

@@ -80,7 +80,10 @@ function getAreaMultiplier(attack: Monster["attacks"][number]): number {
 function offenseValue(monster: Monster): number {
     return monster.attacks.reduce((score, attack) => {
         const area = getAreaMultiplier(attack);
-        const statusDamage = attack.statusEffect?.damagePerTurn ?? 0;
+        const statusDamage =
+            attack.statusEffect?.type === "damageOverTime"
+                ? attack.statusEffect.damagePerTurn
+                : 0;
         return score + ((attack.damage + statusDamage) * area) / Math.max(1, attack.cost);
     }, 0);
 }

@@ -10,10 +10,11 @@ import {
     parseGameConfiguration,
     type GameConfiguration,
 } from "../game/gameConfiguration";
-import { createPlacedMonster, getAttackCost, getMovementCost } from "../game/monsterActions";
+import { createPlacedMonster, getAttackCost } from "../game/monsterActions";
 import { getDefaultDeck, getPlayerDecks, parseDeck, type GameSetup } from "../game/decks";
 import { getInvokedMonsterCount } from "../game/matchRules";
 import { isSamePosition } from "../game/geometry";
+import { getMonsterMovementCost as calculateMonsterMovementCost } from "../game/statusEffects";
 import { createMatchRandomStreams, type MatchRandomStreams } from "../game/random";
 import {
     BOT_PROFILES,
@@ -260,8 +261,8 @@ export abstract class GameSceneData extends Phaser.Scene {
         );
     }
 
-    protected getMonsterMovementCost({ monster, turnBuffs }: PlacedMonster): number {
-        return getMovementCost(monster, turnBuffs?.movementCostReduction ?? 0);
+    protected getMonsterMovementCost(monster: PlacedMonster): number {
+        return calculateMonsterMovementCost(monster);
     }
 
     protected getMonsterAttackCost({ turnBuffs }: PlacedMonster, attack: MonsterAttack): number {

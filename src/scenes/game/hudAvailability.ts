@@ -4,10 +4,13 @@ import {
     getAttackActionsPerTurn,
     getAttackCost,
     getMovementActionsPerTurn,
-    getMovementCost,
 } from "../../game/monsterActions";
 import type { PlacedMonster } from "../../types/GameTypes";
 import type { GameViewState } from "./GameViewState";
+import {
+    getMonsterMovementCost,
+    isMonsterAsleep,
+} from "../../game/statusEffects";
 
 function someOwnLivingMonster(
     state: GameViewState,
@@ -15,7 +18,10 @@ function someOwnLivingMonster(
 ): boolean {
     return state.placedMonsters.some(
         (monster) =>
-            monster.owner === state.currentPlayer && monster.currentHp > 0 && predicate(monster),
+            monster.owner === state.currentPlayer &&
+            monster.currentHp > 0 &&
+            !isMonsterAsleep(monster) &&
+            predicate(monster),
     );
 }
 
@@ -46,7 +52,6 @@ export function canMove(state: GameViewState, movementCount: number): boolean {
                 monster.movementsUsedThisTurn,
                 getMovementActionsPerTurn(monster.monster),
             ) &&
-            getMovementCost(monster.monster, monster.turnBuffs?.movementCostReduction ?? 0) <=
-                movementCount,
+            getMonsterMovementCost(monster) <= movementCount,
     );
 }
