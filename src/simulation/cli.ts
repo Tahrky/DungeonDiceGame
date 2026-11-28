@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { isMainThread } from "node:worker_threads";
 import type { BoardDefinition } from "../game/boards";
 import type { GameConfiguration } from "../game/gameConfiguration";
-import { createCrossProfilePairs } from "./workerPool";
+import { createAITournamentPairs, createCrossProfilePairs } from "./workerPool";
 import { NodeSimulationWorkerPool, startNodeSimulationWorker } from "./nodeWorkerPool";
 import { SIMULATION_CLI_DEFAULTS, SIMULATION_DEFAULTS, TRAINING_DEFAULTS } from "../data/configuration";
 import { BOT_PROFILES, type SimulationBatchResult } from "./types";
@@ -36,6 +36,13 @@ Options :
   --next-turn-dice-expectation Pondère les réponses par les dés d’attaque probables
   --debug              Ajoute les détails des décisions IA (avec historique complet)
   --cross-profile      Répartit le total des matchs entre les profils orientés
+  --engine1 <moteur>   Moteur du joueur 1 : heuristic, minimax ou hybrid
+  --engine2 <moteur>   Moteur du joueur 2 : heuristic, minimax ou hybrid
+  --engine-tournament  Lance les six confrontations équilibrées des moteurs
+  --tournament-profiles all Liste de profils étendue, ou all
+  --minimax-depth <n>  Profondeur Expectiminimax
+  --minimax-nodes <n>  Budget de nœuds Expectiminimax
+  --hybrid-depth <n>   Profondeur du moteur hybride
   --train-bots         Ajuste hors ligne les poids stratégiques des profils
   --training-profiles  Profils à entraîner, séparés par des virgules
   --training-mode <mode> Mode default, warmStart ou hybrid
@@ -81,11 +88,34 @@ async function runSimulation(
         strategyWeights,
     );
     const crossProfileMode = args.includes("--cross-profile");
-    const runOptions = crossProfileMode
-        ? { ...options, profilePairs: createCrossProfilePairs() }
-        : options;
+    const engineTournament = args.includes("--engine-tournament");
+    const tournamentProfiles = options.tournamentProfiles;
+    const runOptions = engineTournament
+        ? {
+              ...options,
+              engineTournament: true,
+              enginePairs: createAITournamentPairs(),
+              ...(tournamentProfiles
+                  ? {
+                        profilePairs: tournamentProfiles.flatMap((profile1) =>
+                            tournamentProfiles
+                                .filter((profile2) => profile2 !== profile1)
+                                .map((profile2) => ({ profile1, profile2 })),
+                        ),
+                    }
+                  : {}),
+              games:
+                  options.games *
+                  createAITournamentPairs().length *
+                  (tournamentProfiles
+                      ? tournamentProfiles.length * (tournamentProfiles.length - 1)
+                      : 1),
+          }
+        : crossProfileMode
+          ? { ...options, profilePairs: createCrossProfilePairs() }
+          : options;
     const startedAt = performance.now();
-    const progressInterval = Math.max(1, Math.ceil(options.games / 10));
+    const progressInterval = Math.max(1, Math.ceil(runOptions.games / 10));
     let lastReported = 0;
     const result = await getWorkerPool().run(
         runOptions,
@@ -94,10 +124,10 @@ async function runSimulation(
         (completedMatches) => {
             if (
                 completedMatches - lastReported >= progressInterval ||
-                completedMatches === options.games
+                completedMatches === runOptions.games
             ) {
                 lastReported = completedMatches;
-                console.log(`Matchs terminés : ${completedMatches}/${options.games}`);
+                console.log(`Matchs terminés : ${completedMatches}/${runOptions.games}`);
             }
         },
     );
@@ -105,13 +135,23 @@ async function runSimulation(
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
     const outputPath = resolve(
         output ??
-            (crossProfileMode
+        (engineTournament
+            ? `simulation-results/engine-tournament-seed-${options.seed}.json`
+            : crossProfileMode
                 ? `simulation-results/cross-profile-seed-${options.seed}.json`
                 : `simulation-results/matches-${timestamp}-seed-${options.seed}.json`),
     );
     await writeJsonFile(outputPath, result);
     console.log(
-        formatSummary(result, crossProfileMode ? "Confrontations croisées" : "Matchs", elapsedTime),
+        formatSummary(
+            result,
+            engineTournament
+                ? "Tournoi des IA"
+                : crossProfileMode
+                  ? "Confrontations croisées"
+                  : "Matchs",
+            elapsedTime,
+        ),
     );
     console.log(`Résultats JSON : ${outputPath}`);
 }

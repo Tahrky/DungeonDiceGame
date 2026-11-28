@@ -223,6 +223,18 @@ Le simulateur reproductible s’exécute sans interface :
 npm run simulate -- --games 20 --seed 731 --profile1 tracker --profile2 defensive
 ```
 
+La simulation peut choisir séparément les moteurs du joueur 1 et du joueur 2 :
+
+```sh
+npm run simulate -- --games 20 --seed 731 --profile1 offensive --profile2 defensive --engine1 minimax --engine2 hybrid
+npm run simulate -- --engine-tournament --games 100 --seed 731 --max-turns 30
+npm run simulate -- --engine-tournament --tournament-profiles all --games 100 --seed 731
+```
+
+Les moteurs disponibles sont `heuristic`, `minimax` et `hybrid`. Le tournoi standard génère les
+six confrontations obligatoires et alterne les positions de départ. Les options
+`--minimax-depth`, `--minimax-nodes` et `--hybrid-depth` configurent les recherches.
+
 Chaque match conserve son historique détaillé; l’interface et la CLI exportent ainsi le même
 format de résultats.
 

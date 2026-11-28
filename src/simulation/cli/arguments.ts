@@ -1,6 +1,7 @@
 import { parseDeck } from "../../game/decks";
 import { SIMULATION_CLI_DEFAULTS, SIMULATION_DEFAULTS } from "../../data/configuration";
 import type { GameConfiguration } from "../../game/gameConfiguration";
+import type { BotEngineType } from "../../game/botConfiguration";
 import {
     BOT_PROFILES,
     type BotProfile,
@@ -28,6 +29,13 @@ const SIMULATION_OPTIONS = new Set([
     "--next-turn-dice-expectation",
     "--allow-incompatible-transfer",
     "--debug",
+    "--engine1",
+    "--engine2",
+    "--engine-tournament",
+    "--tournament-profiles",
+    "--minimax-depth",
+    "--minimax-nodes",
+    "--hybrid-depth",
     "--cross-profile",
     "--train-bots",
     "--training-profiles",
@@ -122,6 +130,12 @@ function readProfile(args: string[], name: string): BotProfile {
     throw new Error(`${name} doit être l'un de : ${BOT_PROFILES.join(", ")}.`);
 }
 
+function readEngine(args: string[], name: string): BotEngineType {
+    const value = readOption(args, name, "heuristic");
+    if (value === "heuristic" || value === "minimax" || value === "hybrid") return value;
+    throw new Error(`${name} doit être heuristic, minimax ou hybrid.`);
+}
+
 function readOptionalDeck(args: string[], name: string, deckSize: number): string[] | undefined {
     const value = getOptionalValue(args, name);
     if (value === undefined) return undefined;
@@ -148,12 +162,38 @@ export function parseSimulationArguments(
 
     const profile1 = readProfile(args, "--profile1");
     const profile2 = readProfile(args, "--profile2");
+    const engine1 = readEngine(args, "--engine1");
+    const engine2 = readEngine(args, "--engine2");
+    const minimaxDepth = args.includes("--minimax-depth")
+        ? readIntegerOption(args, "--minimax-depth", 2, 1, 10)
+        : undefined;
+    const minimaxNodes = args.includes("--minimax-nodes")
+        ? readIntegerOption(args, "--minimax-nodes", 250, 1, 100000)
+        : undefined;
+    const hybridDepth = args.includes("--hybrid-depth")
+        ? readIntegerOption(args, "--hybrid-depth", 2, 1, 10)
+        : undefined;
+    const tournamentProfilesValue = getOptionalValue(args, "--tournament-profiles");
+    const tournamentProfiles =
+        tournamentProfilesValue === "all"
+            ? BOT_PROFILES
+            : tournamentProfilesValue
+              ? parseProfileList(tournamentProfilesValue)
+              : undefined;
     const options: SimulationOptions = {
         games: readIntegerOption(args, "--games", SIMULATION_CLI_DEFAULTS.games, 1, 10000),
         seed: readIntegerOption(args, "--seed", SIMULATION_DEFAULTS.seed ?? (Date.now() >>> 0), 0, 0xffff_ffff),
         maxTurns: readIntegerOption(args, "--max-turns", SIMULATION_DEFAULTS.maxTurns, 1, 10000),
         profile1,
         profile2,
+        engine1,
+        engine2,
+        expectiminimax: engine1 === "minimax" || engine1 === "hybrid" ||
+            engine2 === "minimax" || engine2 === "hybrid",
+        ...(minimaxDepth === undefined ? {} : { expectiminimaxMaxDepth: minimaxDepth }),
+        ...(hybridDepth === undefined ? {} : { expectiminimaxMaxDepth: hybridDepth }),
+        ...(minimaxNodes === undefined ? {} : { expectiminimaxNodeBudget: minimaxNodes }),
+        ...(tournamentProfiles === undefined ? {} : { tournamentProfiles }),
         debug: args.includes("--debug"),
         recordDecisionTraces: args.includes("--record-decisions"),
         ...Object.fromEntries(

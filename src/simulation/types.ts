@@ -1,6 +1,7 @@
 import type { BoardDefinition } from "../game/boards";
 import type { GameConfiguration } from "../game/gameConfiguration";
-import type { BotDecisionOptions } from "../game/botConfiguration";
+import type { BotDecisionOptions, BotEngineType } from "../game/botConfiguration";
+export type { BotEngineType } from "../game/botConfiguration";
 import type {
     DiceReserve,
     MonsterStatusEffect,
@@ -20,6 +21,11 @@ export interface ProfilePair {
     profile2: BotProfile;
 }
 
+export interface EnginePair {
+    engine1: BotEngineType;
+    engine2: BotEngineType;
+}
+
 export interface PlayerSimulationOptions {
     movementAttackCombos?: boolean;
     summonPlacementPairs?: boolean;
@@ -33,6 +39,9 @@ export interface SimulationOptions extends BotDecisionOptions {
     profile1: BotProfile;
     profile2: BotProfile;
     profilePairs?: readonly ProfilePair[];
+    enginePairs?: readonly EnginePair[];
+    engineTournament?: boolean;
+    tournamentProfiles?: readonly BotProfile[];
     debug?: boolean;
     recordDecisionTraces?: boolean;
     playerOptions?: Partial<Record<PlayerId, PlayerSimulationOptions>>;
@@ -144,6 +153,7 @@ export interface MatchResult {
     seed: number;
     startingPlayer: PlayerId;
     profiles: Record<PlayerId, BotProfile>;
+    engines?: Record<PlayerId, BotEngineType>;
     decks: Record<PlayerId, string[]>;
     winner: PlayerId | null;
     finishReason: "baseDestroyed" | "monstersEliminated" | "turnLimit";

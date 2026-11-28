@@ -1,7 +1,7 @@
 import type { BoardDefinition } from "../../game/boards";
 import type { DiceReserve, Monster, PlayerId } from "../../types/GameTypes";
 import type { OutcomeRate } from "../statistics";
-import type { BotProfile, FinalBoard, FinalMonster, SimulationEvent } from "../types";
+import type { BotProfile, BotEngineType, FinalBoard, FinalMonster, SimulationEvent } from "../types";
 
 export interface AnalyzablePlayerStats {
     summoned: number;
@@ -49,6 +49,7 @@ export interface AnalyzableMatch {
     seed: number;
     startingPlayer: PlayerId;
     profiles: Record<PlayerId, BotProfile>;
+    engines?: Record<PlayerId, BotEngineType>;
     decks: Record<PlayerId, string[]>;
     winner: PlayerId | null;
     finishReason: "baseDestroyed" | "monstersEliminated" | "turnLimit";

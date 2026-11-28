@@ -62,6 +62,9 @@ export function createInitialState(
         strategyWeights,
         decisionTraces: options.recordDecisionTraces ? [] : undefined,
         profiles,
+        engines: byPlayer((player) =>
+            player === 1 ? options.engine1 ?? "heuristic" : options.engine2 ?? "heuristic",
+        ),
         tactics: byPlayer(
             (player) => chooseBotTactic(profiles[player], profiles[opposingPlayer(player)]).tactic,
         ),
@@ -162,7 +165,12 @@ function createMatch(
                 options.playerOptions?.[player]?.summonPlacementPairs ??
                 options.summonPlacementPairs === true;
             state.expectiminimax =
-                options.playerOptions?.[player]?.expectiminimax ?? options.expectiminimax === true;
+                options.playerOptions?.[player]?.expectiminimax ??
+                (state.engines?.[player] === "heuristic"
+                    ? false
+                    : state.engines?.[player] === "minimax" ||
+                        state.engines?.[player] === "hybrid" ||
+                        options.expectiminimax === true);
             const startedAt = turnDurationsMs ? performance.now() : 0;
             playPlayerTurn(context, player);
             if (turnDurationsMs) turnDurationsMs[player].push(performance.now() - startedAt);
@@ -175,6 +183,7 @@ function createMatch(
         seed,
         startingPlayer,
         profiles: state.profiles,
+        engines: state.engines,
         decks,
         winner: state.winner,
         finishReason: state.finishReason,
@@ -191,6 +200,16 @@ function createMatch(
 }
 
 function validateSimulationOptions(options: SimulationOptions, startIndex: number): void {
+    if (
+        options.enginePairs !== undefined &&
+        options.enginePairs.some(
+            ({ engine1, engine2 }) =>
+                !["heuristic", "minimax", "hybrid"].includes(engine1) ||
+                !["heuristic", "minimax", "hybrid"].includes(engine2),
+        )
+    ) {
+        throw new RangeError("Une confrontation contient un moteur invalide.");
+    }
     if (
         options.measureTurnDurations !== undefined &&
         typeof options.measureTurnDurations !== "boolean"
@@ -283,17 +302,32 @@ export function runSimulations(
     for (const monster of configuration.monsters) {
         if (!monstersById.has(monster.id)) monstersById.set(monster.id, monster);
     }
-    const profilePairCount = options.profilePairs?.length ?? 1;
+    const matchupCount =
+        (options.profilePairs?.length ?? 1) * (options.enginePairs?.length ?? 1);
+    const pairedTournament = options.engineTournament === true;
     const matches = Array.from({ length: options.games }, (_, index) => {
         const matchIndex = startIndex + index;
-        const pairIndex = matchIndex % profilePairCount;
-        const repetitionIndex = Math.floor(matchIndex / profilePairCount);
-        const profilePair = options.profilePairs?.[pairIndex];
+        const profilePairCount = options.profilePairs?.length ?? 1;
+        const enginePairCount = options.enginePairs?.length ?? 1;
+        const matchupIndex = matchIndex % matchupCount;
+        const repetitionIndex = Math.floor(matchIndex / matchupCount);
+        const profilePairIndex = matchupIndex % profilePairCount;
+        const enginePairIndex = Math.floor(matchupIndex / profilePairCount) % enginePairCount;
+        const profilePair = options.profilePairs?.[profilePairIndex];
+        const enginePair = options.enginePairs?.[enginePairIndex];
         const match = createMatch(
             matchIndex + 1,
-            (options.seed + matchIndex) >>> 0,
-            (pairIndex + repetitionIndex) % 2 === 0 ? 1 : 2,
-            profilePair ? { ...options, ...profilePair } : options,
+            (options.seed + (pairedTournament ? repetitionIndex : matchIndex)) >>> 0,
+            (pairedTournament ? repetitionIndex : matchupIndex + repetitionIndex) % 2 === 0
+                ? 1
+                : 2,
+            {
+                ...options,
+                ...(profilePair ?? {}),
+                ...(enginePair
+                    ? { engine1: enginePair.engine1, engine2: enginePair.engine2 }
+                    : {}),
+            },
             configuration,
             board,
             monstersById,

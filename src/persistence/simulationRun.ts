@@ -44,6 +44,12 @@ function isProfilePair(pair: unknown): boolean {
     );
 }
 
+function isEnginePair(pair: unknown): boolean {
+    if (!isRecord(pair)) return false;
+    const engines = ["heuristic", "minimax", "hybrid"];
+    return engines.includes(String(pair.engine1)) && engines.includes(String(pair.engine2));
+}
+
 export function parseSimulationOptions(value: unknown): SimulationOptions | null {
     if (
         !isRecord(value) ||
@@ -56,6 +62,9 @@ export function parseSimulationOptions(value: unknown): SimulationOptions | null
             typeof value.recordDecisionTraces !== "boolean") ||
         (value.profilePairs !== undefined &&
             (!Array.isArray(value.profilePairs) || !value.profilePairs.every(isProfilePair)))
+        ||
+        (value.enginePairs !== undefined &&
+            (!Array.isArray(value.enginePairs) || !value.enginePairs.every(isEnginePair)))
     ) {
         return null;
     }

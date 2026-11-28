@@ -19,6 +19,9 @@ const simulationDefaults = vi.hoisted(() => {
         expectiminimaxMaxDepth: 2,
         expectiminimaxBranchWidth: 5,
         expectiminimaxNodeBudget: 250,
+        simulationMode: "classic",
+        engine1: "heuristic",
+        engine2: "heuristic",
     };
 });
 
@@ -74,6 +77,9 @@ describe("configuration centralisée", () => {
             expectiminimaxMaxDepth: "2",
             expectiminimaxBranchWidth: "5",
             expectiminimaxNodeBudget: "250",
+            simulationMode: "classic",
+            engine1: "heuristic",
+            engine2: "heuristic",
         });
     });
 

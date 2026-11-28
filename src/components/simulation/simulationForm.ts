@@ -1,7 +1,8 @@
 import type { BotProfile } from "../../game/botStrategy";
 import { SIMULATION_DEFAULTS } from "../../data/configuration";
 import type { SimulationOptions } from "../../simulation/types";
-import { createCrossProfilePairs } from "../../simulation/workerPool";
+import type { BotEngineType } from "../../simulation/types";
+import { createAITournamentPairs, createCrossProfilePairs } from "../../simulation/workerPool";
 import { isIntegerInRange } from "../../utils/guards";
 
 export interface SimulationFormValues {
@@ -18,6 +19,9 @@ export interface SimulationFormValues {
     readonly expectiminimaxMaxDepth: string;
     readonly expectiminimaxBranchWidth: string;
     readonly expectiminimaxNodeBudget: string;
+    readonly simulationMode: "classic" | "engineTournament" | "engineProfileTournament";
+    readonly engine1: BotEngineType;
+    readonly engine2: BotEngineType;
 }
 
 export type SimulationFormChange = <Key extends keyof SimulationFormValues>(
@@ -43,18 +47,30 @@ export function createInitialFormValues(): SimulationFormValues {
         expectiminimaxMaxDepth: String(SIMULATION_DEFAULTS.expectiminimaxMaxDepth),
         expectiminimaxBranchWidth: String(SIMULATION_DEFAULTS.expectiminimaxBranchWidth),
         expectiminimaxNodeBudget: String(SIMULATION_DEFAULTS.expectiminimaxNodeBudget),
+        simulationMode: SIMULATION_DEFAULTS.simulationMode,
+        engine1: SIMULATION_DEFAULTS.engine1,
+        engine2: SIMULATION_DEFAULTS.engine2,
     };
 }
 
 export function getFormValuesFromOptions(options: SimulationOptions): SimulationFormValues {
     const pairCount = options.profilePairs?.length;
+    const tournamentPairCount =
+        (options.enginePairs?.length ?? 1) * (pairCount ?? 1);
+    const gameCount = options.engineTournament
+        ? options.games / tournamentPairCount
+        : options.games;
     return {
         profile1: options.profile1,
         profile2: options.profile2,
         crossProfileMode: pairCount !== undefined,
-        gameCount: String(options.games),
+        gameCount: String(gameCount),
         repetitionCount: String(
-            pairCount === undefined ? options.games : options.games / pairCount,
+            options.engineTournament
+                ? gameCount
+                : pairCount === undefined
+                  ? gameCount
+                  : options.games / pairCount,
         ),
         seed: String(options.seed),
         maxTurns: String(options.maxTurns),
@@ -64,6 +80,11 @@ export function getFormValuesFromOptions(options: SimulationOptions): Simulation
         expectiminimaxMaxDepth: String(options.expectiminimaxMaxDepth ?? 2),
         expectiminimaxBranchWidth: String(options.expectiminimaxBranchWidth ?? 5),
         expectiminimaxNodeBudget: String(options.expectiminimaxNodeBudget ?? 250),
+        simulationMode: options.engineTournament
+            ? (options.tournamentProfiles ? "engineProfileTournament" : "engineTournament")
+            : "classic",
+        engine1: options.engine1 ?? "heuristic",
+        engine2: options.engine2 ?? "heuristic",
     };
 }
 
@@ -96,15 +117,28 @@ export function buildSimulationOptions(values: SimulationFormValues): Simulation
         return { error: "Le budget doit être compris entre 1 et 100 000 nœuds." };
     }
 
-    const profilePairs = crossProfileMode ? createCrossProfilePairs() : undefined;
+    const profilePairs =
+        values.simulationMode === "engineProfileTournament"
+            ? createCrossProfilePairs()
+            : values.simulationMode === "classic" && crossProfileMode
+              ? createCrossProfilePairs()
+              : undefined;
+    const enginePairs =
+        values.simulationMode === "classic" ? undefined : createAITournamentPairs();
+    const profilePairCount = profilePairs?.length ?? 1;
+    const enginePairCount = enginePairs?.length ?? 1;
     return {
         options: {
-            games: count * (profilePairs?.length ?? 1),
+            games: count * profilePairCount * enginePairCount,
             seed,
             maxTurns,
             profile1: values.profile1,
             profile2: values.profile2,
             ...(profilePairs === undefined ? {} : { profilePairs }),
+            ...(enginePairs === undefined ? {} : { enginePairs }),
+            engineTournament: values.simulationMode !== "classic",
+            engine1: values.engine1,
+            engine2: values.engine2,
             debug: values.debug,
             recordDecisionTraces: values.recordDecisionTraces,
             expectiminimax: values.expectiminimax,

@@ -1,4 +1,4 @@
-import { NumberField, ProfileSelect, ToggleField } from "../common/FormFields";
+import { NumberField, ProfileSelect, SelectField, ToggleField } from "../common/FormFields";
 import { CROSS_PROFILE_MATCHUP_COUNT } from "../../simulation/workerPool";
 import type { SimulationFormChange, SimulationFormValues } from "./simulationForm";
 
@@ -18,7 +18,7 @@ export function SimulationSettingsFields({ values, onChange }: SimulationSetting
     return (
         <>
             <div className="settings-grid">
-                {!crossProfileMode && (
+                {values.simulationMode === "classic" && !crossProfileMode && (
                     <>
                         <ProfileSelect
                             label="Profil du joueur 1"
@@ -34,8 +34,10 @@ export function SimulationSettingsFields({ values, onChange }: SimulationSetting
                 )}
                 <NumberField
                     label={
-                        crossProfileMode
-                            ? "Nombre de répétitions (1–1 000)"
+                        values.simulationMode !== "classic"
+                            ? "Parties par confrontation (1–1 000)"
+                            : crossProfileMode
+                              ? "Nombre de répétitions (1–1 000)"
                             : "Nombre de matchs (1–1 000)"
                     }
                     min={1}
@@ -58,17 +60,59 @@ export function SimulationSettingsFields({ values, onChange }: SimulationSetting
                     onChange={bind("maxTurns")}
                 />
             </div>
-            {crossProfileMode && (
+            <SelectField
+                label="Mode de simulation"
+                value={values.simulationMode}
+                onChange={(value) =>
+                    bind("simulationMode")(value as SimulationFormValues["simulationMode"])
+                }
+            >
+                <option value="classic">Simulation classique</option>
+                <option value="engineTournament">Tournoi des IA</option>
+                <option value="engineProfileTournament">Tournoi moteurs × profils</option>
+            </SelectField>
+            {values.simulationMode === "classic" && (
+                <div className="settings-grid">
+                    <SelectField
+                        label="Moteur du joueur 1"
+                        value={values.engine1}
+                        onChange={(value) => bind("engine1")(value as typeof values.engine1)}
+                    >
+                        <option value="heuristic">Heuristique</option>
+                        <option value="minimax">Minimax / Expectiminimax</option>
+                        <option value="hybrid">Hybride</option>
+                    </SelectField>
+                    <SelectField
+                        label="Moteur du joueur 2"
+                        value={values.engine2}
+                        onChange={(value) => bind("engine2")(value as typeof values.engine2)}
+                    >
+                        <option value="heuristic">Heuristique</option>
+                        <option value="minimax">Minimax / Expectiminimax</option>
+                        <option value="hybrid">Hybride</option>
+                    </SelectField>
+                </div>
+            )}
+            {values.simulationMode === "classic" && crossProfileMode && (
                 <p className="simulation-description">
                     Chaque répétition fait s’affronter chaque paire de profils dans les deux sens
                     (J1 puis J2), soit {CROSS_PROFILE_MATCHUP_COUNT} matchs.
                 </p>
             )}
-            <ToggleField
-                label="Confrontation complète des profils"
-                checked={crossProfileMode}
-                onChange={bind("crossProfileMode")}
-            />
+            {values.simulationMode !== "classic" && (
+                <p className="simulation-description">
+                    Chaque confrontation reçoit le même nombre de parties, avec les positions de
+                    départ alternées. Le nombre total de matchs est multiplié par le nombre de
+                    confrontations.
+                </p>
+            )}
+            {values.simulationMode === "classic" && (
+                <ToggleField
+                    label="Confrontation complète des profils"
+                    checked={crossProfileMode}
+                    onChange={bind("crossProfileMode")}
+                />
+            )}
             <ToggleField
                 label="Enregistrer les évolutions des bots"
                 checked={recordDecisionTraces}

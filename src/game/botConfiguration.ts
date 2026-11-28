@@ -1,6 +1,8 @@
 import { isPlainRecord } from "../utils/guards";
 import type { GameConfiguration } from "./gameConfiguration";
 
+export type BotEngineType = "heuristic" | "minimax" | "hybrid";
+
 export interface BotDecisionOptions {
     completeAttackPhases?: boolean;
     broaderAttackCandidates?: boolean;
@@ -11,6 +13,8 @@ export interface BotDecisionOptions {
     expectiminimaxMaxDepth?: number;
     expectiminimaxBranchWidth?: number;
     expectiminimaxNodeBudget?: number;
+    engine1?: BotEngineType;
+    engine2?: BotEngineType;
 }
 
 const OPTION_KEYS = new Set([
@@ -23,6 +27,8 @@ const OPTION_KEYS = new Set([
     "expectiminimaxMaxDepth",
     "expectiminimaxBranchWidth",
     "expectiminimaxNodeBudget",
+    "engine1",
+    "engine2",
 ]);
 
 export function parseBotDecisionOptions(value: unknown): BotDecisionOptions | null {
@@ -31,6 +37,10 @@ export function parseBotDecisionOptions(value: unknown): BotDecisionOptions | nu
     }
     for (const [key, option] of Object.entries(value)) {
         if (!OPTION_KEYS.has(key)) return null;
+        if (key === "engine1" || key === "engine2") {
+            if (option !== "heuristic" && option !== "minimax" && option !== "hybrid") return null;
+            continue;
+        }
         if (
             key === "expectiminimaxMaxDepth" ||
             key === "expectiminimaxBranchWidth" ||
@@ -69,6 +79,8 @@ export function parseBotDecisionOptions(value: unknown): BotDecisionOptions | nu
         ...(value.expectiminimaxNodeBudget === undefined
             ? {}
             : { expectiminimaxNodeBudget: value.expectiminimaxNodeBudget as number }),
+        ...(value.engine1 === undefined ? {} : { engine1: value.engine1 as BotEngineType }),
+        ...(value.engine2 === undefined ? {} : { engine2: value.engine2 as BotEngineType }),
     };
 }
 

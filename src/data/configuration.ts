@@ -70,6 +70,9 @@ export const SIMULATION_DEFAULTS = {
     expectiminimaxMaxDepth: 10,
     expectiminimaxBranchWidth: 5,
     expectiminimaxNodeBudget: 500,
+    simulationMode: "classic",
+    engine1: "heuristic",
+    engine2: "heuristic",
 } as const satisfies {
     profile1: BotProfile;
     profile2: BotProfile;
@@ -84,6 +87,9 @@ export const SIMULATION_DEFAULTS = {
     expectiminimaxMaxDepth: number;
     expectiminimaxBranchWidth: number;
     expectiminimaxNodeBudget: number;
+    simulationMode: "classic" | "engineTournament" | "engineProfileTournament";
+    engine1: "heuristic" | "minimax" | "hybrid";
+    engine2: "heuristic" | "minimax" | "hybrid";
 };
 
 export const SIMULATION_CLI_DEFAULTS = {

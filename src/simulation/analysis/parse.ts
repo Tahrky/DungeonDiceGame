@@ -18,6 +18,10 @@ function isPlayerId(value: unknown): value is PlayerId {
     return value === 1 || value === 2;
 }
 
+function isBotEngine(value: unknown): boolean {
+    return value === "heuristic" || value === "minimax" || value === "hybrid";
+}
+
 function isAnalysisConfiguration(value: unknown): value is SimulationAnalysisConfiguration {
     if (
         !isRecord(value) ||
@@ -179,6 +183,10 @@ function isMatch(value: unknown): value is AnalyzableMatch {
         isPlayerId(value.startingPlayer) &&
         isProfile(value.profiles[1]) &&
         isProfile(value.profiles[2]) &&
+        (value.engines === undefined ||
+            (isRecord(value.engines) &&
+                isBotEngine(value.engines[1]) &&
+                isBotEngine(value.engines[2]))) &&
         Array.isArray(value.decks[1]) &&
         value.decks[1].every((id) => typeof id === "string") &&
         Array.isArray(value.decks[2]) &&

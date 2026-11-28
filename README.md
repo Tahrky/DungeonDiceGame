@@ -52,6 +52,15 @@ pas le cache HTTP du navigateur.
 Le laboratoire de simulation est accessible depuis **Options → Simulations** ou avec la touche
 **S** sur l’écran d’accueil.
 
+Les simulations classiques permettent de choisir indépendamment le moteur heuristique,
+Minimax/Expectiminimax ou hybride de chaque joueur. Le laboratoire propose aussi les modes
+« Tournoi des IA » et « Tournoi moteurs × profils ». La même comparaison peut être lancée sans
+interface :
+
+```sh
+npm run simulate -- --engine-tournament --games 100 --seed 731
+```
+
 ## Sprites animés
 
 Les spritesheets peuvent être organisées en grille (comme le golem) ou sur une seule ligne (comme le chevalier). Chaque frame doit avoir les dimensions indiquées par `frameWidth` et `frameHeight` dans `src/data/monsterSprites.ts` (180 × 180 actuellement). Le jeu détecte automatiquement le nombre de frames dans chaque image à partir de la texture chargée; il n’est pas nécessaire de le renseigner dans la configuration. Le nombre de frames peut donc varier selon l’action.

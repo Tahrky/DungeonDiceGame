@@ -6,11 +6,25 @@ import {
     type ProfilePair,
     type SimulationBatchResult,
     type SimulationOptions,
+    type EnginePair,
 } from "./types";
 
 export const MAX_SIMULATION_WORKERS = 4;
 
 export const CROSS_PROFILE_MATCHUP_COUNT = BOT_PROFILES.length * (BOT_PROFILES.length - 1);
+
+export const AI_TOURNAMENT_PAIRS: readonly EnginePair[] = [
+    { engine1: "heuristic", engine2: "heuristic" },
+    { engine1: "heuristic", engine2: "minimax" },
+    { engine1: "heuristic", engine2: "hybrid" },
+    { engine1: "minimax", engine2: "minimax" },
+    { engine1: "minimax", engine2: "hybrid" },
+    { engine1: "hybrid", engine2: "hybrid" },
+];
+
+export function createAITournamentPairs(): EnginePair[] {
+    return AI_TOURNAMENT_PAIRS.map((pair) => ({ ...pair }));
+}
 
 const CHUNKS_PER_WORKER = 4;
 

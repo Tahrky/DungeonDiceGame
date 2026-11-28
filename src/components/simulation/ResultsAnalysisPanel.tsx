@@ -13,6 +13,7 @@ import { JsonFileButton } from "../common/JsonFileButton";
 import { GeneralStatistics } from "./GeneralStatistics";
 import { MatchInspector } from "./MatchInspector";
 import { ProfileStatistics } from "./ProfileStatistics";
+import { analyzeEngineTournament } from "../../simulation/tournament";
 
 interface ResultsAnalysisPanelProps {
     readonly generatedResult: SimulationBatchResult | null;
@@ -27,6 +28,7 @@ const TABS = [
     { id: "general", label: "Statistiques générales" },
     { id: "profile", label: "Statistiques par profil" },
     { id: "match", label: "Statistiques d’une partie" },
+    { id: "engines", label: "Classement des moteurs" },
 ] as const;
 
 export function ResultsAnalysisPanel({ generatedResult }: ResultsAnalysisPanelProps) {
@@ -149,6 +151,35 @@ export function ResultsAnalysisPanel({ generatedResult }: ResultsAnalysisPanelPr
                             />
                         ) : activeTab === "profile" ? (
                             <ProfileStatistics data={analysis.data} />
+                        ) : activeTab === "engines" ? (
+                            <div className="simulation-table-scroll">
+                                <table className="simulation-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Moteur</th>
+                                            <th>Points</th>
+                                            <th>Parties</th>
+                                            <th>Victoires</th>
+                                            <th>Nuls</th>
+                                            <th>Défaites</th>
+                                            <th>Tours moyens</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {analyzeEngineTournament(analysis.data.matches).map((result) => (
+                                            <tr key={result.engine}>
+                                                <td>{result.engine}</td>
+                                                <td>{result.points.toFixed(1)}</td>
+                                                <td>{result.played}</td>
+                                                <td>{result.wins}</td>
+                                                <td>{result.draws}</td>
+                                                <td>{result.losses}</td>
+                                                <td>{result.averageTurns.toFixed(1)}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
                         ) : (
                             <MatchInspector
                                 matches={analysis.data.matches}

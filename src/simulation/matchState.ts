@@ -4,6 +4,7 @@ import type { StrategicSnapshot } from "../game/ai";
 import type { BoardDefinition } from "../game/boards";
 import type { BoardObstacle, PlayerId, PlacedMonster, Position } from "../types/GameTypes";
 import type { BotTactic, BotStrategyWeights } from "../game/botStrategy";
+import type { BotEngineType } from "../game/botConfiguration";
 import type {
     BotProfile,
     MatchResult,
@@ -36,6 +37,7 @@ export interface MatchState {
     strategyWeights?: Record<PlayerId, Readonly<BotStrategyWeights>>;
     decisionTraces?: TacticalDecisionTrace[];
     profiles: Record<PlayerId, BotProfile>;
+    engines?: Record<PlayerId, BotEngineType>;
     tactics: Record<PlayerId, BotTactic>;
     allowBaseAttackOnSummonTurn: boolean;
     winner: PlayerId | null;
@@ -119,6 +121,7 @@ export function cloneMatchState(state: MatchState): MatchState {
     return {
         ...state,
         profiles: { ...state.profiles },
+        engines: { ...state.engines },
         tactics: { ...state.tactics },
         health: { ...state.health },
         reserves: byPlayer((player) => ({ ...state.reserves[player] })),
